@@ -403,6 +403,7 @@ The game launches into the **Tank.exe Title Menu**:
   - `↑` / `↓` move the selection highlight (wraps around).
   - `Space` or `Enter` (main + numpad) activates the highlighted item.
   - `Esc` goes back one level; at top pause level it resumes the game.
+  - **Mouse:** hovering an item highlights it; a left click activates it (same as `Space`/`Enter`).
   - When Help modal is open, `↑` / `↓` / `PageUp` / `PageDown` scroll the modal content.
 - The game auto-pauses when the browser tab loses focus.
 

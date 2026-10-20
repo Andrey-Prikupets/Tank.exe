@@ -29,11 +29,17 @@ export function createMenu(root) {
       const li = document.createElement('li');
       li.textContent = labelOf(it);
       if (i === s.index) li.classList.add('sel');
+      // Only move the highlight: rebuilding the list here would destroy the element
+      // between mousedown and mouseup, so the click would never fire.
       li.addEventListener('mouseenter', () => {
+        if (s.index === i) return;
         s.index = i;
-        render();
+        [...listEl.children].forEach((el, k) => el.classList.toggle('sel', k === i));
       });
-      li.addEventListener('click', () => activate(i));
+      li.addEventListener('click', (e) => {
+        e.stopPropagation();
+        activate(i);
+      });
       listEl.appendChild(li);
     });
   }

@@ -271,6 +271,7 @@ window.addEventListener('keydown', (e) => {
   if (appState === 'PLAYING' && input.keyDown(e)) e.preventDefault();
 });
 window.addEventListener('keyup', (e) => input.keyUp(e));
+window.addEventListener('pointerdown', () => sfx.resume());
 window.addEventListener('blur', () => {
   input.clear();
   if (appState === 'PLAYING' && !menu.isOpen() && !world.over) openPause();
