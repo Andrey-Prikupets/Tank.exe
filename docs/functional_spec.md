@@ -7,7 +7,7 @@
 
 ## 1. Overview
 
-**Tank.exe** is a browser remake of a 90s split-screen 3D tank combat game for **two players sharing one keyboard**. The `.exe` extension evokes the golden era of 90s DOS/Windows executable games.
+**Tank.exe** is a browser remake of a 90s split-screen 3D tank combat game for **two players sharing one keyboard**. The `.exe` extension evokes the golden era of 90s MS-DOS executable games.
 
 - Each player commands up to **5 tanks on the field** and has **10 spare tanks** in a hangar
   (15 tanks total per player).
