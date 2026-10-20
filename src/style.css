@@ -338,22 +338,31 @@ html, body {
   padding: 0;
 }
 .m-items li {
+  display: flex;
+  align-items: center;
   padding: 10px 16px;
   margin: 4px 0;
   border-radius: 6px;
   font-size: 20px;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: background .1s, transform .1s;
+  transition: background .1s, border-color .1s, color .1s;
+}
+.m-items li::before {
+  content: "▶";
+  display: inline-block;
+  width: 18px;
+  margin-right: 12px;
+  flex-shrink: 0;
+  color: transparent;
+  transition: color .08s ease;
 }
 .m-items li.sel {
   background: rgba(255,213,74,.14);
   border-color: var(--accent);
   color: #fff;
-  transform: translateX(6px);
 }
 .m-items li.sel::before {
-  content: "▶ ";
   color: var(--accent);
 }
 .m-hint {

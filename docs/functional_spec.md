@@ -32,7 +32,7 @@
 | Language | JavaScript (ES modules), HTML, vanilla CSS. |
 | 3D | Three.js. **No textures** — solid colors, flat/Lambert shading. **[A1]** |
 | Map | 2D `<canvas>` drawn each frame. |
-| Build | Vite (`npm run build` generates standalone static files in `dist/`). **[A2]** |
+| Build | Vite (`build.cmd` / `npm run build` generates standalone static files in `dist/`). **[A2]** |
 | Simulation | Fixed timestep (`SIM_TICK_HZ`), rendering decoupled (requestAnimationFrame). Deterministic state → simple save/load. |
 | Persistence | `localStorage`. |
 | Deployment | Continuous Deployment to GitHub Pages on every commit to `main` via GitHub Actions. |
@@ -122,7 +122,7 @@
   extending forward directly from the **octagonal turret** head (`TURRET_RADIUS_M`), shaded in a darker team color.
   - Left team red, right team blue.
   - **Selected tank** of each player drawn in a **brighter** shade of team color.
-  - Tank **number digit** (1..5 for both teams) drawn large and centered **inside the octagonal turret** (always upright, rendered via pre-rasterized sprites to eliminate sub-pixel rasterization jitter/shaking during movement).
+  - Tank **number digit** (1..5 for both teams) drawn large, bold, and centered **inside the octagonal turret** (always upright, drawn using a custom bold tactical block font with a high-contrast dark outline, pre-rasterized to eliminate sub-pixel rasterization jitter/shaking during movement).
 - Spare tanks drawn in their hangar slots; numbered spares show their digit (1..5), unnumbered ones are blank.
 - Shells: small bright dots. Mines: small dark dots/crosses. **[A5]**
 - Smoke clouds: gray filled circles drawn **above** tanks (tanks inside are hidden on the map). **[A6]**
@@ -404,6 +404,7 @@ The game launches into the **Tank.exe Title Menu**:
   - `Space` or `Enter` (main + numpad) activates the highlighted item.
   - `Esc` goes back one level; at top pause level it resumes the game.
   - **Mouse:** hovering an item highlights it; a left click activates it (same as `Space`/`Enter`).
+  - Menu item selection indicator: A reserved-space triangle mark (`▶`) precedes items; space is permanently reserved so navigating does not shift item text horizontally.
   - When Help modal is open, `↑` / `↓` / `PageUp` / `PageDown` scroll the modal content.
 - The game auto-pauses when the browser tab loses focus.
 

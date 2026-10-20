@@ -13,24 +13,63 @@ export function createMap2D(canvas) {
   let dpr = 1;
 
   const digitSprites = {};
+  function renderTacticalDigit(cctx, num, expand = 0) {
+    const e = expand;
+    switch (num) {
+      case '1':
+        cctx.fillRect(48 - e, 14 - e, 32 + 2 * e, 100 + 2 * e);
+        cctx.fillRect(24 - e, 94 - e, 80 + 2 * e, 20 + 2 * e);
+        cctx.beginPath();
+        cctx.moveTo(24 - e, 46 + e);
+        cctx.lineTo(48 + e, 14 - e);
+        cctx.lineTo(48 + e, 46 + e);
+        cctx.closePath();
+        cctx.fill();
+        break;
+      case '2':
+        cctx.fillRect(24 - e, 14 - e, 80 + 2 * e, 22 + 2 * e);
+        cctx.fillRect(82 - e, 14 - e, 22 + 2 * e, 46 + 2 * e);
+        cctx.fillRect(24 - e, 52 - e, 80 + 2 * e, 22 + 2 * e);
+        cctx.fillRect(24 - e, 68 - e, 22 + 2 * e, 46 + 2 * e);
+        cctx.fillRect(24 - e, 92 - e, 80 + 2 * e, 22 + 2 * e);
+        break;
+      case '3':
+        cctx.fillRect(24 - e, 14 - e, 80 + 2 * e, 22 + 2 * e);
+        cctx.fillRect(36 - e, 52 - e, 68 + 2 * e, 22 + 2 * e);
+        cctx.fillRect(24 - e, 92 - e, 80 + 2 * e, 22 + 2 * e);
+        cctx.fillRect(82 - e, 14 - e, 22 + 2 * e, 100 + 2 * e);
+        break;
+      case '4':
+        cctx.fillRect(24 - e, 14 - e, 22 + 2 * e, 52 + 2 * e);
+        cctx.fillRect(24 - e, 56 - e, 80 + 2 * e, 22 + 2 * e);
+        cctx.fillRect(76 - e, 14 - e, 28 + 2 * e, 100 + 2 * e);
+        break;
+      case '5':
+        cctx.fillRect(24 - e, 14 - e, 80 + 2 * e, 22 + 2 * e);
+        cctx.fillRect(24 - e, 14 - e, 22 + 2 * e, 48 + 2 * e);
+        cctx.fillRect(24 - e, 52 - e, 80 + 2 * e, 22 + 2 * e);
+        cctx.fillRect(82 - e, 66 - e, 22 + 2 * e, 48 + 2 * e);
+        cctx.fillRect(24 - e, 92 - e, 80 + 2 * e, 22 + 2 * e);
+        break;
+    }
+  }
+
   function makeDigitSprites() {
     for (const num of ['1', '2', '3', '4', '5']) {
       const c = document.createElement('canvas');
       c.width = 128;
       c.height = 128;
       const cctx = c.getContext('2d');
-      cctx.textAlign = 'center';
-      cctx.textBaseline = 'middle';
+      // Dark high-contrast silhouette border
+      cctx.fillStyle = '#050a06';
+      renderTacticalDigit(cctx, num, 6);
+      // Crisp solid white glyph
       cctx.fillStyle = '#ffffff';
-      cctx.font = 'bold 96px "Share Tech Mono", monospace';
-      cctx.fillText(num, 64, 64);
+      renderTacticalDigit(cctx, num, 0);
       digitSprites[num] = c;
     }
   }
   makeDigitSprites();
-  if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(makeDigitSprites);
-  }
 
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, C.MAX_PIXEL_RATIO);
@@ -180,7 +219,7 @@ export function createMap2D(canvas) {
         ctx.save();
         ctx.translate(tx, 0);
         ctx.rotate(-t.heading); // Un-rotate to stay upright
-        const digitSize = tr * 1.55;
+        const digitSize = tr * 1.8;
         ctx.drawImage(digitSprites[t.number], -digitSize / 2, -digitSize / 2, digitSize, digitSize);
         ctx.restore();
       }
