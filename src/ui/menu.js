@@ -4,6 +4,7 @@ import * as C from '../constants.js';
 export function createMenu(root) {
   const stack = [];
   const titleEl = root.querySelector('.m-title');
+  const versionEl = root.querySelector('.m-version');
   const textEl = root.querySelector('.m-text');
   const scrollWrap = root.querySelector('.m-scroll-wrap');
   const listEl = root.querySelector('.m-items');
@@ -16,6 +17,9 @@ export function createMenu(root) {
     root.classList.toggle('hidden', !s);
     if (!s) return;
     titleEl.textContent = s.title;
+    if (versionEl) {
+      versionEl.textContent = s.version || C.VERSION_LABEL;
+    }
     textEl.innerHTML = typeof s.text === 'function' ? s.text() : s.text || '';
     if (scrollWrap) {
       scrollWrap.scrollTop = 0;

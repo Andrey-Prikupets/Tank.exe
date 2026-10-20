@@ -267,6 +267,15 @@ html, body {
   text-shadow: 0 0 18px rgba(255,213,74,.4);
 }
 
+.m-version {
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: #7d967d;
+  margin: -2px 0 10px;
+  text-transform: uppercase;
+}
+
 .m-scroll-wrap {
   max-height: 54vh;
   overflow-y: auto;

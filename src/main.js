@@ -156,7 +156,7 @@ function quitScreen() {
     text: `
       <div class="dos-box">
         C:\\GAMES\\TANK&gt; EXIT<br><br>
-        [ Tank.exe session terminated ]<br>
+        [ Tank.exe ${C.VERSION_LABEL} session terminated ]<br>
         Memory released: 640K conventional RAM.<br><br>
         Thank you for playing Tank.exe!
       </div>

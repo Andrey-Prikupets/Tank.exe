@@ -35,6 +35,9 @@
 | Build | Vite (`npm run build` generates standalone static files in `dist/`). **[A2]** |
 | Simulation | Fixed timestep (`SIM_TICK_HZ`), rendering decoupled (requestAnimationFrame). Deterministic state → simple save/load. |
 | Persistence | `localStorage`. |
+| Deployment | Continuous Deployment to GitHub Pages on every commit to `main` via GitHub Actions. |
+| Versioning | Automatic commit-based version counter (`v0.1.<commit_count> (build <commit_count>)`) injected by Vite from git history and displayed in the game menu. |
+| Performance | Optimized for software WebGL (no HW acceleration required): `MAX_PIXEL_RATIO = 1.0`, `antialias: false`, `RENDER_TARGET_FPS = 45`, static scene render skip when paused/on menus, and ephemeral Web Audio node disposal. |
 
 ### 2.1 Constants rule (mandatory)
 

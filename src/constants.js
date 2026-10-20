@@ -31,6 +31,10 @@ export const GATE_WIDTH_M = 7;
 export const GATE_CENTER_Y_M = FIELD_WIDTH_M / 2;
 
 export const GAME_NAME = 'Tank.exe';
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'v0.1.0';
+export const BUILD_NUMBER = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 1;
+export const COMMIT_HASH = typeof __COMMIT_HASH__ !== 'undefined' ? __COMMIT_HASH__ : '';
+export const VERSION_LABEL = `${APP_VERSION} (build ${BUILD_NUMBER})`;
 export const TANK_LENGTH_M = 6;
 export const TANK_WIDTH_M = 4;
 export const TANK_HEIGHT_M = 2.5;

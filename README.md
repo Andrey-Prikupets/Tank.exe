@@ -107,9 +107,12 @@ npm run preview
 
 ---
 
-## 🚀 GitHub Pages Deployment
+## 🚀 GitHub Pages Deployment & Automated Versioning
 
-The repository includes a GitHub Actions workflow in [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) that automatically builds and deploys the game upon pushing to `main`.
+The repository includes a GitHub Actions workflow in [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) that automatically builds and redeploys the game on every commit to `main`.
+
+* **Continuous Deployment:** Every commit pushed to `main` triggers a GitHub Pages deployment.
+* **Commit-Based Version Counter:** With each commit, an automated version counter increments (`v0.1.<commit_count> · build #<commit_count>`), which is injected at build time and displayed directly in the in-game menu.
 
 ### Enabling GitHub Pages in Repository Settings:
 1. Go to your repository on GitHub: **Settings** → **Pages**.
@@ -118,6 +121,7 @@ The repository includes a GitHub Actions workflow in [`.github/workflows/deploy.
    * Or **Deploy from a branch** → select `gh-pages` branch and `/ (root)`.
 3. The game will be live at:
    `https://<username>.github.io/<repo-name>/`
+
 
 ---
 
