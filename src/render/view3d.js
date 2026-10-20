@@ -78,16 +78,36 @@ export function createView3D(canvas) {
   }
 
   // ---- dynamic objects (shared geometries and materials) ----
-  const hullGeo = new THREE.BoxGeometry(C.TANK_LENGTH_M, C.TANK_HEIGHT_M * 0.5, C.TANK_WIDTH_M);
+  const hl = C.TANK_LENGTH_M / 2;
+  const hw = C.TANK_WIDTH_M / 2;
+  const cf = C.TANK_CHAMFER_M;
+  const hullShape = new THREE.Shape();
+  hullShape.moveTo(hl, -hw + cf);
+  hullShape.lineTo(hl - cf, -hw);
+  hullShape.lineTo(-hl + cf, -hw);
+  hullShape.lineTo(-hl, -hw + cf);
+  hullShape.lineTo(-hl, hw - cf);
+  hullShape.lineTo(-hl + cf, hw);
+  hullShape.lineTo(hl - cf, hw);
+  hullShape.lineTo(hl, hw - cf);
+  hullShape.closePath();
+
+  const hullH = C.TANK_HEIGHT_M * 0.5;
+  const hullGeo = new THREE.ExtrudeGeometry(hullShape, {
+    depth: hullH,
+    bevelEnabled: false,
+  });
+  hullGeo.rotateX(Math.PI / 2);
+  hullGeo.translate(0, hullH, 0);
+
   const turretGeo = new THREE.CylinderGeometry(
-    C.TURRET_TOP_RADIUS_M,
+    C.TURRET_RADIUS_M,
     C.TURRET_RADIUS_M,
     C.TANK_HEIGHT_M * 0.4,
     C.TURRET_SIDES,
   );
   const barrelGeo = new THREE.CylinderGeometry(0.2, 0.2, C.TANK_LENGTH_M * 0.7, 6);
   barrelGeo.rotateZ(Math.PI / 2);
-  const trackGeo = new THREE.BoxGeometry(C.TANK_LENGTH_M, 0.7, 0.6);
 
   const teamMats = [mat(C.COLOR_LEFT_TEAM), mat(C.COLOR_RIGHT_TEAM)];
   const turretMats = [mat(C.COLOR_LEFT_TURRET), mat(C.COLOR_RIGHT_TURRET)];
@@ -98,16 +118,11 @@ export function createView3D(canvas) {
     const g = new THREE.Group();
     const teamMat = teamMats[owner];
     const hull = new THREE.Mesh(hullGeo, teamMat);
-    hull.position.y = C.TANK_HEIGHT_M * 0.25 + 0.2;
+    hull.position.y = 0;
     const turret = new THREE.Mesh(turretGeo, turretMats[owner]);
-    turret.position.set(C.TURRET_OFFSET_M, C.TANK_HEIGHT_M * 0.7 + 0.2, 0);
+    turret.position.set(C.TURRET_OFFSET_M, C.TANK_HEIGHT_M * 0.7, 0);
     const barrel = new THREE.Mesh(barrelGeo, detailMat);
-    barrel.position.set(C.TANK_LENGTH_M * 0.3, C.TANK_HEIGHT_M * 0.7 + 0.2, 0);
-    for (const s of [-1, 1]) {
-      const track = new THREE.Mesh(trackGeo, detailMat);
-      track.position.set(0, 0.35, s * (C.TANK_WIDTH_M / 2));
-      g.add(track);
-    }
+    barrel.position.set(C.TANK_LENGTH_M * 0.3, C.TANK_HEIGHT_M * 0.7, 0);
     g.add(hull, turret, barrel);
     scene.add(g);
     return g;

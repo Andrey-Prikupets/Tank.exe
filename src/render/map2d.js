@@ -12,6 +12,26 @@ export function createMap2D(canvas) {
   let h = 0;
   let dpr = 1;
 
+  const digitSprites = {};
+  function makeDigitSprites() {
+    for (const num of ['1', '2', '3', '4', '5']) {
+      const c = document.createElement('canvas');
+      c.width = 128;
+      c.height = 128;
+      const cctx = c.getContext('2d');
+      cctx.textAlign = 'center';
+      cctx.textBaseline = 'middle';
+      cctx.fillStyle = '#ffffff';
+      cctx.font = 'bold 96px "Share Tech Mono", monospace';
+      cctx.fillText(num, 64, 64);
+      digitSprites[num] = c;
+    }
+  }
+  makeDigitSprites();
+  if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(makeDigitSprites);
+  }
+
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, C.MAX_PIXEL_RATIO);
     const r = canvas.parentElement.getBoundingClientRect();
@@ -103,26 +123,47 @@ export function createMap2D(canvas) {
       const t = world.tanks.find((x) => x.owner === pl.id && x.number === pl.selected && x.status !== 'dead');
       return t ? t.id : -1;
     });
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
     for (const t of world.tanks) {
       if (t.status === 'dead') continue;
       const selected = t.id === selIds[t.owner] && world.players[t.owner].view === 'tank';
       const tl = C.TANK_LENGTH_M * scale;
       const tw = C.TANK_WIDTH_M * scale;
+      const hl = tl / 2;
+      const hw = tw / 2;
+      const cf = C.TANK_CHAMFER_M * scale;
+      const tx = C.TURRET_OFFSET_M * scale;
+      const tr = C.TURRET_RADIUS_M * scale;
+
       ctx.save();
       ctx.translate(px(t.x), py(t.y));
       ctx.rotate(t.heading);
+
+      // Faceted body: 8 corners (chamfered corners from top view)
+      ctx.beginPath();
+      ctx.moveTo(hl, -hw + cf);
+      ctx.lineTo(hl - cf, -hw);
+      ctx.lineTo(-hl + cf, -hw);
+      ctx.lineTo(-hl, -hw + cf);
+      ctx.lineTo(-hl, hw - cf);
+      ctx.lineTo(-hl + cf, hw);
+      ctx.lineTo(hl - cf, hw);
+      ctx.lineTo(hl, hw - cf);
+      ctx.closePath();
       ctx.fillStyle = selected ? TEAM[t.owner].sel : TEAM[t.owner].base;
-      ctx.fillRect(-tl / 2, -tw / 2, tl, tw);
+      ctx.fill();
+
+      // Gun barrel: comes from the tank head (turret) and extends forward past the hull
+      const barrelStart = tx + tr * 0.4;
+      const barrelEnd = hl + tl * 0.25;
+      const barrelWidth = Math.max(2, 0.4 * scale);
       ctx.fillStyle = C.COLOR_TANK_DETAIL;
-      ctx.fillRect(tl / 2 - 1, -1, tl * 0.35, 2);
-      // octagonal turret seen from above (vertex pointing along the barrel)
-      const tr = C.TURRET_RADIUS_M * scale;
+      ctx.fillRect(barrelStart, -barrelWidth / 2, barrelEnd - barrelStart, barrelWidth);
+
+      // Octagonal turret seen from above
       ctx.beginPath();
       for (let k = 0; k < C.TURRET_SIDES; k++) {
         const a = (k * 2 * Math.PI) / C.TURRET_SIDES;
-        const vx = C.TURRET_OFFSET_M * scale + Math.cos(a) * tr;
+        const vx = tx + Math.cos(a) * tr;
         const vy = Math.sin(a) * tr;
         if (k === 0) ctx.moveTo(vx, vy);
         else ctx.lineTo(vx, vy);
@@ -133,15 +174,18 @@ export function createMap2D(canvas) {
       ctx.lineWidth = C.MAP_TURRET_STROKE_PX;
       ctx.strokeStyle = C.COLOR_TANK_DETAIL;
       ctx.stroke();
-      ctx.restore();
-      if (t.number != null) {
-        // digit stays upright, centred inside the octagon
-        const cx = px(t.x) + Math.cos(t.heading) * C.TURRET_OFFSET_M * scale;
-        const cy = py(t.y) + Math.sin(t.heading) * C.TURRET_OFFSET_M * scale;
-        ctx.fillStyle = '#fff';
-        ctx.font = `bold ${Math.round(tr * C.MAP_DIGIT_SCALE * 1.6)}px "Share Tech Mono", monospace`;
-        ctx.fillText(t.number, cx, cy + 1);
+
+      // Digit inside octagonal head: upright, larger, perfectly shake-free
+      if (t.number != null && digitSprites[t.number]) {
+        ctx.save();
+        ctx.translate(tx, 0);
+        ctx.rotate(-t.heading); // Un-rotate to stay upright
+        const digitSize = tr * 1.55;
+        ctx.drawImage(digitSprites[t.number], -digitSize / 2, -digitSize / 2, digitSize, digitSize);
+        ctx.restore();
       }
+
+      ctx.restore();
     }
 
     // shells

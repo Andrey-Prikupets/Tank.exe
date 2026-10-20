@@ -34,10 +34,11 @@ export const GAME_NAME = 'Tank.exe';
 export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'v0.1.0';
 export const BUILD_NUMBER = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 1;
 export const COMMIT_HASH = typeof __COMMIT_HASH__ !== 'undefined' ? __COMMIT_HASH__ : '';
-export const VERSION_LABEL = `${APP_VERSION} (build ${BUILD_NUMBER})`;
+export const VERSION_LABEL = APP_VERSION;
 export const TANK_LENGTH_M = 6;
 export const TANK_WIDTH_M = 4;
 export const TANK_HEIGHT_M = 2.5;
+export const TANK_CHAMFER_M = 0.7;
 export const TANKS_ON_FIELD_MAX = 5;
 export const TANKS_PER_PLAYER = 15;
 export const TANK_NUMBERS = [
@@ -80,10 +81,10 @@ export const GATE_APPROACH_M = 14;
 export const GATE_DOOR_CLEAR_M = 1;
 export const GATE_DOOR_THICKNESS_FRACTION = 0.8;
 
-// ---- Tank turret (octagonal cone) -------------------------------------------
+// ---- Tank turret (octagon with vertical edges) ------------------------------
 export const TURRET_SIDES = 8;
 export const TURRET_RADIUS_M = 1.6;
-export const TURRET_TOP_RADIUS_M = 1.0;
+export const TURRET_TOP_RADIUS_M = TURRET_RADIUS_M;
 export const TURRET_OFFSET_M = -0.3;
 export const MAP_TURRET_STROKE_PX = 1;
 
