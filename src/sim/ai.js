@@ -4,33 +4,42 @@ import { segmentVsObb, toLocal } from './geometry.js';
 
 const PROFILES = {
   EASY: {
-    tickInterval: 0.35,
-    aimTolerance: 0.28,      // ~16 deg
-    fireTolerance: 0.32,     // ~18 deg
+    tickInterval: 0.16,      // ~160ms decision tick
+    coordInterval: 3.5,      // coordinates brigade tanks every 3.5s
+    aimTolerance: 0.16,      // ~9 deg
+    fireTolerance: 0.28,     // ~16 deg
     leadFactor: 0.0,         // direct aiming, no lead
     maxSpeedKmh: 18,
+    standoffDist: 26,        // stops advancing at 26m
+    minDist: 16,             // reverses if closer than 16m
     useSmoke: 0.2,
     useMines: 0.2,
-    multiTank: false,
+    multiTank: true,
     rearm: false,
   },
   MEDIUM: {
-    tickInterval: 0.18,
-    aimTolerance: 0.14,      // ~8 deg
+    tickInterval: 0.10,      // ~100ms decision tick
+    coordInterval: 2.0,      // coordinates brigade tanks every 2.0s
+    aimTolerance: 0.10,      // ~5.7 deg
     fireTolerance: 0.18,     // ~10 deg
     leadFactor: 0.5,         // partial lead
-    maxSpeedKmh: 30,
+    maxSpeedKmh: 24,
+    standoffDist: 30,        // stops advancing at 30m
+    minDist: 18,             // reverses if closer than 18m
     useSmoke: 0.6,
     useMines: 0.6,
     multiTank: true,
     rearm: true,
   },
   HARD: {
-    tickInterval: 0.08,
-    aimTolerance: 0.06,      // ~3.5 deg
-    fireTolerance: 0.08,     // ~4.5 deg
+    tickInterval: 0.05,      // ~50ms decision tick
+    coordInterval: 1.2,      // fast multi-tank coordination
+    aimTolerance: 0.05,      // ~3 deg
+    fireTolerance: 0.10,     // ~5.7 deg
     leadFactor: 1.0,         // full predictive lead
     maxSpeedKmh: 36,
+    standoffDist: 34,        // stops advancing at 34m
+    minDist: 20,             // reverses if closer than 20m
     useSmoke: 0.9,
     useMines: 0.9,
     multiTank: true,
@@ -73,6 +82,35 @@ function isLineOfFireBlocked(world, owner, startX, startY, targetX, targetY, myT
         if (perp < C.TANK_WIDTH_M / 2 + 1.2) {
           return true; // friendly tank would be hit!
         }
+      }
+    }
+  }
+  return false;
+}
+
+/** High-frequency firing reflex: pulls the trigger whenever gun crosshair aligns with an enemy in reach. */
+function tryFireWeapon(world, owner, tank, enemyField, profile) {
+  if (tank.shells <= 0 || tank.reload > 0 || enemyField.length === 0) return false;
+
+  for (const e of enemyField) {
+    const dx = e.x - tank.x;
+    const dy = e.y - tank.y;
+    const dist = Math.hypot(dx, dy);
+    // Must be within actual physical shell flight reach
+    if (dist > C.SHELL_RANGE_M - 1.5) continue;
+
+    const shellSpeed = C.SHELL_RANGE_M / C.SHELL_FLIGHT_TIME_S;
+    const tFly = dist / shellSpeed;
+    const aimX = e.x + Math.cos(e.heading) * e.speed * tFly * profile.leadFactor;
+    const aimY = e.y + Math.sin(e.heading) * e.speed * tFly * profile.leadFactor;
+
+    const aimAngle = Math.atan2(aimY - tank.y, aimX - tank.x);
+    const aimErr = Math.abs(normalizeAngle(aimAngle - tank.heading));
+
+    if (aimErr <= profile.fireTolerance) {
+      if (!isLineOfFireBlocked(world, owner, tank.x, tank.y, aimX, aimY, tank.id)) {
+        applyAction(world, owner, 'FIRE');
+        return true;
       }
     }
   }
@@ -138,8 +176,8 @@ export class AiController {
       }
     }
 
-    // 3. Brigade coordination: check reserve deployments and idle tanks
-    if (this.coordTimer >= (profile.multiTank ? 2.0 : 4.0)) {
+    // 3. Brigade coordination: check reserve deployments and cycle active tanks
+    if (this.coordTimer >= profile.coordInterval) {
       this.coordTimer = 0;
       const myField = world.tanks.filter((t) => t.owner === owner && t.status === 'field');
       if (myField.length < C.TANKS_ON_FIELD_MAX) {
@@ -149,21 +187,26 @@ export class AiController {
           return;
         }
       }
-      if (profile.multiTank) {
-        const idle = myField.find((t) => t.id !== tank.id && t.speed === 0 && t.turn === 0);
-        if (idle && idle.number && Math.random() < 0.5) {
-          applyAction(world, owner, 'SELECT', idle.number);
-          tank = idle;
+      if (profile.multiTank && myField.length > 1) {
+        const currentIdx = myField.findIndex((t) => t.id === tank.id);
+        const nextTank = myField[(currentIdx + 1) % myField.length];
+        if (nextTank && nextTank.id !== tank.id) {
+          applyAction(world, owner, 'SELECT', nextTank.number);
+          tank = nextTank;
         }
       }
     }
 
     if (!tank || tank.status !== 'field') return;
 
-    // 4. Stuck recovery
+    // 4. Real-time weapons reflex: fire as soon as crosshairs align with enemy in reach
+    const enemyField = world.tanks.filter((t) => t.owner !== owner && t.status === 'field');
+    tryFireWeapon(world, owner, tank, enemyField, profile);
+
+    // 5. Stuck recovery
     if (tank.contacts.length > 0 && Math.abs(tank.speed) < 0.6) {
       this.stuckTimer += dt;
-      if (this.stuckTimer > 0.5) {
+      if (this.stuckTimer > 0.4) {
         this.reverseTimer = 1.0;
         this.stuckTimer = 0;
       }
@@ -178,12 +221,11 @@ export class AiController {
       return;
     }
 
-    // 5. Decision tick rate throttling
+    // 6. Tactical decision tick rate throttling
     if (this.timer < profile.tickInterval) return;
     this.timer = 0;
 
-    // 6. Find target
-    const enemyField = world.tanks.filter((t) => t.owner !== owner && t.status === 'field');
+    // 7. Find target
     let target = null;
     let targetDist = Infinity;
 
@@ -208,7 +250,7 @@ export class AiController {
       targetDist = Math.hypot(ex - tank.x, ey - tank.y);
     }
 
-    // 7. Tactical retreat to rearm if completely empty
+    // 8. Tactical retreat to rearm if completely empty
     const outOfAmmo = tank.shells === 0 && tank.mines === 0 && tank.smokes === 0;
     if (profile.rearm && outOfAmmo) {
       const gx = gateX(owner) + inwardDir(owner) * 4;
@@ -217,7 +259,7 @@ export class AiController {
       targetDist = Math.hypot(gx - tank.x, gy - tank.y);
     }
 
-    // 8. Aim calculation (predictive lead)
+    // 9. Aim calculation (predictive lead)
     const shellSpeed = C.SHELL_RANGE_M / C.SHELL_FLIGHT_TIME_S;
     const tFly = targetDist / shellSpeed;
     const tvx = Math.cos(target.heading) * target.speed;
@@ -293,46 +335,48 @@ export class AiController {
 
     const angleErr = normalizeAngle(desiredHeading - tank.heading);
 
-    // 9. Steering
+    // 10. Steering with smooth dampening (prevents overshooting oscillation)
     const maxTurnLimit = tank.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
-    if (angleErr > profile.aimTolerance) {
-      if (tank.cmdTurnDeg < maxTurnLimit) applyAction(world, owner, 'TURN_R');
-    } else if (angleErr < -profile.aimTolerance) {
-      if (tank.cmdTurnDeg > -maxTurnLimit) applyAction(world, owner, 'TURN_L');
+    if (Math.abs(angleErr) <= profile.aimTolerance) {
+      // Locked onto target: zero out turn command immediately to hold heading
+      while (tank.cmdTurnDeg > 0) applyAction(world, owner, 'TURN_L');
+      while (tank.cmdTurnDeg < 0) applyAction(world, owner, 'TURN_R');
     } else {
-      // Straighten out
-      if (tank.cmdTurnDeg > 0) applyAction(world, owner, 'TURN_L');
-      else if (tank.cmdTurnDeg < 0) applyAction(world, owner, 'TURN_R');
+      const turnLimit = Math.abs(angleErr) < 0.5 ? Math.min(30, maxTurnLimit) : maxTurnLimit;
+      if (angleErr > 0) {
+        if (tank.cmdTurnDeg < turnLimit) applyAction(world, owner, 'TURN_R');
+        else if (tank.cmdTurnDeg > turnLimit) applyAction(world, owner, 'TURN_L');
+      } else {
+        if (tank.cmdTurnDeg > -turnLimit) applyAction(world, owner, 'TURN_L');
+        else if (tank.cmdTurnDeg < -turnLimit) applyAction(world, owner, 'TURN_R');
+      }
     }
 
-    // 10. Throttle control
+    // 11. Throttle control and combat standoff distance (prevents ramming opponent tanks)
     let desiredSpeed = profile.maxSpeedKmh;
     if (emergencyBrake) {
       desiredSpeed = -C.SPEED_STEP_KMH;
     } else if (outOfAmmo && profile.rearm) {
       desiredSpeed = profile.maxSpeedKmh;
-    } else if (targetDist > C.AI_ENGAGE_FAR_DIST_M) {
+    } else if (targetDist > profile.standoffDist + 10) {
       desiredSpeed = profile.maxSpeedKmh;
-    } else if (targetDist < 16) {
+    } else if (targetDist > profile.standoffDist) {
+      desiredSpeed = Math.min(12, profile.maxSpeedKmh);
+    } else if (targetDist >= profile.minDist) {
+      // Prime combat standoff zone: stop advancing to maintain position and fire
       desiredSpeed = 0;
-      if (targetDist < 10 && Math.abs(angleErr) > 1.0) desiredSpeed = -C.SPEED_STEP_KMH;
     } else {
-      desiredSpeed = Math.min(24, profile.maxSpeedKmh);
+      // Too close to opponent: reverse to back off and avoid collision!
+      desiredSpeed = -C.SPEED_STEP_KMH;
     }
 
-    if (tank.cmdSpeedKmh < desiredSpeed) {
+    if (desiredSpeed === 0 && tank.cmdSpeedKmh > 0) {
+      // Active braking to stop promptly without coasting into collision
+      applyAction(world, owner, 'BACK');
+    } else if (tank.cmdSpeedKmh < desiredSpeed) {
       applyAction(world, owner, 'FORWARD');
     } else if (tank.cmdSpeedKmh > desiredSpeed) {
       applyAction(world, owner, 'BACK');
-    }
-
-    // 11. Weapons firing
-    if (tank.shells > 0 && tank.reload <= 0 && enemyField.length > 0) {
-      if (targetDist < C.AI_MAX_FIRE_DIST_M && Math.abs(angleErr) <= profile.fireTolerance) {
-        if (!isLineOfFireBlocked(world, owner, tank.x, tank.y, aimX, aimY, tank.id)) {
-          applyAction(world, owner, 'FIRE');
-        }
-      }
     }
 
     // 12. Defensive smoke

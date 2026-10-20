@@ -453,7 +453,9 @@ The game provides a full visual desktop keyboard layout configuration tool:
 When a player side is designated as **Computer** (`Human vs Computer` → Right player AI; `Computer vs Human` → Left player AI), an autonomous AI controller operates that player's battalion:
 
 ### 12.1 Core AI Capabilities
-- **Autonomous Reserve Deployment:** When casualties occur or fewer than 5 tanks are deployed, the AI detects numbered spares in the hangar and issues deployment selection commands to restore battlefield strength.
+- **Real-Time Firing Reflex:** Evaluates gun alignment and ballistic reach on every simulation step; discharges the cannon instantly when the crosshairs sweep across an enemy tank within physical reach (`dist <= SHELL_RANGE_M - 1.5m`), avoiding missed firing windows caused by coarse decision tick rates.
+- **Combat Standoff & Collision Prevention:** Enforces standoff engagement distances (26m–34m based on difficulty). Tanks actively brake and stop advancing when entering effective firing range, and reverse if closer than 16m–20m, preventing collisions or ramming into opponent tanks.
+- **Autonomous Reserve Deployment & Multi-Tank Coordination:** Detects casualties and deploys numbered spares from the hangar. Periodically cycles through all living field tanks to issue movement, aiming, and firing commands across the entire battalion.
 - **Target Selection & Ballistics:** Evaluates all active enemy tanks on the field based on distance and angular deviation to designate priority targets.
 - **Friendly Fire Prevention:** Performs line-of-fire raycast checks against friendly tanks before discharging shells to eliminate team-kills.
 - **Terrain & Hazard Avoidance:** Proactively steers around building obstacles and detects forward water pits, turning away and executing emergency braking when near pit boundaries.
@@ -463,19 +465,25 @@ When a player side is designated as **Computer** (`Human vs Computer` → Right 
 
 ### 12.2 Difficulty Profiles
 - **EASY:**
-  - Reaction / decision interval: ~0.35s.
-  - Aim tolerance: ~16° direct line-of-sight aiming without predictive lead.
+  - Reaction / decision interval: ~0.16s; brigade cycle interval: ~3.5s.
+  - Aim tolerance: ~9° direct line-of-sight aiming without predictive lead (`leadFactor: 0.0`).
+  - Fire tolerance: ~16° trigger window with instantaneous reflex firing when crosshairs align.
   - Max forward speed: 18 km/h.
-  - Conservative weapon and countermeasure usage.
+  - Combat standoff: stops advancing at 26m, reverses if closer than 16m.
+  - Conservative weapon and countermeasure usage (`useSmoke: 0.2`, `useMines: 0.2`).
 - **MEDIUM:**
-  - Reaction / decision interval: ~0.18s.
-  - Aim tolerance: ~8° with partial predictive lead calculation.
-  - Max forward speed: 30 km/h.
-  - Coordinates idle field tanks into battle; deploys smoke and mines tactically.
+  - Reaction / decision interval: ~0.10s; brigade cycle interval: ~2.0s.
+  - Aim tolerance: ~5.7° with partial predictive lead calculation (`leadFactor: 0.5`).
+  - Fire tolerance: ~10° trigger window.
+  - Max forward speed: 24 km/h.
+  - Combat standoff: stops advancing at 30m, reverses if closer than 18m.
+  - Coordinates idle field tanks into battle; deploys smoke and mines tactically (`useSmoke: 0.6`, `useMines: 0.6`, `rearm: true`).
 - **HARD:**
-  - Reaction / decision interval: ~0.08s.
-  - High precision aiming: ~3.5° tolerance with full predictive target velocity lead.
+  - Reaction / decision interval: ~0.05s; brigade cycle interval: ~1.2s.
+  - High precision aiming: ~3° tolerance with full predictive target velocity lead (`leadFactor: 1.0`).
+  - Fire tolerance: ~5.7° trigger window.
   - Full top speed: 36 km/h.
+  - Combat standoff: stops advancing at 34m, reverses if closer than 20m.
   - Aggressive multi-tank brigade maneuvers, active shell avoidance, smoke countermeasures, and relentless pursuit.
 
 ---
