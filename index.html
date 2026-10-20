@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tank.exe — 90s Split-Screen 3D Tank Game</title>
+    <meta name="description" content="Retro 90s-style split-screen 3D tank duel for two players on one keyboard." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <main id="app">
+      <section id="mapWrap" aria-label="Strategic map"><canvas id="map"></canvas></section>
+      <section id="glWrap" aria-label="Player views">
+        <canvas id="gl"></canvas>
+        <div class="pane left" id="pane0">
+          <div class="winmask top"></div><div class="winmask bottom"></div>
+          <div class="cross"></div>
+          <div class="banner" id="banner0"></div>
+          <div class="inv-overlay left" id="inv0"></div>
+        </div>
+        <div class="pane right" id="pane1">
+          <div class="winmask top"></div><div class="winmask bottom"></div>
+          <div class="cross"></div>
+          <div class="banner" id="banner1"></div>
+          <div class="inv-overlay right" id="inv1"></div>
+        </div>
+      </section>
+      <footer id="debugBar" aria-label="Telemetry debug bar">
+        <span id="debug0" class="debug-text"></span>
+        <span id="debug1" class="debug-text"></span>
+      </footer>
+      <div id="menu" class="hidden">
+        <div class="card">
+          <h1 class="m-title"></h1>
+          <div class="m-scroll-wrap">
+            <div class="m-text"></div>
+          </div>
+          <ul class="m-items"></ul>
+          <p class="m-hint">↑ ↓ select &nbsp;·&nbsp; Space / Enter confirm &nbsp;·&nbsp; Esc back</p>
+        </div>
+      </div>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

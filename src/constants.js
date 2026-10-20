@@ -1,0 +1,191 @@
+// =============================================================================
+// ALL tunable numbers, colors and key bindings live in this single file.
+// Units are part of the name (_M, _KMH, _S, _DEG, _DEG_S ...).
+// =============================================================================
+
+// ---- Conversions (the only place where raw conversion factors appear) -------
+const SECONDS_PER_HOUR = 3600;
+const METERS_PER_KM = 1000;
+export const kmhToMs = (kmh) => (kmh * METERS_PER_KM) / SECONDS_PER_HOUR;
+export const msToKmh = (ms) => (ms * SECONDS_PER_HOUR) / METERS_PER_KM;
+export const degToRad = (deg) => (deg * Math.PI) / 180;
+export const radToDeg = (rad) => (rad * 180) / Math.PI;
+
+// ---- Simulation loop --------------------------------------------------------
+export const SIM_TICK_HZ = 60;
+export const SIM_TICK_S = 1 / SIM_TICK_HZ;
+export const SIM_MAX_FRAME_S = 0.1;
+export const HUD_UPDATE_INTERVAL_MS = 100;
+export const SAVE_FORMAT_VERSION = 1;
+export const SAVE_SLOT_COUNT = 3;
+export const SAVE_KEY_PREFIX = 'game90x.save.';
+export const AUDIO_SETTINGS_KEY = 'game90x.audio';
+
+// ---- Field ------------------------------------------------------------------
+export const FIELD_LENGTH_M = 250;
+export const FIELD_WIDTH_M = 100;
+export const BORDER_WALL_HEIGHT_M = 4;
+export const BORDER_WALL_THICKNESS_M = 1;
+export const GATE_WIDTH_M = 7;
+export const GATE_CENTER_Y_M = FIELD_WIDTH_M / 2;
+
+export const GAME_NAME = 'Tank.exe';
+export const TANK_LENGTH_M = 6;
+export const TANK_WIDTH_M = 4;
+export const TANK_HEIGHT_M = 2.5;
+export const TANKS_ON_FIELD_MAX = 5;
+export const TANKS_PER_PLAYER = 15;
+export const TANK_NUMBERS = [
+  ['1', '2', '3', '4', '5'],
+  ['1', '2', '3', '4', '5'],
+];
+export const PLAYER_KEY_LABELS = [
+  ['1', '2', '3', '4', '5'],
+  ['6', '7', '8', '9', '0'],
+];
+export const TANK_MAX_SPEED_KMH = 36;
+export const TANK_MAX_REVERSE_KMH = 12;
+export const SPEED_STEP_KMH = 6;
+export const TANK_LINEAR_ACCEL_MS2 = 3;
+export const TANK_MAX_TURN_DEG_S = 60;
+export const TURN_STEP_DEG_S = 15;
+export const TANK_TURN_ACCEL_DEG_S2 = 60;
+export const BORDER_DRAG_FACTOR = 0.5;
+export const TANK_CONTACT_TURN_FACTOR = 0.5;
+
+// ---- Initial setup ----------------------------------------------------------
+export const START_BORDER_GAP_M = 6;
+export const START_SPACING_M = 10;
+export const SPAWN_OFFSET_FROM_GATE_M = 0.5;
+export const SPAWN_CLEARANCE_M = 0.5;
+
+// ---- Hangar -----------------------------------------------------------------
+export const HANGAR_ROWS = 2;
+export const HANGAR_SLOTS_PER_ROW = 5;
+export const HANGAR_ROW_PITCH_M = 8;
+export const HANGAR_FIRST_ROW_OFFSET_M = 4;
+export const HANGAR_SLOT_PITCH_M = 8;
+export const HANGAR_DEPTH_M = 17;
+export const HANGAR_HALF_WIDTH_M = 22;
+
+// ---- Weapons ----------------------------------------------------------------
+export const TANK_START_SHELLS = 5;
+export const TANK_START_MINES = 2;
+export const TANK_START_SMOKES = 2;
+export const GUN_RELOAD_S = 1;
+export const WINDOW_RELOAD_S = 1.5;
+export const SHELL_RANGE_M = FIELD_LENGTH_M / 4;
+export const SHELL_FLIGHT_TIME_S = 0.4;
+export const SHELL_MUZZLE_OFFSET_M = 0.5;
+export const SHELL_RADIUS_M = 0.5;
+export const MINE_DROP_BEHIND_M = 1.5;
+export const MINE_ARM_DELAY_S = 1.5;
+export const MINE_TRIGGER_RADIUS_M = 1;
+export const MINE_RADIUS_M = 0.8;
+export const SMOKE_RADIUS_M = 10;
+export const SMOKE_LIFETIME_S = 10;
+export const SMOKE_FADE_S = 2;
+export const EXPLOSION_DURATION_S = 1;
+export const EXPLOSION_RADIUS_M = 5;
+export const MINE_EXPLOSION_RADIUS_M = 7;
+
+// ---- Hangar windows / gate view --------------------------------------------
+export const WINDOW_OFFSET_FROM_GATE_M = 8;
+export const WINDOW_LENGTH_M = 5;
+export const WINDOW_MAX_YAW_DEG = 45;
+export const WINDOW_YAW_RATE_DEG_S = 45;
+export const WINDOW_CAMERA_INSET_M = 0.4;
+export const DEAD_ZONE_DEPTH_M = TANK_LENGTH_M;
+export const DEAD_ZONE_SIDE_MARGIN_M = TANK_LENGTH_M / 2;
+export const WINDOW_MASK_PERCENT = 36;
+
+// ---- Messages ---------------------------------------------------------------
+export const MESSAGE_DURATION_S = 3;
+
+// ---- Camera -----------------------------------------------------------------
+export const CAMERA_HEIGHT_M = 2.2;
+export const CAMERA_FOV_DEG = 60;
+export const CAMERA_NEAR_M = 0.2;
+export const CAMERA_FAR_M = 700;
+export const CAMERA_LOOK_DISTANCE_M = 10;
+export const VIEW_GAP_PX = 4;
+export const MAX_PIXEL_RATIO = 2;
+
+// ---- Input ------------------------------------------------------------------
+export const KEY_REPEAT_DELAY_MS = 300;
+export const KEY_REPEAT_MS = 150;
+export const KEYS = {
+  MENU: 'Escape',
+  LEFT: {
+    SELECT: ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'],
+    FORWARD: 'KeyW',
+    BACK: 'KeyS',
+    TURN_L: 'KeyA',
+    TURN_R: 'KeyD',
+    WIN_L: 'KeyQ',
+    WIN_R: 'KeyR',
+    FIRE: 'Tab',
+    MINE: 'KeyZ',
+    SMOKE: 'KeyX',
+  },
+  RIGHT: {
+    SELECT: ['Digit6', 'Digit7', 'Digit8', 'Digit9', 'Digit0'],
+    FORWARD: 'ArrowUp',
+    BACK: 'ArrowDown',
+    TURN_L: 'ArrowLeft',
+    TURN_R: 'ArrowRight',
+    WIN_L: 'BracketLeft',
+    WIN_R: 'BracketRight',
+    FIRE: ['Enter', 'NumpadEnter'],
+    MINE: 'Comma',
+    SMOKE: 'Period',
+  },
+};
+export const MENU_KEYS = {
+  UP: ['ArrowUp'],
+  DOWN: ['ArrowDown'],
+  ACTIVATE: ['Space', 'Enter', 'NumpadEnter'],
+  BACK: ['Escape'],
+};
+
+// ---- Colors -----------------------------------------------------------------
+export const COLOR_FIELD = '#3f9b3f';
+export const COLOR_OUTSIDE = '#1b231b';
+export const COLOR_SKY = '#8cc0ea';
+export const COLOR_BORDER = '#e8e8e8';
+export const COLOR_HANGAR_FLOOR = '#6b6f73';
+export const COLOR_HANGAR_WALL = '#8a8f94';
+export const COLOR_WINDOW = '#14202c';
+export const COLOR_WINDOW_ACTIVE = '#ffd54a';
+export const COLOR_LEFT_TEAM = '#b5372b';
+export const COLOR_LEFT_SELECTED = '#ff7060';
+export const COLOR_RIGHT_TEAM = '#2c55b8';
+export const COLOR_RIGHT_SELECTED = '#6fa0ff';
+export const COLOR_SHELL = '#ffe44d';
+export const COLOR_MINE_UNARMED = '#8a8a3a';
+export const COLOR_MINE_ARMED = '#3a1010';
+export const COLOR_SMOKE = '#b8b8b8';
+export const COLOR_EXPLOSION = '#ff8a1f';
+export const COLOR_TANK_DETAIL = '#222222';
+
+// ---- Map rendering ----------------------------------------------------------
+export const MAP_MARGIN_X_M = HANGAR_DEPTH_M + 2;
+export const MAP_MARGIN_Y_M = 2;
+export const MAP_DIGIT_SCALE = 0.8;
+export const MAP_SHELL_MIN_RADIUS_PX = 2;
+export const MAP_BORDER_LINE_PX = 2;
+export const MAP_WINDOW_LINE_PX = 3;
+export const MAP_SMOKE_MAX_ALPHA = 1;
+
+// ---- Audio ------------------------------------------------------------------
+export const AUDIO_MASTER_VOLUME = 0.35;
+export const AUDIO_ENGINE_BASE_HZ = 38;
+export const AUDIO_ENGINE_SPEED_HZ = 55;
+export const AUDIO_ENGINE_GAIN = 0.06;
+export const AUDIO_ENGINE_IDLE_GAIN = 0.015;
+export const AUDIO_ENGINE_LOWPASS_HZ = 260;
+export const AUDIO_ENGINE_SMOOTH_S = 0.1;
+export const AUDIO_PAN_STRENGTH = 0.8;
+export const AUDIO_SHOT_DURATION_S = 0.25;
+export const AUDIO_EXPLOSION_DURATION_S = 0.9;
+export const AUDIO_MINE_EXPLOSION_DURATION_S = 1.4;
