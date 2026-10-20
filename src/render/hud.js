@@ -117,6 +117,7 @@ export function createHud() {
       const isWin = pl.view === 'window';
       if (isWin !== lastIsWin[p] || force) {
         panes[p].classList.toggle('window', isWin);
+        invPanels[p].style.display = isWin ? 'none' : '';
         lastIsWin[p] = isWin;
       }
       const text = bannerText(world, p);

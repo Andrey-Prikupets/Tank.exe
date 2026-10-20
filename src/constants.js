@@ -33,6 +33,12 @@ export const PLAYER_MODES = [
   { id: 'CvH', label: 'Computer vs Human', leftAi: true, rightAi: false },
 ];
 export const AI_LEVELS = ['HARD', 'MEDIUM', 'EASY'];
+export const AI_MAX_FIRE_DIST_M = 115;
+export const AI_ENGAGE_FAR_DIST_M = 55;
+export const AI_SMOKE_LOW_AMMO_DIST_M = 35;
+export const AI_SMOKE_INCOMING_SHELL_DIST_M = 30;
+export const AI_SMOKE_SHELL_DOT_THRESHOLD = 0.8;
+export const AI_MINE_BEHIND_ANGLE_RAD = 0.7;
 
 // ---- Field ------------------------------------------------------------------
 export const FIELD_LENGTH_M = 250;
@@ -66,6 +72,8 @@ export const TANK_MAX_REVERSE_KMH = 12;
 export const SPEED_STEP_KMH = 6;
 export const TANK_LINEAR_ACCEL_MS2 = 3;
 export const TANK_MAX_TURN_DEG_S = 60;
+export const TANK_PIVOT_TURN_FACTOR = 1.25;
+export const TANK_MAX_PIVOT_TURN_DEG_S = TANK_MAX_TURN_DEG_S * TANK_PIVOT_TURN_FACTOR;
 export const TURN_STEP_DEG_S = 15;
 export const TANK_TURN_ACCEL_DEG_S2 = 60;
 export const BORDER_DRAG_FACTOR = 0.5;

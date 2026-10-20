@@ -222,16 +222,32 @@ export function applyAction(world, p, action, arg) {
       break;
     }
     case 'FORWARD':
-      if (live) tank.cmdSpeedKmh = clamp(tank.cmdSpeedKmh + C.SPEED_STEP_KMH, -C.TANK_MAX_REVERSE_KMH, C.TANK_MAX_SPEED_KMH);
+      if (live) {
+        tank.cmdSpeedKmh = clamp(tank.cmdSpeedKmh + C.SPEED_STEP_KMH, -C.TANK_MAX_REVERSE_KMH, C.TANK_MAX_SPEED_KMH);
+        if (tank.cmdSpeedKmh !== 0) {
+          tank.cmdTurnDeg = clamp(tank.cmdTurnDeg, -C.TANK_MAX_TURN_DEG_S, C.TANK_MAX_TURN_DEG_S);
+        }
+      }
       break;
     case 'BACK':
-      if (live) tank.cmdSpeedKmh = clamp(tank.cmdSpeedKmh - C.SPEED_STEP_KMH, -C.TANK_MAX_REVERSE_KMH, C.TANK_MAX_SPEED_KMH);
+      if (live) {
+        tank.cmdSpeedKmh = clamp(tank.cmdSpeedKmh - C.SPEED_STEP_KMH, -C.TANK_MAX_REVERSE_KMH, C.TANK_MAX_SPEED_KMH);
+        if (tank.cmdSpeedKmh !== 0) {
+          tank.cmdTurnDeg = clamp(tank.cmdTurnDeg, -C.TANK_MAX_TURN_DEG_S, C.TANK_MAX_TURN_DEG_S);
+        }
+      }
       break;
     case 'TURN_L':
-      if (live) tank.cmdTurnDeg = clamp(tank.cmdTurnDeg - C.TURN_STEP_DEG_S, -C.TANK_MAX_TURN_DEG_S, C.TANK_MAX_TURN_DEG_S);
+      if (live) {
+        const maxLimit = tank.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
+        tank.cmdTurnDeg = clamp(tank.cmdTurnDeg - C.TURN_STEP_DEG_S, -maxLimit, maxLimit);
+      }
       break;
     case 'TURN_R':
-      if (live) tank.cmdTurnDeg = clamp(tank.cmdTurnDeg + C.TURN_STEP_DEG_S, -C.TANK_MAX_TURN_DEG_S, C.TANK_MAX_TURN_DEG_S);
+      if (live) {
+        const maxLimit = tank.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
+        tank.cmdTurnDeg = clamp(tank.cmdTurnDeg + C.TURN_STEP_DEG_S, -maxLimit, maxLimit);
+      }
       break;
     case 'WIN_L':
     case 'WIN_R': {
@@ -344,6 +360,9 @@ function kill(world, t, killerOwner, big, reason) {
 // ---------------------------------------------------------------------------
 function moveTank(t, dt) {
   t.speed = approach(t.speed, C.kmhToMs(t.cmdSpeedKmh), C.TANK_LINEAR_ACCEL_MS2 * dt);
+  if (t.cmdSpeedKmh !== 0) {
+    t.cmdTurnDeg = clamp(t.cmdTurnDeg, -C.TANK_MAX_TURN_DEG_S, C.TANK_MAX_TURN_DEG_S);
+  }
   const targetTurn = C.degToRad(t.cmdTurnDeg);
   t.turn = approach(t.turn, targetTurn, C.degToRad(C.TANK_TURN_ACCEL_DEG_S2) * dt);
 

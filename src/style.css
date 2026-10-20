@@ -106,6 +106,7 @@ html, body {
 .winmask.top { top: 0; border-bottom: 3px solid #333; }
 .winmask.bottom { bottom: 0; border-top: 3px solid #333; }
 .pane.window .winmask { display: block; }
+.pane.window .inv-overlay { display: none; }
 
 .banner {
   position: absolute;

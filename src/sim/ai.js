@@ -294,10 +294,11 @@ export class AiController {
     const angleErr = normalizeAngle(desiredHeading - tank.heading);
 
     // 9. Steering
+    const maxTurnLimit = tank.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
     if (angleErr > profile.aimTolerance) {
-      if (tank.cmdTurnDeg < C.TANK_MAX_TURN_DEG_S) applyAction(world, owner, 'TURN_R');
+      if (tank.cmdTurnDeg < maxTurnLimit) applyAction(world, owner, 'TURN_R');
     } else if (angleErr < -profile.aimTolerance) {
-      if (tank.cmdTurnDeg > -C.TANK_MAX_TURN_DEG_S) applyAction(world, owner, 'TURN_L');
+      if (tank.cmdTurnDeg > -maxTurnLimit) applyAction(world, owner, 'TURN_L');
     } else {
       // Straighten out
       if (tank.cmdTurnDeg > 0) applyAction(world, owner, 'TURN_L');
@@ -310,7 +311,7 @@ export class AiController {
       desiredSpeed = -C.SPEED_STEP_KMH;
     } else if (outOfAmmo && profile.rearm) {
       desiredSpeed = profile.maxSpeedKmh;
-    } else if (targetDist > 55) {
+    } else if (targetDist > C.AI_ENGAGE_FAR_DIST_M) {
       desiredSpeed = profile.maxSpeedKmh;
     } else if (targetDist < 16) {
       desiredSpeed = 0;
@@ -327,7 +328,7 @@ export class AiController {
 
     // 11. Weapons firing
     if (tank.shells > 0 && tank.reload <= 0 && enemyField.length > 0) {
-      if (targetDist < 115 && Math.abs(angleErr) <= profile.fireTolerance) {
+      if (targetDist < C.AI_MAX_FIRE_DIST_M && Math.abs(angleErr) <= profile.fireTolerance) {
         if (!isLineOfFireBlocked(world, owner, tank.x, tank.y, aimX, aimY, tank.id)) {
           applyAction(world, owner, 'FIRE');
         }
@@ -336,16 +337,16 @@ export class AiController {
 
     // 12. Defensive smoke
     if (tank.smokes > 0) {
-      let threat = tank.shells <= 1 && targetDist < 35 && Math.random() < profile.useSmoke;
+      let threat = tank.shells <= 1 && targetDist < C.AI_SMOKE_LOW_AMMO_DIST_M && Math.random() < profile.useSmoke;
       if (!threat) {
         for (const s of world.shells) {
           if (s.owner !== owner) {
             const sDist = Math.hypot(s.x - tank.x, s.y - tank.y);
-            if (sDist < 30) {
+            if (sDist < C.AI_SMOKE_INCOMING_SHELL_DIST_M) {
               const toMeX = tank.x - s.x;
               const toMeY = tank.y - s.y;
               const dot = (s.dx * toMeX + s.dy * toMeY) / sDist;
-              if (dot > 0.8 && Math.random() < profile.useSmoke) {
+              if (dot > C.AI_SMOKE_SHELL_DOT_THRESHOLD && Math.random() < profile.useSmoke) {
                 threat = true;
                 break;
               }
@@ -359,7 +360,7 @@ export class AiController {
     // 13. Defensive mines
     if (tank.mines > 0 && targetDist < 25) {
       const behindAngle = normalizeAngle(desiredHeading - (tank.heading + Math.PI));
-      if (Math.abs(behindAngle) < 0.7 && Math.random() < profile.useMines) {
+      if (Math.abs(behindAngle) < C.AI_MINE_BEHIND_ANGLE_RAD && Math.random() < profile.useMines) {
         applyAction(world, owner, 'MINE');
       }
     }

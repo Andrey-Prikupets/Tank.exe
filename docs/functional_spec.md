@@ -224,7 +224,8 @@ then collisions (§7) are resolved.
 | `SPEED_STEP_KMH` | 6 (6 steps to full forward, 2 to full reverse) |
 | `TANK_LINEAR_ACCEL_MS2` | 3 |
 | `TANK_MAX_TURN_DEG_S` | 60 |
-| `TURN_STEP_DEG_S` | 15 (4 steps to full rate each way) |
+| `TANK_MAX_PIVOT_TURN_DEG_S` | 75 (25% faster limit when rotating without movement at 0 km/h) |
+| `TURN_STEP_DEG_S` | 15 (4 steps to full moving rate, 5 steps to full pivot rate) |
 | `TANK_TURN_ACCEL_DEG_S2` | 60 |
 | `KEY_REPEAT_MS` | 150 |
 
@@ -301,6 +302,7 @@ Tanks are oriented rectangles (OBB). Collision is checked every tick.
 - Accelerate/decelerate keys have no effect in window view.
 - Fire key shoots a shell from the window along the view direction. **Unlimited ammo**, limited by
   `WINDOW_RELOAD_S` (1.5) between shots (per window). Same shell range/speed as tank shells. **[A14]**
+- **HUD:** While sitting in the hangar window slit view, the ammo inventory overlay is hidden (since window ammunition is unlimited).
 - Mine/smoke keys have no effect in window view.
 - Leaving window view: press a tank number key, or press the same window key again (returns to the
   last tank). Pressing the other window key switches windows.
@@ -548,7 +550,8 @@ Music, sampled audio, AI opponents, online play, gamepads, mobile/touch, terrain
 | `TANK_MAX_SPEED_KMH` / `TANK_MAX_REVERSE_KMH` | 36 / 12 | km/h |
 | `SPEED_STEP_KMH` | 6 | km/h |
 | `TANK_LINEAR_ACCEL_MS2` | 3 | m/s² |
-| `TANK_MAX_TURN_DEG_S` / `TURN_STEP_DEG_S` | 60 / 15 | °/s |
+| `TANK_MAX_TURN_DEG_S` / `TANK_MAX_PIVOT_TURN_DEG_S` | 60 / 75 | °/s |
+| `TURN_STEP_DEG_S` | 15 | °/s |
 | `TANK_TURN_ACCEL_DEG_S2` | 60 | °/s² |
 | `KEY_REPEAT_MS` | 150 | ms |
 | `BORDER_DRAG_FACTOR` / `TANK_CONTACT_TURN_FACTOR` | 0.5 / 0.5 | |
@@ -563,7 +566,13 @@ Music, sampled audio, AI opponents, online play, gamepads, mobile/touch, terrain
 | `START_BORDER_GAP_M` / `START_SPACING_M` | 6 / 10 | m |
 | `CAMERA_HEIGHT_M` / `CAMERA_FOV_DEG` | 2.2 / 60 | m / ° |
 | `EXPLOSION_DURATION_S` | 1 | s |
-| `SAVE_SLOT_COUNT` | 3 | |
+| `SAVE_SLOT_COUNT` | 10 | |
+| `AI_MAX_FIRE_DIST_M` | 115 | m |
+| `AI_ENGAGE_FAR_DIST_M` | 55 | m |
+| `AI_SMOKE_LOW_AMMO_DIST_M` | 35 | m |
+| `AI_SMOKE_INCOMING_SHELL_DIST_M` | 30 | m |
+| `AI_SMOKE_SHELL_DOT_THRESHOLD` | 0.8 | |
+| `AI_MINE_BEHIND_ANGLE_RAD` | 0.7 | rad |
 
 ---
 
