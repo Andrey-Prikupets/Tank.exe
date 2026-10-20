@@ -461,29 +461,30 @@ When a player side is designated as **Computer** (`Human vs Computer` → Right 
 - **Terrain & Hazard Avoidance:** Proactively steers around building obstacles and detects forward water pits, turning away and executing emergency braking when near pit boundaries.
 - **Obstacle Awareness:** Shell line-of-fire raycasting verifies that buildings do not obstruct the trajectory before firing, avoiding wasted munitions.
 - **Defensive Smoke & Mines:** Deploys smoke screens when ammo is low or incoming high-velocity shells are detected; places anti-tank mines when closely pursued.
-- **Tactical Rearming:** When all ammunition and defensive stores are depleted, retreats to the home base gate to rearm and redeploy.
+- **Tactical Rearming:** When out of shells (`shells === 0`), tanks retreat to their home gate to rearm and replenish 5 shells, 2 mines, and 2 smokes before redeploying. Meanwhile, brigade coordination switches active focus to a field tank that has ammunition.
 
 ### 12.2 Difficulty Profiles
 - **EASY:**
   - Reaction / decision interval: ~0.16s; brigade cycle interval: ~3.5s.
-  - Aim tolerance: ~9° direct line-of-sight aiming without predictive lead (`leadFactor: 0.0`).
-  - Fire tolerance: ~16° trigger window with instantaneous reflex firing when crosshairs align.
+  - Aim tolerance: ~7° direct line-of-sight aiming without predictive lead (`leadFactor: 0.0`).
+  - Fire tolerance: ~10° trigger window; only fires within `maxFireDist: 30m` (well within 62.5m shell flight range) to ensure every shot easily reaches and hits the target.
   - Max forward speed: 18 km/h.
-  - Combat standoff: stops advancing at 26m, reverses if closer than 16m.
-  - Conservative weapon and countermeasure usage (`useSmoke: 0.2`, `useMines: 0.2`).
+  - Combat standoff: stops advancing at 22m, reverses if closer than 14m.
+  - Rearming enabled: returns to hangar when shells are depleted (`rearm: true`).
+  - Conservative countermeasure usage (`useSmoke: 0.2`, `useMines: 0.2`).
 - **MEDIUM:**
   - Reaction / decision interval: ~0.10s; brigade cycle interval: ~2.0s.
-  - Aim tolerance: ~5.7° with partial predictive lead calculation (`leadFactor: 0.5`).
-  - Fire tolerance: ~10° trigger window.
+  - Aim tolerance: ~4.5° with partial predictive lead calculation (`leadFactor: 0.5`).
+  - Fire tolerance: ~8° trigger window; fires within `maxFireDist: 40m`.
   - Max forward speed: 24 km/h.
-  - Combat standoff: stops advancing at 30m, reverses if closer than 18m.
+  - Combat standoff: stops advancing at 26m, reverses if closer than 16m.
   - Coordinates idle field tanks into battle; deploys smoke and mines tactically (`useSmoke: 0.6`, `useMines: 0.6`, `rearm: true`).
 - **HARD:**
   - Reaction / decision interval: ~0.05s; brigade cycle interval: ~1.2s.
   - High precision aiming: ~3° tolerance with full predictive target velocity lead (`leadFactor: 1.0`).
-  - Fire tolerance: ~5.7° trigger window.
+  - Fire tolerance: ~5.7° trigger window; fires within `maxFireDist: 50m`.
   - Full top speed: 36 km/h.
-  - Combat standoff: stops advancing at 34m, reverses if closer than 20m.
+  - Combat standoff: stops advancing at 30m, reverses if closer than 18m.
   - Aggressive multi-tank brigade maneuvers, active shell avoidance, smoke countermeasures, and relentless pursuit.
 
 ---

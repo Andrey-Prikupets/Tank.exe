@@ -6,26 +6,28 @@ const PROFILES = {
   EASY: {
     tickInterval: 0.16,      // ~160ms decision tick
     coordInterval: 3.5,      // coordinates brigade tanks every 3.5s
-    aimTolerance: 0.16,      // ~9 deg
-    fireTolerance: 0.28,     // ~16 deg
+    aimTolerance: 0.12,      // ~7 deg
+    fireTolerance: 0.18,     // ~10 deg
     leadFactor: 0.0,         // direct aiming, no lead
     maxSpeedKmh: 18,
-    standoffDist: 26,        // stops advancing at 26m
-    minDist: 16,             // reverses if closer than 16m
+    maxFireDist: 30,         // holds fire until within 30m so shots reach and hit reliably
+    standoffDist: 22,        // stops advancing at 22m (within 30m firing range)
+    minDist: 14,             // reverses if closer than 14m to avoid collision
     useSmoke: 0.2,
     useMines: 0.2,
     multiTank: true,
-    rearm: false,
+    rearm: true,             // returns to hangar to reload when shells run out
   },
   MEDIUM: {
     tickInterval: 0.10,      // ~100ms decision tick
     coordInterval: 2.0,      // coordinates brigade tanks every 2.0s
-    aimTolerance: 0.10,      // ~5.7 deg
-    fireTolerance: 0.18,     // ~10 deg
+    aimTolerance: 0.08,      // ~4.5 deg
+    fireTolerance: 0.14,     // ~8 deg
     leadFactor: 0.5,         // partial lead
     maxSpeedKmh: 24,
-    standoffDist: 30,        // stops advancing at 30m
-    minDist: 18,             // reverses if closer than 18m
+    maxFireDist: 40,         // holds fire until within 40m
+    standoffDist: 26,        // stops advancing at 26m
+    minDist: 16,             // reverses if closer than 16m
     useSmoke: 0.6,
     useMines: 0.6,
     multiTank: true,
@@ -38,8 +40,9 @@ const PROFILES = {
     fireTolerance: 0.10,     // ~5.7 deg
     leadFactor: 1.0,         // full predictive lead
     maxSpeedKmh: 36,
-    standoffDist: 34,        // stops advancing at 34m
-    minDist: 20,             // reverses if closer than 20m
+    maxFireDist: 50,         // fires up to 50m with predictive lead
+    standoffDist: 30,        // stops advancing at 30m
+    minDist: 18,             // reverses if closer than 18m
     useSmoke: 0.9,
     useMines: 0.9,
     multiTank: true,
@@ -92,12 +95,14 @@ function isLineOfFireBlocked(world, owner, startX, startY, targetX, targetY, myT
 function tryFireWeapon(world, owner, tank, enemyField, profile) {
   if (tank.shells <= 0 || tank.reload > 0 || enemyField.length === 0) return false;
 
+  const maxDist = Math.min(profile.maxFireDist || 30, C.SHELL_RANGE_M - 4.0);
+
   for (const e of enemyField) {
     const dx = e.x - tank.x;
     const dy = e.y - tank.y;
     const dist = Math.hypot(dx, dy);
-    // Must be within actual physical shell flight reach
-    if (dist > C.SHELL_RANGE_M - 1.5) continue;
+    // Must be within profile max firing distance and safe reach
+    if (dist > maxDist) continue;
 
     const shellSpeed = C.SHELL_RANGE_M / C.SHELL_FLIGHT_TIME_S;
     const tFly = dist / shellSpeed;
@@ -107,7 +112,11 @@ function tryFireWeapon(world, owner, tank, enemyField, profile) {
     const aimAngle = Math.atan2(aimY - tank.y, aimX - tank.x);
     const aimErr = Math.abs(normalizeAngle(aimAngle - tank.heading));
 
-    if (aimErr <= profile.fireTolerance) {
+    // Target hull angle tolerance: must actually point at tank body plus tolerance
+    const targetAngularHalfWidth = Math.atan2(C.TANK_WIDTH_M / 2 + 0.3, dist);
+    const allowedTol = Math.max(targetAngularHalfWidth, Math.min(profile.fireTolerance, 0.16));
+
+    if (aimErr <= allowedTol) {
       if (!isLineOfFireBlocked(world, owner, tank.x, tank.y, aimX, aimY, tank.id)) {
         applyAction(world, owner, 'FIRE');
         return true;
@@ -188,8 +197,15 @@ export class AiController {
         }
       }
       if (profile.multiTank && myField.length > 1) {
-        const currentIdx = myField.findIndex((t) => t.id === tank.id);
-        const nextTank = myField[(currentIdx + 1) % myField.length];
+        // If current tank is out of shells, prioritize switching to another tank with ammunition
+        let nextTank = null;
+        if (tank.shells === 0) {
+          nextTank = myField.find((t) => t.id !== tank.id && t.shells > 0);
+        }
+        if (!nextTank) {
+          const currentIdx = myField.findIndex((t) => t.id === tank.id);
+          nextTank = myField[(currentIdx + 1) % myField.length];
+        }
         if (nextTank && nextTank.id !== tank.id) {
           applyAction(world, owner, 'SELECT', nextTank.number);
           tank = nextTank;
@@ -250,9 +266,9 @@ export class AiController {
       targetDist = Math.hypot(ex - tank.x, ey - tank.y);
     }
 
-    // 8. Tactical retreat to rearm if completely empty
-    const outOfAmmo = tank.shells === 0 && tank.mines === 0 && tank.smokes === 0;
-    if (profile.rearm && outOfAmmo) {
+    // 8. Tactical retreat to rearm if out of shells
+    const outOfShells = tank.shells === 0;
+    if (profile.rearm && outOfShells) {
       const gx = gateX(owner) + inwardDir(owner) * 4;
       const gy = C.GATE_CENTER_Y_M;
       target = { x: gx, y: gy, speed: 0, heading: inwardDir(owner) === 1 ? 0 : Math.PI };
@@ -356,7 +372,7 @@ export class AiController {
     let desiredSpeed = profile.maxSpeedKmh;
     if (emergencyBrake) {
       desiredSpeed = -C.SPEED_STEP_KMH;
-    } else if (outOfAmmo && profile.rearm) {
+    } else if (outOfShells && profile.rearm) {
       desiredSpeed = profile.maxSpeedKmh;
     } else if (targetDist > profile.standoffDist + 10) {
       desiredSpeed = profile.maxSpeedKmh;
