@@ -21,6 +21,14 @@ export const SAVE_FORMAT_VERSION = 2;
 export const SAVE_SLOT_COUNT = 10;
 export const SAVE_KEY_PREFIX = 'tank.exe.save.';
 export const AUDIO_SETTINGS_KEY = 'tank.exe.audio';
+export const PLAYERS_SETTINGS_KEY = 'tank.exe.players';
+export const AI_LEVEL_SETTINGS_KEY = 'tank.exe.ai_level';
+export const PLAYER_MODES = [
+  { id: 'HvH', label: 'Human vs Human', leftAi: false, rightAi: false },
+  { id: 'HvC', label: 'Human vs Computer', leftAi: false, rightAi: true },
+  { id: 'CvH', label: 'Computer vs Human', leftAi: true, rightAi: false },
+];
+export const AI_LEVELS = ['HARD', 'MEDIUM', 'EASY'];
 
 // ---- Field ------------------------------------------------------------------
 export const FIELD_LENGTH_M = 250;

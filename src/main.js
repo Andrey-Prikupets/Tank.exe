@@ -8,10 +8,35 @@ import { createView3D } from './render/view3d.js';
 import { createHud } from './render/hud.js';
 import { createMenu } from './ui/menu.js';
 import { Sfx } from './audio/sfx.js';
+import { AiController } from './sim/ai.js';
 
 document.documentElement.style.setProperty('--mask-h', `${C.WINDOW_MASK_PERCENT}%`);
 
+const aiControllers = [new AiController(0), new AiController(1)];
+
+let playerModeIndex = 0;
+const savedMode = localStorage.getItem(C.PLAYERS_SETTINGS_KEY);
+if (savedMode) {
+  const idx = C.PLAYER_MODES.findIndex((m) => m.id === savedMode);
+  if (idx >= 0) playerModeIndex = idx;
+}
+const currentMode = () => C.PLAYER_MODES[playerModeIndex];
+
+let aiLevelIndex = 1; // Default 'MEDIUM' (C.AI_LEVELS = ['HARD', 'MEDIUM', 'EASY'])
+const savedLevel = localStorage.getItem(C.AI_LEVEL_SETTINGS_KEY);
+if (savedLevel) {
+  const idx = C.AI_LEVELS.indexOf(savedLevel);
+  if (idx >= 0) aiLevelIndex = idx;
+}
+const currentAiLevel = () => C.AI_LEVELS[aiLevelIndex];
+
+function isAiPlayer(p) {
+  const mode = currentMode();
+  return p === 0 ? mode.leftAi : mode.rightAi;
+}
+
 let world = createWorld();
+world.isAiPlayer = isAiPlayer;
 let appState = 'TITLE'; // 'TITLE' | 'PLAYING'
 let gameOverShown = false;
 
@@ -23,6 +48,23 @@ const view = createView3D(document.getElementById('gl'));
 const hud = createHud();
 
 // ---------------------------------------------------------------- screens ---
+const playersItem = () => ({
+  label: () => `Players: ${currentMode().label}`,
+  action: () => {
+    playerModeIndex = (playerModeIndex + 1) % C.PLAYER_MODES.length;
+    localStorage.setItem(C.PLAYERS_SETTINGS_KEY, currentMode().id);
+    aiControllers.forEach((c) => c.reset());
+  },
+});
+
+const levelItem = () => ({
+  label: () => `Level: ${currentAiLevel()}`,
+  action: () => {
+    aiLevelIndex = (aiLevelIndex + 1) % C.AI_LEVELS.length;
+    localStorage.setItem(C.AI_LEVEL_SETTINGS_KEY, currentAiLevel());
+  },
+});
+
 const soundItem = () => ({
   label: () => `Sound: ${sfx.enabled ? 'ON' : 'OFF'}`,
   action: () => {
@@ -126,6 +168,8 @@ function loadScreen() {
           return;
         }
         world = r.world;
+        world.isAiPlayer = isAiPlayer;
+        aiControllers.forEach((c) => c.reset());
         appState = 'PLAYING';
         gameOverShown = world.over;
         input.clear();
@@ -152,6 +196,8 @@ function confirmScreen(text, onYes) {
 
 function newGame() {
   world = createWorld();
+  world.isAiPlayer = isAiPlayer;
+  aiControllers.forEach((c) => c.reset());
   appState = 'PLAYING';
   gameOverShown = false;
   input.clear();
@@ -167,9 +213,11 @@ function openTitle() {
   menu.push({
     title: C.GAME_NAME,
     text: '<div class="center">Two players · one keyboard · 90s split-screen tank combat</div>',
-    items: [
+    items: () => [
       { label: 'Start game', action: newGame },
       { label: 'Load game', action: () => menu.push(loadScreen()) },
+      playersItem(),
+      ...(currentMode().id !== 'HvH' ? [levelItem()] : []),
       soundItem(),
       { label: 'Help', action: () => menu.push(helpScreen()) },
     ],
@@ -188,7 +236,7 @@ function openPause() {
   menu.push({
     title: C.GAME_NAME,
     text: '<div class="center">Game is paused</div>',
-    items: [
+    items: () => [
       { label: 'Resume', action: resume },
       { label: 'Save game', action: () => menu.push(saveScreen()) },
       { label: 'Load game', action: () => menu.push(loadScreen()) },
@@ -196,6 +244,8 @@ function openPause() {
         label: 'New game',
         action: () => menu.push(confirmScreen('Current game will be lost.', newGame)),
       },
+      playersItem(),
+      ...(currentMode().id !== 'HvH' ? [levelItem()] : []),
       soundItem(),
       { label: 'Help', action: () => menu.push(helpScreen()) },
     ],
@@ -275,10 +325,26 @@ function frame(now) {
   const playing = appState === 'PLAYING' && !menu.isOpen() && !world.over;
   if (playing) {
     input.update(now);
-    for (const a of input.drain()) applyAction(world, a.player, a.action, a.arg);
+    for (const a of input.drain()) {
+      if (!isAiPlayer(a.player)) {
+        applyAction(world, a.player, a.action, a.arg);
+      }
+    }
+
+    for (let p = 0; p < 2; p++) {
+      if (isAiPlayer(p)) {
+        aiControllers[p].update(world, dtFrame, currentAiLevel());
+      }
+    }
+
     acc += dtFrame;
     while (acc >= C.SIM_TICK_S) {
-      step(world, C.SIM_TICK_S, { windowTurn: [input.windowTurn(0), input.windowTurn(1)] });
+      step(world, C.SIM_TICK_S, {
+        windowTurn: [
+          isAiPlayer(0) ? 0 : input.windowTurn(0),
+          isAiPlayer(1) ? 0 : input.windowTurn(1),
+        ],
+      });
       acc -= C.SIM_TICK_S;
     }
     dirty = true;

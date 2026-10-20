@@ -384,20 +384,55 @@ The game launches into the **Tank.exe Title Menu**:
 - Title banner: `Tank.exe`
 - Subtitle: `Two players · one keyboard · 90s split-screen tank combat`
 - Options:
-  1. **Start Game** (or New Game)
-  2. **Load Game** (choose slot 1..10)
-  3. **Sound: ON / OFF**
-  4. **Help** (opens a scrollable modal detailing game concept, 90s lore, rules, and controls table)
+  1. **Start game**
+  2. **Load game** (choose slot 1..10)
+  3. **Players: Human vs Human | Human vs Computer | Computer vs Human** (1st is left player, 2nd is right)
+  4. **Level: HARD | MEDIUM | EASY** (visible only when Computer mode is selected)
+  5. **Sound: ON / OFF**
+  6. **Help** (opens a scrollable modal detailing game concept, 90s lore, rules, and controls table)
 
 **In-Game Pause Menu (`Esc`):**
 - Pauses the fixed-step simulation immediately.
 - Options:
   1. **Resume**
-  2. **Save Game** (choose slot 1..10)
-  3. **Load Game** (choose slot 1..10)
-  4. **New Game** (with loss confirmation)
-  5. **Sound: ON / OFF**
-  6. **Help** (scrollable modal with rules & controls)
+  2. **Save game** (choose slot 1..10)
+  3. **Load game** (choose slot 1..10)
+  4. **New game** (with loss confirmation)
+  5. **Players: Human vs Human | Human vs Computer | Computer vs Human** (1st is left player, 2nd is right)
+  6. **Level: HARD | MEDIUM | EASY** (visible only when Computer mode is selected)
+  7. **Sound: ON / OFF**
+  8. **Help** (scrollable modal with rules & controls)
+
+---
+
+## 12. Computer AI & Difficulty Levels
+
+When a player side is designated as **Computer** (`Human vs Computer` → Right player AI; `Computer vs Human` → Left player AI), an autonomous AI controller operates that player's battalion:
+
+### 12.1 Core AI Capabilities
+- **Autonomous Reserve Deployment:** When casualties occur or fewer than 5 tanks are deployed, the AI detects numbered spares in the hangar and issues deployment selection commands to restore battlefield strength.
+- **Target Selection & Ballistics:** Evaluates all active enemy tanks on the field based on distance and angular deviation to designate priority targets.
+- **Friendly Fire Prevention:** Performs line-of-fire raycast checks against friendly tanks before discharging shells to eliminate team-kills.
+- **Obstacle & Boundary Avoidance:** Steers away from border walls and dead corners; detects wall contact and automatically triggers reverse dislodgement maneuvers.
+- **Defensive Smoke & Mines:** Deploys smoke screens when ammo is low or incoming high-velocity shells are detected; places anti-tank mines when closely pursued.
+- **Tactical Rearming:** When all ammunition and defensive stores are depleted, retreats to the home base gate to rearm and redeploy.
+
+### 12.2 Difficulty Profiles
+- **EASY:**
+  - Reaction / decision interval: ~0.35s.
+  - Aim tolerance: ~16° direct line-of-sight aiming without predictive lead.
+  - Max forward speed: 18 km/h.
+  - Conservative weapon and countermeasure usage.
+- **MEDIUM:**
+  - Reaction / decision interval: ~0.18s.
+  - Aim tolerance: ~8° with partial predictive lead calculation.
+  - Max forward speed: 30 km/h.
+  - Coordinates idle field tanks into battle; deploys smoke and mines tactically.
+- **HARD:**
+  - Reaction / decision interval: ~0.08s.
+  - High precision aiming: ~3.5° tolerance with full predictive target velocity lead.
+  - Full top speed: 36 km/h.
+  - Aggressive multi-tank brigade maneuvers, active shell avoidance, smoke countermeasures, and relentless pursuit.
 
 - Keyboard navigation (all menus & modals):
   - `↑` / `↓` move the selection highlight (wraps around).

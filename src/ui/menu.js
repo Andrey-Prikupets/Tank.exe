@@ -11,6 +11,7 @@ export function createMenu(root) {
 
   const top = () => stack[stack.length - 1];
   const labelOf = (it) => (typeof it.label === 'function' ? it.label() : it.label);
+  const itemsOf = (s) => (s ? (typeof s.items === 'function' ? s.items() : s.items || []) : []);
 
   function render() {
     const s = top();
@@ -24,8 +25,10 @@ export function createMenu(root) {
     if (scrollWrap) {
       scrollWrap.scrollTop = 0;
     }
+    const items = itemsOf(s);
+    if (s.index >= items.length) s.index = Math.max(0, items.length - 1);
     listEl.innerHTML = '';
-    s.items.forEach((it, i) => {
+    items.forEach((it, i) => {
       const li = document.createElement('li');
       li.textContent = labelOf(it);
       if (i === s.index) li.classList.add('sel');
@@ -46,9 +49,11 @@ export function createMenu(root) {
 
   function activate(i) {
     const s = top();
-    if (!s || !s.items[i]) return;
+    if (!s) return;
+    const items = itemsOf(s);
+    if (!items[i]) return;
     s.index = i;
-    s.items[i].action();
+    items[i].action();
     render();
   }
 
@@ -75,6 +80,7 @@ export function createMenu(root) {
       if (!s) return false;
       if (e.code === 'Tab') return true;
 
+      const items = itemsOf(s);
       if (s.scrollable && scrollWrap) {
         if (e.code === 'PageDown') {
           scrollWrap.scrollTop += 180;
@@ -84,7 +90,7 @@ export function createMenu(root) {
           scrollWrap.scrollTop -= 180;
           return true;
         }
-        if (s.items.length <= 1) {
+        if (items.length <= 1) {
           if (e.code === 'ArrowDown') {
             scrollWrap.scrollTop += 45;
             return true;
@@ -96,14 +102,14 @@ export function createMenu(root) {
         }
       }
 
-      if (s.items.length > 0) {
+      if (items.length > 0) {
         if (C.MENU_KEYS.UP.includes(e.code)) {
-          s.index = (s.index + s.items.length - 1) % s.items.length;
+          s.index = (s.index + items.length - 1) % items.length;
           render();
           return true;
         }
         if (C.MENU_KEYS.DOWN.includes(e.code)) {
-          s.index = (s.index + 1) % s.items.length;
+          s.index = (s.index + 1) % items.length;
           render();
           return true;
         }
