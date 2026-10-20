@@ -412,7 +412,39 @@ The game launches into the **Tank.exe Title Menu**:
   1. **Sound: ON | OFF** (toggles Web Audio master output)
   2. **Obstacles: ON | OFF** (toggles building obstacles generator; initial default: `OFF`)
   3. **Pits: ON | OFF** (toggles water pit / trench hazard generator; initial default: `OFF`)
-  4. **Back** (returns to previous menu)
+  4. **KEYBOARD LAYOUT** (opens the interactive desktop keyboard layout configuration screen)
+  5. **Back** (returns to previous menu)
+
+### 11.4 Keyboard Layout Configuration (`Options` → `KEYBOARD LAYOUT`)
+
+The game provides a full visual desktop keyboard layout configuration tool:
+- **Desktop QWERTY Keyboard Visualizer:**
+  - Renders a standard full 104-key desktop keyboard (function row with `Esc` and `F1`–`F12`, main alphanumeric typing block, navigation cluster with inverted-T arrow keys, and full numeric keypad with dual-height `+` and `Enter` keys).
+  - Displays physical key letters and symbols on all keycaps.
+  - When a key is assigned to a player function, displays a shaded color-coded overlay on top of the keycap with an illuminated function badge:
+    - **Red shade:** Left Player actions (e.g. `ACCEL`, `DECEL`, `TURN L`, `TURN R`, `TUR L`, `TUR R`, `FIRE`, `MINE`, `SMOKE`, or circular badge `1`..`5`).
+    - **Blue shade:** Right Player actions.
+- **Player Function Palettes (Bottom Section):**
+  - Positioned directly beneath the keyboard, separated into **LEFT PLAYER (RED)** and **RIGHT PLAYER (BLUE)**.
+  - **Tank Numbers:** Functions 1 to 5 rendered inside distinct **circular frames**.
+  - **Action Functions:** Movement and combat actions rendered inside **rounded rectangular frames** (`ACCELERATE`, `DECELERATE`, `TURN LEFT`, `TURN RIGHT`, `HANGAR TURRET (LEFT)`, `HANGAR TURRET (RIGHT)`, `FIRE`, `DROP MINE`, `SMOKE CLOUD`).
+  - **Mapped Key Display:** Directly underneath every function frame, the currently mapped key name is displayed (e.g., `Q` under `HANGAR TURRET (LEFT)`, `W` under `ACCELERATE`, `1` under `1`).
+- **Drag-and-Drop & Click-to-Bind Interaction:**
+  - Users can drag any function frame directly onto a virtual keyboard keycap to bind it.
+  - Users can also click a function badge to select it, then click any keycap or press the desired physical key.
+  - If a key was already assigned to another action, remapping cleanly transfers the key and frees the previous binding.
+- **Browser & OS Reserved Key Protection:**
+  - Standard browser and OS control keys cannot be bound to prevent conflicting with system operations:
+    - Function keys: `F1` through `F12` (Help, Refresh, Fullscreen, DevTools, etc.).
+    - System / OS modifiers: `MetaLeft` / `MetaRight` (Windows keys), `ContextMenu`.
+    - Print / Lock keys: `PrintScreen`, `ScrollLock`, `Pause`, `NumLock`, `CapsLock`.
+    - Menu / Pause key: `Escape` (reserved for opening menu / cancel).
+  - Reserved keys are visually dimmed on the keyboard chassis with a `not-allowed` indicator; attempting to bind them displays a clear informational status notice.
+- **Persistence & Controls:**
+  - **RESET LAYOUT:** Restores default out-of-the-box (OOTB) key mappings and removes custom bindings from `localStorage`.
+  - **OK:** Persists custom layout to `localStorage` (`tank.exe.keys`), updates the active input controller, and returns to Options.
+  - **CANCEL:** Discards uncommitted modifications and returns to Options.
+  - **Dynamic In-Game Help Table:** The Controls table in the Help manual dynamically reflects whatever custom layout is actively configured.
 
 ---
 

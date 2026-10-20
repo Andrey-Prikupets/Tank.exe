@@ -7,6 +7,7 @@ import { createMap2D } from './render/map2d.js';
 import { createView3D } from './render/view3d.js';
 import { createHud } from './render/hud.js';
 import { createMenu } from './ui/menu.js';
+import { createKeyboardScreen } from './ui/keyboard_screen.js';
 import { Sfx } from './audio/sfx.js';
 import { AiController } from './sim/ai.js';
 
@@ -60,6 +61,7 @@ let gameOverShown = false;
 const input = new Input();
 const sfx = new Sfx();
 const menu = createMenu(document.getElementById('menu'));
+const kbScreen = createKeyboardScreen(document.getElementById('keyboardScreen'));
 const map = createMap2D(document.getElementById('map'));
 const view = createView3D(document.getElementById('gl'));
 const hud = createHud();
@@ -116,6 +118,22 @@ function optionsScreen() {
       soundItem(),
       obstaclesItem(),
       pitsItem(),
+      {
+        label: 'KEYBOARD LAYOUT',
+        action: () => {
+          document.getElementById('menu').classList.add('hidden');
+          kbScreen.open({
+            getKeys: () => input.getKeys(),
+            onSave: (k) => {
+              input.setKeys(k);
+            },
+            onClose: () => {
+              document.getElementById('menu').classList.remove('hidden');
+              menu.refresh();
+            },
+          });
+        },
+      },
       { label: 'Back', action: () => menu.pop() },
     ],
     onEsc: () => menu.pop(),
@@ -123,17 +141,21 @@ function optionsScreen() {
 }
 
 function helpScreen() {
+  const k = input.getKeys();
+  const fmtKey = (val) => [].concat(val || []).map(keyLabel).join(' / ') || '—';
+  const leftSel = (k.LEFT.SELECT || []).map(keyLabel).join(', ');
+  const rightSel = (k.RIGHT.SELECT || []).map(keyLabel).join(', ');
   const rows = [
-    ['Select tank', '1, 2, 3, 4, 5', '6, 7, 8, 9, 0 (tanks 1..5)'],
-    ['Accelerate', 'W', '↑'],
-    ['Decelerate / reverse', 'S', '↓'],
-    ['Turn left', 'A', '←'],
-    ['Turn right', 'D', '→'],
-    ['Left window', 'Q', '['],
-    ['Right window', 'R', ']'],
-    ['Fire', 'Tab', 'Enter'],
-    ['Drop mine', 'Z', ', (<)'],
-    ['Smoke cloud', 'X', '. (>)'],
+    ['Select tank', leftSel, rightSel],
+    ['Accelerate', fmtKey(k.LEFT.FORWARD), fmtKey(k.RIGHT.FORWARD)],
+    ['Decelerate / reverse', fmtKey(k.LEFT.BACK), fmtKey(k.RIGHT.BACK)],
+    ['Turn left', fmtKey(k.LEFT.TURN_L), fmtKey(k.RIGHT.TURN_L)],
+    ['Turn right', fmtKey(k.LEFT.TURN_R), fmtKey(k.RIGHT.TURN_R)],
+    ['Left window', fmtKey(k.LEFT.WIN_L), fmtKey(k.RIGHT.WIN_L)],
+    ['Right window', fmtKey(k.LEFT.WIN_R), fmtKey(k.RIGHT.WIN_R)],
+    ['Fire', fmtKey(k.LEFT.FIRE), fmtKey(k.RIGHT.FIRE)],
+    ['Drop mine', fmtKey(k.LEFT.MINE), fmtKey(k.RIGHT.MINE)],
+    ['Smoke cloud', fmtKey(k.LEFT.SMOKE), fmtKey(k.RIGHT.SMOKE)],
   ];
   const tableRows = rows
     .map(([name, k1, k2]) => `<tr><td><strong>${name}</strong></td><td>${k1}</td><td>${k2}</td></tr>`)
@@ -320,6 +342,10 @@ function openGameOver() {
 
 // ----------------------------------------------------------------- input ----
 window.addEventListener('keydown', (e) => {
+  if (kbScreen.isOpen()) {
+    if (kbScreen.handleKey(e)) e.preventDefault();
+    return;
+  }
   if (e.code === 'Tab') e.preventDefault();
   sfx.resume();
   if (menu.isOpen()) {
@@ -340,7 +366,7 @@ window.addEventListener('keyup', (e) => input.keyUp(e));
 window.addEventListener('pointerdown', () => sfx.resume());
 window.addEventListener('blur', () => {
   input.clear();
-  if (appState === 'PLAYING' && !menu.isOpen() && !world.over) openPause();
+  if (appState === 'PLAYING' && !menu.isOpen() && !kbScreen.isOpen() && !world.over) openPause();
 });
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) dirty = true;

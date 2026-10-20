@@ -158,7 +158,8 @@ export const MAX_PIXEL_RATIO = 1.0;
 // ---- Input ------------------------------------------------------------------
 export const KEY_REPEAT_DELAY_MS = 300;
 export const KEY_REPEAT_MS = 150;
-export const KEYS = {
+export const KEYS_SETTINGS_KEY = 'tank.exe.keys';
+export const DEFAULT_KEYS = {
   MENU: 'Escape',
   LEFT: {
     SELECT: ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'],
@@ -185,6 +186,7 @@ export const KEYS = {
     SMOKE: 'Period',
   },
 };
+export const KEYS = DEFAULT_KEYS;
 export const MENU_KEYS = {
   UP: ['ArrowUp'],
   DOWN: ['ArrowDown'],
