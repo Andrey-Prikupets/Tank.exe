@@ -184,12 +184,14 @@ function newGame() {
   gameOverShown = false;
   input.clear();
   menu.clear();
+  dirty = true;
   hud.update(world, performance.now(), true);
 }
 
 function openTitle() {
   appState = 'TITLE';
   menu.clear();
+  dirty = true;
   menu.push({
     title: C.GAME_NAME,
     text: '<div class="center">Two players · one keyboard · 90s split-screen tank combat</div>',
@@ -207,9 +209,11 @@ function openTitle() {
 function resume() {
   menu.clear();
   input.clear();
+  dirty = true;
 }
 
 function openPause() {
+  dirty = true;
   menu.push({
     title: C.GAME_NAME,
     text: '<div class="center">Game is paused</div>',
@@ -236,6 +240,7 @@ function openGameOver() {
   const [a, b] = world.players;
   const winner = world.winner === 'draw' ? 'DRAW' : world.winner === 0 ? 'RED WINS' : 'BLUE WINS';
   menu.clear();
+  dirty = true;
   menu.push({
     title: winner,
     text: `Red: lost ${a.lost}/15, shots ${a.shots}, hits ${a.hits}<br>Blue: lost ${b.lost}/15, shots ${b.shots}, hits ${b.hits}`,
@@ -270,18 +275,33 @@ window.addEventListener('blur', () => {
   input.clear();
   if (appState === 'PLAYING' && !menu.isOpen() && !world.over) openPause();
 });
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) dirty = true;
+});
 
 // ---------------------------------------------------------------- loop ------
+let dirty = true;
 function resizeAll() {
   map.resize();
   view.resize();
+  dirty = true;
 }
 new ResizeObserver(resizeAll).observe(document.getElementById('app'));
 resizeAll();
 
 let last = performance.now();
+let lastRender = 0;
 let acc = 0;
+const minRenderInterval = 1000 / C.RENDER_TARGET_FPS;
+
 function frame(now) {
+  requestAnimationFrame(frame);
+
+  if (document.hidden) {
+    last = now;
+    return;
+  }
+
   const dtFrame = Math.min((now - last) / 1000, C.SIM_MAX_FRAME_S);
   last = now;
   const playing = appState === 'PLAYING' && !menu.isOpen() && !world.over;
@@ -293,6 +313,7 @@ function frame(now) {
       step(world, C.SIM_TICK_S, { windowTurn: [input.windowTurn(0), input.windowTurn(1)] });
       acc -= C.SIM_TICK_S;
     }
+    dirty = true;
   } else {
     acc = 0;
   }
@@ -305,10 +326,16 @@ function frame(now) {
     openGameOver();
   }
 
+  // Throttle rendering: if static or rendered within target FPS interval, skip render
+  if (!dirty) return;
+  if (playing && now - lastRender < minRenderInterval) return;
+
+  lastRender = now;
+  dirty = false;
+
   map.render(world);
   view.render(world);
   hud.update(world, now, false);
-  requestAnimationFrame(frame);
 }
 
 openTitle();

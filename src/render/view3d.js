@@ -6,7 +6,14 @@ const mat = (color) => new THREE.MeshLambertMaterial({ color, flatShading: true 
 const basic = (color, extra = {}) => new THREE.MeshBasicMaterial({ color, ...extra });
 
 export function createView3D(canvas) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: false,
+    powerPreference: 'high-performance',
+    precision: 'mediump',
+    depth: true,
+    stencil: false,
+  });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, C.MAX_PIXEL_RATIO));
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(C.COLOR_SKY);
@@ -62,21 +69,28 @@ export function createView3D(canvas) {
     for (const s of [-1, 1]) addBox(D, H, T, hx, H / 2, C.GATE_CENTER_Y_M + s * hw, mat(C.COLOR_HANGAR_WALL));
   }
 
-  // ---- dynamic objects ----
+  // ---- dynamic objects (shared geometries and materials) ----
+  const hullGeo = new THREE.BoxGeometry(C.TANK_LENGTH_M, C.TANK_HEIGHT_M * 0.5, C.TANK_WIDTH_M);
+  const turretGeo = new THREE.BoxGeometry(C.TANK_LENGTH_M * 0.45, C.TANK_HEIGHT_M * 0.4, C.TANK_WIDTH_M * 0.6);
+  const barrelGeo = new THREE.CylinderGeometry(0.2, 0.2, C.TANK_LENGTH_M * 0.7, 6);
+  barrelGeo.rotateZ(Math.PI / 2);
+  const trackGeo = new THREE.BoxGeometry(C.TANK_LENGTH_M, 0.7, 0.6);
+
+  const teamMats = [mat(C.COLOR_LEFT_TEAM), mat(C.COLOR_RIGHT_TEAM)];
+  const detailMat = mat(C.COLOR_TANK_DETAIL);
+
   const tankMeshes = new Map();
   function makeTank(owner) {
     const g = new THREE.Group();
-    const color = owner === 0 ? C.COLOR_LEFT_TEAM : C.COLOR_RIGHT_TEAM;
-    const hull = new THREE.Mesh(new THREE.BoxGeometry(C.TANK_LENGTH_M, C.TANK_HEIGHT_M * 0.5, C.TANK_WIDTH_M), mat(color));
+    const teamMat = teamMats[owner];
+    const hull = new THREE.Mesh(hullGeo, teamMat);
     hull.position.y = C.TANK_HEIGHT_M * 0.25 + 0.2;
-    const turret = new THREE.Mesh(new THREE.BoxGeometry(C.TANK_LENGTH_M * 0.45, C.TANK_HEIGHT_M * 0.4, C.TANK_WIDTH_M * 0.6), mat(color));
+    const turret = new THREE.Mesh(turretGeo, teamMat);
     turret.position.set(-0.3, C.TANK_HEIGHT_M * 0.7 + 0.2, 0);
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, C.TANK_LENGTH_M * 0.7, 8), mat(C.COLOR_TANK_DETAIL));
-    barrel.rotation.z = Math.PI / 2;
+    const barrel = new THREE.Mesh(barrelGeo, detailMat);
     barrel.position.set(C.TANK_LENGTH_M * 0.3, C.TANK_HEIGHT_M * 0.7 + 0.2, 0);
-    const trackMat = mat(C.COLOR_TANK_DETAIL);
     for (const s of [-1, 1]) {
-      const track = new THREE.Mesh(new THREE.BoxGeometry(C.TANK_LENGTH_M, 0.7, 0.6), trackMat);
+      const track = new THREE.Mesh(trackGeo, detailMat);
       track.position.set(0, 0.35, s * (C.TANK_WIDTH_M / 2));
       g.add(track);
     }
@@ -99,8 +113,8 @@ export function createView3D(canvas) {
       } else m.visible = false;
     });
   }
-  const unitSphere = new THREE.SphereGeometry(1, 16, 12);
-  const mineGeo = new THREE.CylinderGeometry(C.MINE_RADIUS_M, C.MINE_RADIUS_M, 0.25, 12);
+  const unitSphere = new THREE.SphereGeometry(1, 8, 6);
+  const mineGeo = new THREE.CylinderGeometry(C.MINE_RADIUS_M, C.MINE_RADIUS_M, 0.25, 8);
   const mineUnarmed = mat(C.COLOR_MINE_UNARMED);
   const mineArmed = mat(C.COLOR_MINE_ARMED);
 
@@ -146,21 +160,22 @@ export function createView3D(canvas) {
   const camera = new THREE.PerspectiveCamera(C.CAMERA_FOV_DEG, 1, C.CAMERA_NEAR_M, C.CAMERA_FAR_M);
   let cw = 1;
   let ch = 1;
+  let half = 1;
   function resize() {
     const r = canvas.parentElement.getBoundingClientRect();
     cw = Math.max(1, Math.floor(r.width));
     ch = Math.max(1, Math.floor(r.height));
+    half = Math.floor((cw - C.VIEW_GAP_PX) / 2);
     renderer.setSize(cw, ch, false);
+    camera.aspect = half / ch;
+    camera.updateProjectionMatrix();
   }
 
   function render(world) {
     updateDynamic(world);
     renderer.setScissorTest(true);
-    const half = Math.floor((cw - C.VIEW_GAP_PX) / 2);
     for (const p of [0, 1]) {
       const pose = viewPose(world, p);
-      camera.aspect = half / ch;
-      camera.updateProjectionMatrix();
       camera.position.set(pose.x, C.CAMERA_HEIGHT_M, pose.y);
       camera.lookAt(
         pose.x + Math.cos(pose.heading) * C.CAMERA_LOOK_DISTANCE_M,

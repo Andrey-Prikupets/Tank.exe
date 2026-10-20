@@ -16,6 +16,7 @@ export const SIM_TICK_HZ = 60;
 export const SIM_TICK_S = 1 / SIM_TICK_HZ;
 export const SIM_MAX_FRAME_S = 0.1;
 export const HUD_UPDATE_INTERVAL_MS = 100;
+export const RENDER_TARGET_FPS = 45;
 export const SAVE_FORMAT_VERSION = 1;
 export const SAVE_SLOT_COUNT = 3;
 export const SAVE_KEY_PREFIX = 'game90x.save.';
@@ -109,7 +110,7 @@ export const CAMERA_NEAR_M = 0.2;
 export const CAMERA_FAR_M = 700;
 export const CAMERA_LOOK_DISTANCE_M = 10;
 export const VIEW_GAP_PX = 4;
-export const MAX_PIXEL_RATIO = 2;
+export const MAX_PIXEL_RATIO = 1.0;
 
 // ---- Input ------------------------------------------------------------------
 export const KEY_REPEAT_DELAY_MS = 300;

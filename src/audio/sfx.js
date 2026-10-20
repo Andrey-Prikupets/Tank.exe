@@ -55,19 +55,25 @@ export class Sfx {
     gain.gain.value = 0;
     osc.connect(lp).connect(gain).connect(this.panner(p === 0 ? -C.AUDIO_PAN_STRENGTH : C.AUDIO_PAN_STRENGTH));
     osc.start();
-    return { osc, gain };
+    return { osc, gain, lastFreq: -1, lastGain: -1 };
   }
 
   updateEngines(world, playing) {
-    if (!this.ctx) return;
+    if (!this.ctx || !this.enabled) return;
     const now = this.ctx.currentTime;
     for (const p of [0, 1]) {
       const t = selectedTank(world, p);
       const active = playing && t && t.status === 'field' && world.players[p].view === 'tank';
       const ratio = active ? Math.abs(t.speed) / C.kmhToMs(C.TANK_MAX_SPEED_KMH) : 0;
       const g = active ? C.AUDIO_ENGINE_IDLE_GAIN + ratio * C.AUDIO_ENGINE_GAIN : 0;
-      this.engines[p].osc.frequency.setTargetAtTime(C.AUDIO_ENGINE_BASE_HZ + ratio * C.AUDIO_ENGINE_SPEED_HZ, now, C.AUDIO_ENGINE_SMOOTH_S);
-      this.engines[p].gain.gain.setTargetAtTime(g, now, C.AUDIO_ENGINE_SMOOTH_S);
+      const freq = C.AUDIO_ENGINE_BASE_HZ + ratio * C.AUDIO_ENGINE_SPEED_HZ;
+      const eng = this.engines[p];
+      if (Math.abs(eng.lastFreq - freq) > 0.5 || Math.abs(eng.lastGain - g) > 0.002) {
+        eng.lastFreq = freq;
+        eng.lastGain = g;
+        eng.osc.frequency.setTargetAtTime(freq, now, C.AUDIO_ENGINE_SMOOTH_S);
+        eng.gain.gain.setTargetAtTime(g, now, C.AUDIO_ENGINE_SMOOTH_S);
+      }
     }
   }
 
@@ -86,17 +92,37 @@ export class Sfx {
     const out = this.panner(pan);
     src.connect(f).connect(g).connect(out);
     src.start(now, 0, dur);
+
+    let o = null;
+    let og = null;
     if (thumpHz) {
-      const o = ctx.createOscillator();
+      o = ctx.createOscillator();
       o.frequency.setValueAtTime(thumpHz, now);
       o.frequency.exponentialRampToValueAtTime(30, now + dur);
-      const og = ctx.createGain();
+      og = ctx.createGain();
       og.gain.setValueAtTime(gain, now);
       og.gain.exponentialRampToValueAtTime(0.001, now + dur);
       o.connect(og).connect(out);
       o.start(now);
       o.stop(now + dur);
     }
+
+    const cleanup = () => {
+      try {
+        src.disconnect();
+        f.disconnect();
+        g.disconnect();
+        out.disconnect();
+        if (o) {
+          o.disconnect();
+          og.disconnect();
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    src.onended = cleanup;
+    setTimeout(cleanup, Math.round((dur + 0.15) * 1000));
   }
 
   tone(pan, hz, dur, gain) {
@@ -108,9 +134,22 @@ export class Sfx {
     const g = ctx.createGain();
     g.gain.setValueAtTime(gain, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + dur);
-    o.connect(g).connect(this.panner(pan));
+    const out = this.panner(pan);
+    o.connect(g).connect(out);
     o.start(now);
     o.stop(now + dur);
+
+    const cleanup = () => {
+      try {
+        o.disconnect();
+        g.disconnect();
+        out.disconnect();
+      } catch {
+        /* ignore */
+      }
+    };
+    o.onended = cleanup;
+    setTimeout(cleanup, Math.round((dur + 0.15) * 1000));
   }
 
   play(e) {

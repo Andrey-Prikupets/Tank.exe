@@ -52,6 +52,34 @@ export function createHud() {
   const debugEls = [document.getElementById('debug0'), document.getElementById('debug1')];
   let last = 0;
 
+  // Initialize inventory DOM once
+  const shellSvgs = [[], []];
+  const mineSvgs = [[], []];
+  const smokeSvgs = [[], []];
+  const lastCounts = [{ shells: -1, mines: -1, smokes: -1 }, { shells: -1, mines: -1, smokes: -1 }];
+  const lastBanners = ['', ''];
+  const lastIsWin = [false, false];
+  const lastDebug = ['', ''];
+
+  for (const p of [0, 1]) {
+    const shellsHtml = Array.from({ length: C.TANK_START_SHELLS }, () => shellSvg(false)).join('');
+    const minesHtml = Array.from({ length: C.TANK_START_MINES }, () => mineSvg(false)).join('');
+    const smokesHtml = Array.from({ length: C.TANK_START_SMOKES }, () => smokeSvg(false)).join('');
+
+    invPanels[p].innerHTML = `
+      <div class="inv-row shells">${shellsHtml}</div>
+      <div class="inv-row secondary">
+        <div class="inv-group mines">${minesHtml}</div>
+        <div class="inv-divider"></div>
+        <div class="inv-group smokes">${smokesHtml}</div>
+      </div>
+    `;
+
+    shellSvgs[p] = Array.from(invPanels[p].querySelectorAll('.icon-shell'));
+    mineSvgs[p] = Array.from(invPanels[p].querySelectorAll('.icon-mine'));
+    smokeSvgs[p] = Array.from(invPanels[p].querySelectorAll('.icon-smoke'));
+  }
+
   function bannerText(world, p) {
     const pl = world.players[p];
     if (pl.msgT > 0) return pl.msg;
@@ -64,13 +92,29 @@ export function createHud() {
     return '';
   }
 
+  function updateIcons(elements, count, prevCount) {
+    if (count === prevCount) return;
+    for (let i = 0; i < elements.length; i++) {
+      const on = i < count;
+      elements[i].classList.toggle('on', on);
+      elements[i].classList.toggle('off', !on);
+    }
+  }
+
   function update(world, now, force) {
     for (const p of [0, 1]) {
       const pl = world.players[p];
-      panes[p].classList.toggle('window', pl.view === 'window');
+      const isWin = pl.view === 'window';
+      if (isWin !== lastIsWin[p] || force) {
+        panes[p].classList.toggle('window', isWin);
+        lastIsWin[p] = isWin;
+      }
       const text = bannerText(world, p);
-      banners[p].textContent = text;
-      banners[p].classList.toggle('show', !!text);
+      if (text !== lastBanners[p] || force) {
+        banners[p].textContent = text;
+        banners[p].classList.toggle('show', !!text);
+        lastBanners[p] = text;
+      }
     }
     if (!force && now - last < C.HUD_UPDATE_INTERVAL_MS) return;
     last = now;
@@ -93,28 +137,30 @@ export function createHud() {
         smokeCount = t.smokes;
       }
 
-      const shellsHtml = Array.from({ length: C.TANK_START_SHELLS }, (_, i) => shellSvg(i < shellCount)).join('');
-      const minesHtml = Array.from({ length: C.TANK_START_MINES }, (_, i) => mineSvg(i < mineCount)).join('');
-      const smokesHtml = Array.from({ length: C.TANK_START_SMOKES }, (_, i) => smokeSvg(i < smokeCount)).join('');
-
-      // 2-row inventory: row 1 ammo shells, row 2 mines + smoke clouds
-      invPanels[p].innerHTML = `
-        <div class="inv-row shells">${shellsHtml}</div>
-        <div class="inv-row secondary">
-          <div class="inv-group mines">${minesHtml}</div>
-          <div class="inv-divider"></div>
-          <div class="inv-group smokes">${smokesHtml}</div>
-        </div>
-      `;
+      const prev = lastCounts[p];
+      if (force || prev.shells !== shellCount) {
+        updateIcons(shellSvgs[p], shellCount, prev.shells);
+        prev.shells = shellCount;
+      }
+      if (force || prev.mines !== mineCount) {
+        updateIcons(mineSvgs[p], mineCount, prev.mines);
+        prev.mines = mineCount;
+      }
+      if (force || prev.smokes !== smokeCount) {
+        updateIcons(smokeSvgs[p], smokeCount, prev.smokes);
+        prev.smokes = smokeCount;
+      }
 
       if (debugEls[p]) {
         const sp = t && t.status === 'field' ? Math.round(C.msToKmh(t.speed)) : 0;
         const trn = t && t.status === 'field' ? Math.round(C.radToDeg(t.turn)) : 0;
         const res = hangarCount(world, p);
-        if (p === 0) {
-          debugEls[0].textContent = `[DEBUG] P1: ${sp} km/h · ${trn}°/s · RESERVES: ${res} · LOST: ${pl.lost}/15`;
-        } else {
-          debugEls[1].textContent = `[DEBUG] P2: ${sp} km/h · ${trn}°/s · RESERVES: ${res} · LOST: ${pl.lost}/15`;
+        const debugStr = p === 0
+          ? `[DEBUG] P1: ${sp} km/h · ${trn}°/s · RESERVES: ${res} · LOST: ${pl.lost}/15`
+          : `[DEBUG] P2: ${sp} km/h · ${trn}°/s · RESERVES: ${res} · LOST: ${pl.lost}/15`;
+        if (debugStr !== lastDebug[p] || force) {
+          debugEls[p].textContent = debugStr;
+          lastDebug[p] = debugStr;
         }
       }
     }
