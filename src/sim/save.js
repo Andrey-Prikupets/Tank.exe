@@ -1,10 +1,11 @@
 import * as C from '../constants.js';
 
 const slotKey = (i) => `${C.SAVE_KEY_PREFIX}${i}`;
+const getSlotRaw = (i) => localStorage.getItem(slotKey(i));
 
 export function slotInfo(i) {
   try {
-    const raw = localStorage.getItem(slotKey(i));
+    const raw = getSlotRaw(i);
     if (!raw) return null;
     const data = JSON.parse(raw);
     return { savedAt: data.savedAt, version: data.version };
@@ -21,7 +22,7 @@ export function saveSlot(i, world) {
 
 /** Returns {world} or {error}. */
 export function loadSlot(i) {
-  const raw = localStorage.getItem(slotKey(i));
+  const raw = getSlotRaw(i);
   if (!raw) return { error: 'Slot is empty' };
   try {
     const data = JSON.parse(raw);

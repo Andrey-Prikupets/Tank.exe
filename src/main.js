@@ -150,34 +150,6 @@ function confirmScreen(text, onYes) {
   };
 }
 
-function quitScreen() {
-  return {
-    title: 'QUIT TANK.EXE',
-    text: `
-      <div class="dos-box">
-        C:\\GAMES\\TANK&gt; EXIT<br><br>
-        [ Tank.exe ${C.VERSION_LABEL} session terminated ]<br>
-        Memory released: 640K conventional RAM.<br><br>
-        Thank you for playing Tank.exe!
-      </div>
-    `,
-    items: [
-      {
-        label: 'Restart Tank.exe',
-        action: () => {
-          menu.clear();
-          newGame();
-        },
-      },
-      {
-        label: 'Main menu',
-        action: openTitle,
-      },
-    ],
-    onEsc: openTitle,
-  };
-}
-
 function newGame() {
   world = createWorld();
   appState = 'PLAYING';
@@ -197,10 +169,9 @@ function openTitle() {
     text: '<div class="center">Two players · one keyboard · 90s split-screen tank combat</div>',
     items: [
       { label: 'Start game', action: newGame },
-      { label: 'Help', action: () => menu.push(helpScreen()) },
-      soundItem(),
       { label: 'Load game', action: () => menu.push(loadScreen()) },
-      { label: 'Quit', action: () => menu.push(quitScreen()) },
+      soundItem(),
+      { label: 'Help', action: () => menu.push(helpScreen()) },
     ],
     onEsc: null,
   });
@@ -219,18 +190,14 @@ function openPause() {
     text: '<div class="center">Game is paused</div>',
     items: [
       { label: 'Resume', action: resume },
-      { label: 'Help', action: () => menu.push(helpScreen()) },
-      soundItem(),
       { label: 'Save game', action: () => menu.push(saveScreen()) },
       { label: 'Load game', action: () => menu.push(loadScreen()) },
       {
         label: 'New game',
         action: () => menu.push(confirmScreen('Current game will be lost.', newGame)),
       },
-      {
-        label: 'Quit',
-        action: () => menu.push(confirmScreen('Quit match to main menu?', openTitle)),
-      },
+      soundItem(),
+      { label: 'Help', action: () => menu.push(helpScreen()) },
     ],
     onEsc: resume,
   });

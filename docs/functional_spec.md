@@ -117,12 +117,13 @@
 
 ### 4.1 Strategic map
 
-- Background: solid green (`COLOR_FIELD`). Border drawn as a thin line; gates as gaps.
-- Tanks drawn as faceted bodies with 8 corners (chamfered corners from top view, to scale) with a gun barrel
+- Background: solid green (`COLOR_FIELD`) on field; outer canvas area is dark gray (`COLOR_OUTSIDE`). Hangar floor and walls are light gray (`COLOR_HANGAR_FLOOR`, `COLOR_HANGAR_WALL`). Border drawn as a thin line; gates as gaps.
+- Tanks drawn as faceted bodies with 8 corners (chamfered corners from top view, to scale) with a short gun barrel
   extending forward directly from the **octagonal turret** head (`TURRET_RADIUS_M`), shaded in a darker team color.
+  - Barrel length is compact (`BARREL_LENGTH_M = 2.4m`, overhang 0.2m) preventing it from touching hangar walls or neighboring tanks.
   - Left team red, right team blue.
   - **Selected tank** of each player drawn in a **brighter** shade of team color.
-  - Tank **number digit** (1..5 for both teams) drawn large, bold, and centered **inside the octagonal turret** (always upright, drawn using a custom bold tactical block font with a high-contrast dark outline, pre-rasterized to eliminate sub-pixel rasterization jitter/shaking during movement).
+  - Tank **number digit** (1..5 for both teams) drawn large, bold, and centered **inside the octagonal turret** (always upright, drawn directly with analytical vector strokes to eliminate sub-pixel texture waving/jerking on refresh).
 - Spare tanks drawn in their hangar slots; numbered spares show their digit (1..5), unnumbered ones are blank.
 - Shells: small bright dots. Mines: small dark dots/crosses. **[A5]**
 - Smoke clouds: gray filled circles drawn **above** tanks (tanks inside are hidden on the map). **[A6]**
@@ -131,15 +132,16 @@
 
 ### 4.2 3D views
 
-- Camera mounted on the selected tank at `CAMERA_HEIGHT_M`, looking along the (fixed) gun,
-  field of view `CAMERA_FOV_DEG`.
+- Camera mounted on the selected tank at `CAMERA_HEIGHT_M` (2.0m), looking along the (fixed) gun,
+  field of view `CAMERA_FOV_DEG`. Crosshair points squarely into the center-upper third of enemy turrets rather than their top roof plane.
 - Gun **cannot rotate** relative to the hull — aim by turning the tank. **[A7]**
 - **Crosshair** fixed in the center of the view.
-- Rendering: solid shaded polygons, no textures. Green ground plane, solid sky color, border walls,
-  gates (closed sliding doors), hangar buildings, low-poly tanks (faceted 8-corner hull without lower tracks,
-  **octagonal turret with vertical edges** + barrel) in team colors, shells
+- Rendering: solid shaded polygons, no textures. Green ground plane, solid sky color, dark gray outside environment, light gray hangar buildings, border walls,
+  gates (closed sliding doors), low-poly tanks (faceted 8-corner hull without lower tracks,
+  **octagonal turret with vertical edges, 25% taller** [`TURRET_HEIGHT_M = 1.25m`] + compact barrel) in team colors, shells
   (bright small spheres), mines (flat discs), smoke (opaque gray blobs that block line of sight),
   explosions (expanding orange/yellow spheres + debris boxes).
+- **Smoke Cloud Visibility:** When inside a smoke cloud, visible distance is restricted to ~2m; visibility gradually decreases to zero at 2m via dense distance fog.
 - The view may show own-tank barrel tip at the bottom-center for orientation.
 
 ### 4.3 In-Viewport Rounded Inventory Overlay
@@ -153,8 +155,8 @@ The inventory is rendered **not** as a separate text table under the viewport, b
 - **Right player's overlay:** docked at the bottom-right of the right 3D viewport; elements right-aligned.
 - **Pure Graphical Icons (No Text Labels):**
   - **Shells:** Vertically standing artillery projectile silhouettes (bright brass/yellow when available, ghost outline when expended).
-  - **Anti-Tank Mines:** Authentic top-down anti-tank mine icon with circular heavy casing rim, concentric pressure plate, central arming fuze cap with screw slot, and carry handle loop (not an explosion).
-  - **Smoke Clouds:** Rounded, symmetrical, radial cluster of billowy grenade smoke puffs (not a flat-bottom atmospheric cumulus cloud).
+  - **Anti-Tank Mines:** Isometric anti-tank mine seen from side and up angle with cylindrical casing depth, stepped concentric pressure plate, central arming fuze cap, and carry bracket.
+  - **Smoke Clouds:** Non-symmetric organic billowing cloud silhouette embedded within a 1:1 square icon frame.
   - **No text labels:** Words such as `AMMO`, `MINES`, `SMOKE`, `RED`, or `BLUE` are strictly omitted.
   - **No tank numbers** in the inventory frame.
 - **Debug Indicators:**
@@ -383,21 +385,19 @@ The game launches into the **Tank.exe Title Menu**:
 - Subtitle: `Two players · one keyboard · 90s split-screen tank combat`
 - Options:
   1. **Start Game** (or New Game)
-  2. **Help** (opens a scrollable modal detailing game concept, 90s lore, rules, and controls table)
+  2. **Load Game** (choose slot 1..10)
   3. **Sound: ON / OFF**
-  4. **Load Game** (choose slot 1..3)
-  5. **Quit** (displays authentic DOS session termination screen with option to restart)
+  4. **Help** (opens a scrollable modal detailing game concept, 90s lore, rules, and controls table)
 
 **In-Game Pause Menu (`Esc`):**
 - Pauses the fixed-step simulation immediately.
 - Options:
   1. **Resume**
-  2. **Help** (scrollable modal with rules & controls)
-  3. **Sound: ON / OFF**
-  4. **Save Game** (choose slot 1..3)
-  5. **Load Game** (choose slot 1..3)
-  6. **New Game** (with loss confirmation)
-  7. **Quit** (quits current match back to Title Menu / DOS exit)
+  2. **Save Game** (choose slot 1..10)
+  3. **Load Game** (choose slot 1..10)
+  4. **New Game** (with loss confirmation)
+  5. **Sound: ON / OFF**
+  6. **Help** (scrollable modal with rules & controls)
 
 - Keyboard navigation (all menus & modals):
   - `↑` / `↓` move the selection highlight (wraps around).
@@ -409,7 +409,7 @@ The game launches into the **Tank.exe Title Menu**:
 - The game auto-pauses when the browser tab loses focus.
 
 ### 11.4 Save / Load
-- `SAVE_SLOT_COUNT` (3) slots in `localStorage`, each storing a versioned JSON snapshot of the full
+- `SAVE_SLOT_COUNT` (10) slots in `localStorage` under `tank.exe.save.<slot>`, each storing a versioned JSON snapshot of the full
   simulation state (tanks, commands, inventories, hangars, numbering, shells in flight, mines,
   smoke, selections, view modes, timers, stats) plus timestamp.
 - Loading restores the exact state and returns to `PAUSED` (player presses Resume).

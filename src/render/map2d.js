@@ -12,64 +12,76 @@ export function createMap2D(canvas) {
   let h = 0;
   let dpr = 1;
 
-  const digitSprites = {};
-  function renderTacticalDigit(cctx, num, expand = 0) {
-    const e = expand;
-    switch (num) {
-      case '1':
-        cctx.fillRect(48 - e, 14 - e, 32 + 2 * e, 100 + 2 * e);
-        cctx.fillRect(24 - e, 94 - e, 80 + 2 * e, 20 + 2 * e);
-        cctx.beginPath();
-        cctx.moveTo(24 - e, 46 + e);
-        cctx.lineTo(48 + e, 14 - e);
-        cctx.lineTo(48 + e, 46 + e);
-        cctx.closePath();
-        cctx.fill();
-        break;
-      case '2':
-        cctx.fillRect(24 - e, 14 - e, 80 + 2 * e, 22 + 2 * e);
-        cctx.fillRect(82 - e, 14 - e, 22 + 2 * e, 46 + 2 * e);
-        cctx.fillRect(24 - e, 52 - e, 80 + 2 * e, 22 + 2 * e);
-        cctx.fillRect(24 - e, 68 - e, 22 + 2 * e, 46 + 2 * e);
-        cctx.fillRect(24 - e, 92 - e, 80 + 2 * e, 22 + 2 * e);
-        break;
-      case '3':
-        cctx.fillRect(24 - e, 14 - e, 80 + 2 * e, 22 + 2 * e);
-        cctx.fillRect(36 - e, 52 - e, 68 + 2 * e, 22 + 2 * e);
-        cctx.fillRect(24 - e, 92 - e, 80 + 2 * e, 22 + 2 * e);
-        cctx.fillRect(82 - e, 14 - e, 22 + 2 * e, 100 + 2 * e);
-        break;
-      case '4':
-        cctx.fillRect(24 - e, 14 - e, 22 + 2 * e, 52 + 2 * e);
-        cctx.fillRect(24 - e, 56 - e, 80 + 2 * e, 22 + 2 * e);
-        cctx.fillRect(76 - e, 14 - e, 28 + 2 * e, 100 + 2 * e);
-        break;
-      case '5':
-        cctx.fillRect(24 - e, 14 - e, 80 + 2 * e, 22 + 2 * e);
-        cctx.fillRect(24 - e, 14 - e, 22 + 2 * e, 48 + 2 * e);
-        cctx.fillRect(24 - e, 52 - e, 80 + 2 * e, 22 + 2 * e);
-        cctx.fillRect(82 - e, 66 - e, 22 + 2 * e, 48 + 2 * e);
-        cctx.fillRect(24 - e, 92 - e, 80 + 2 * e, 22 + 2 * e);
-        break;
-    }
-  }
+  function drawTacticalDigit(ctx, num, tr, scale) {
+    const s = tr * 0.85;
+    const w = s * 0.46;
+    const h = s * 0.68;
+    const th = Math.max(1.8, s * 0.32);
+    const outlineExtra = Math.max(1.5, 0.35 * scale);
 
-  function makeDigitSprites() {
-    for (const num of ['1', '2', '3', '4', '5']) {
-      const c = document.createElement('canvas');
-      c.width = 128;
-      c.height = 128;
-      const cctx = c.getContext('2d');
-      // Dark high-contrast silhouette border
-      cctx.fillStyle = '#050a06';
-      renderTacticalDigit(cctx, num, 6);
-      // Crisp solid white glyph
-      cctx.fillStyle = '#ffffff';
-      renderTacticalDigit(cctx, num, 0);
-      digitSprites[num] = c;
+    function tracePath() {
+      ctx.beginPath();
+      switch (num) {
+        case '1':
+          ctx.moveTo(w * 0.2, -h);
+          ctx.lineTo(w * 0.2, h);
+          ctx.moveTo(-w * 0.7, -h * 0.35);
+          ctx.lineTo(w * 0.2, -h);
+          ctx.moveTo(-w * 0.7, h);
+          ctx.lineTo(w * 0.9, h);
+          break;
+        case '2':
+          ctx.moveTo(-w, -h);
+          ctx.lineTo(w, -h);
+          ctx.lineTo(w, 0);
+          ctx.lineTo(-w, 0);
+          ctx.lineTo(-w, h);
+          ctx.lineTo(w, h);
+          break;
+        case '3':
+          ctx.moveTo(-w, -h);
+          ctx.lineTo(w, -h);
+          ctx.lineTo(w, h);
+          ctx.lineTo(-w, h);
+          ctx.moveTo(-w * 0.35, 0);
+          ctx.lineTo(w, 0);
+          break;
+        case '4':
+          ctx.moveTo(-w, -h);
+          ctx.lineTo(-w, 0.05 * h);
+          ctx.lineTo(w, 0.05 * h);
+          ctx.moveTo(w * 0.45, -h);
+          ctx.lineTo(w * 0.45, h);
+          break;
+        case '5':
+          ctx.moveTo(w, -h);
+          ctx.lineTo(-w, -h);
+          ctx.lineTo(-w, 0);
+          ctx.lineTo(w, 0);
+          ctx.lineTo(w, h);
+          ctx.lineTo(-w, h);
+          break;
+      }
     }
+
+    ctx.save();
+    ctx.lineCap = 'square';
+    ctx.lineJoin = 'miter';
+
+    // Outer dark silhouette for high contrast against turret color
+    tracePath();
+    ctx.lineWidth = th + outlineExtra * 2;
+    ctx.strokeStyle = '#050a06';
+    ctx.stroke();
+
+    // Solid crisp white foreground
+    tracePath();
+    ctx.lineWidth = th;
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
+
+    ctx.restore();
   }
-  makeDigitSprites();
 
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, C.MAX_PIXEL_RATIO);
@@ -191,10 +203,10 @@ export function createMap2D(canvas) {
       ctx.fillStyle = selected ? TEAM[t.owner].sel : TEAM[t.owner].base;
       ctx.fill();
 
-      // Gun barrel: comes from the tank head (turret) and extends forward past the hull
+      // Gun barrel: shorter gun extending only slightly past the hull nose
       const barrelStart = tx + tr * 0.4;
-      const barrelEnd = hl + tl * 0.25;
-      const barrelWidth = Math.max(2, 0.4 * scale);
+      const barrelEnd = hl + 0.2 * scale;
+      const barrelWidth = Math.max(2, 0.36 * scale);
       ctx.fillStyle = C.COLOR_TANK_DETAIL;
       ctx.fillRect(barrelStart, -barrelWidth / 2, barrelEnd - barrelStart, barrelWidth);
 
@@ -214,13 +226,12 @@ export function createMap2D(canvas) {
       ctx.strokeStyle = C.COLOR_TANK_DETAIL;
       ctx.stroke();
 
-      // Digit inside octagonal head: upright, larger, perfectly shake-free
-      if (t.number != null && digitSprites[t.number]) {
+      // Digit inside octagonal head: upright, pure analytical vector strokes (zero shimmering/waving)
+      if (t.number != null) {
         ctx.save();
         ctx.translate(tx, 0);
         ctx.rotate(-t.heading); // Un-rotate to stay upright
-        const digitSize = tr * 1.8;
-        ctx.drawImage(digitSprites[t.number], -digitSize / 2, -digitSize / 2, digitSize, digitSize);
+        drawTacticalDigit(ctx, t.number, tr, scale);
         ctx.restore();
       }
 

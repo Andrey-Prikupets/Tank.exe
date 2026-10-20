@@ -18,9 +18,9 @@ export const SIM_MAX_FRAME_S = 0.1;
 export const HUD_UPDATE_INTERVAL_MS = 100;
 export const RENDER_TARGET_FPS = 45;
 export const SAVE_FORMAT_VERSION = 2;
-export const SAVE_SLOT_COUNT = 3;
-export const SAVE_KEY_PREFIX = 'game90x.save.';
-export const AUDIO_SETTINGS_KEY = 'game90x.audio';
+export const SAVE_SLOT_COUNT = 10;
+export const SAVE_KEY_PREFIX = 'tank.exe.save.';
+export const AUDIO_SETTINGS_KEY = 'tank.exe.audio';
 
 // ---- Field ------------------------------------------------------------------
 export const FIELD_LENGTH_M = 250;
@@ -85,7 +85,10 @@ export const GATE_DOOR_THICKNESS_FRACTION = 0.8;
 export const TURRET_SIDES = 8;
 export const TURRET_RADIUS_M = 1.6;
 export const TURRET_TOP_RADIUS_M = TURRET_RADIUS_M;
+export const TURRET_HEIGHT_M = 1.25; // 25% taller than 1.0m
 export const TURRET_OFFSET_M = -0.3;
+export const BARREL_LENGTH_M = 2.4; // Shorter gun so it does not touch hangar walls/tanks
+export const BARREL_OFFSET_X_M = 2.0;
 export const MAP_TURRET_STROKE_PX = 1;
 
 // ---- Weapons ----------------------------------------------------------------
@@ -105,6 +108,7 @@ export const MINE_RADIUS_M = 0.8;
 export const SMOKE_RADIUS_M = 10;
 export const SMOKE_LIFETIME_S = 10;
 export const SMOKE_FADE_S = 2;
+export const SMOKE_VISIBLE_DISTANCE_M = 2.0; // Visibility inside smoke fades to 0 at 2m
 export const EXPLOSION_DURATION_S = 1;
 export const EXPLOSION_RADIUS_M = 5;
 export const MINE_EXPLOSION_RADIUS_M = 7;
@@ -123,7 +127,7 @@ export const WINDOW_MASK_PERCENT = 36;
 export const MESSAGE_DURATION_S = 3;
 
 // ---- Camera -----------------------------------------------------------------
-export const CAMERA_HEIGHT_M = 2.2;
+export const CAMERA_HEIGHT_M = 2.0;
 export const CAMERA_FOV_DEG = 60;
 export const CAMERA_NEAR_M = 0.2;
 export const CAMERA_FAR_M = 700;
@@ -170,11 +174,11 @@ export const MENU_KEYS = {
 
 // ---- Colors -----------------------------------------------------------------
 export const COLOR_FIELD = '#3f9b3f';
-export const COLOR_OUTSIDE = '#1b231b';
+export const COLOR_OUTSIDE = '#2e3338';
 export const COLOR_SKY = '#8cc0ea';
 export const COLOR_BORDER = '#e8e8e8';
-export const COLOR_HANGAR_FLOOR = '#6b6f73';
-export const COLOR_HANGAR_WALL = '#8a8f94';
+export const COLOR_HANGAR_FLOOR = '#c0c4c8';
+export const COLOR_HANGAR_WALL = '#d4d8dc';
 export const COLOR_WINDOW = '#14202c';
 export const COLOR_WINDOW_ACTIVE = '#ffd54a';
 export const COLOR_LEFT_TEAM = '#b5372b';

@@ -100,18 +100,22 @@ export function createView3D(canvas) {
   hullGeo.rotateX(Math.PI / 2);
   hullGeo.translate(0, hullH, 0);
 
+  const turretH = C.TURRET_HEIGHT_M;
+  const turretCenterY = hullH + turretH / 2;
   const turretGeo = new THREE.CylinderGeometry(
     C.TURRET_RADIUS_M,
     C.TURRET_RADIUS_M,
-    C.TANK_HEIGHT_M * 0.4,
+    turretH,
     C.TURRET_SIDES,
   );
-  const barrelGeo = new THREE.CylinderGeometry(0.2, 0.2, C.TANK_LENGTH_M * 0.7, 6);
+  const barrelGeo = new THREE.CylinderGeometry(0.18, 0.18, C.BARREL_LENGTH_M, 6);
   barrelGeo.rotateZ(Math.PI / 2);
 
   const teamMats = [mat(C.COLOR_LEFT_TEAM), mat(C.COLOR_RIGHT_TEAM)];
   const turretMats = [mat(C.COLOR_LEFT_TURRET), mat(C.COLOR_RIGHT_TURRET)];
   const detailMat = mat(C.COLOR_TANK_DETAIL);
+  const skyColor = new THREE.Color(C.COLOR_SKY);
+  const smokeColor = new THREE.Color(C.COLOR_SMOKE);
 
   const tankMeshes = new Map();
   function makeTank(owner) {
@@ -120,9 +124,9 @@ export function createView3D(canvas) {
     const hull = new THREE.Mesh(hullGeo, teamMat);
     hull.position.y = 0;
     const turret = new THREE.Mesh(turretGeo, turretMats[owner]);
-    turret.position.set(C.TURRET_OFFSET_M, C.TANK_HEIGHT_M * 0.7, 0);
+    turret.position.set(C.TURRET_OFFSET_M, turretCenterY, 0);
     const barrel = new THREE.Mesh(barrelGeo, detailMat);
-    barrel.position.set(C.TANK_LENGTH_M * 0.3, C.TANK_HEIGHT_M * 0.7, 0);
+    barrel.position.set(C.BARREL_OFFSET_X_M, turretCenterY, 0);
     g.add(hull, turret, barrel);
     scene.add(g);
     return g;
@@ -212,6 +216,32 @@ export function createView3D(canvas) {
     renderer.setScissorTest(true);
     for (const p of [0, 1]) {
       const pose = viewPose(world, p);
+
+      // Visibility inside smoke is ~2m, gradually decreasing to none at 2m
+      let maxSmokeIntensity = 0;
+      if (world.smokes) {
+        for (const s of world.smokes) {
+          const remaining = C.SMOKE_LIFETIME_S - s.t;
+          if (remaining <= 0) continue;
+          const dist = Math.hypot(pose.x - s.x, pose.y - s.y);
+          if (dist < C.SMOKE_RADIUS_M) {
+            const density = Math.min(1, remaining / C.SMOKE_FADE_S);
+            const pen = Math.max(0, Math.min(1, (C.SMOKE_RADIUS_M - dist) / 2.0));
+            const intensity = pen * density;
+            if (intensity > maxSmokeIntensity) maxSmokeIntensity = intensity;
+          }
+        }
+      }
+
+      if (maxSmokeIntensity > 0.01) {
+        const fogFar = C.SMOKE_VISIBLE_DISTANCE_M + (1 - maxSmokeIntensity) * 40;
+        scene.fog = new THREE.Fog(smokeColor, 0.2, fogFar);
+        scene.background.copy(skyColor).lerp(smokeColor, maxSmokeIntensity);
+      } else {
+        scene.fog = null;
+        scene.background.copy(skyColor);
+      }
+
       camera.position.set(pose.x, C.CAMERA_HEIGHT_M, pose.y);
       camera.lookAt(
         pose.x + Math.cos(pose.heading) * C.CAMERA_LOOK_DISTANCE_M,

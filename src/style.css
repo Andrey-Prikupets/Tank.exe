@@ -1,5 +1,5 @@
 :root {
-  --bg: #0a0d0a;
+  --bg: #282c31;
   --panel: #10161a;
   --accent: #ffd54a;
   --red: #ff7060;
@@ -26,14 +26,14 @@ html, body {
 }
 #mapWrap {
   position: relative;
-  border-bottom: 2px solid #26332a;
+  border-bottom: 2px solid #3a4148;
   min-height: 0;
 }
 #map { display: block; }
 #glWrap {
   position: relative;
   min-height: 0;
-  background: #000;
+  background: #202428;
 }
 #gl {
   position: absolute;
@@ -222,14 +222,14 @@ html, body {
 
 /* Debug telemetry bar at the bottom */
 #debugBar {
-  background: #060907;
-  border-top: 1px solid #1a241e;
+  background: #1c1f23;
+  border-top: 1px solid #363b40;
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 0 16px;
   font-size: 11px;
-  color: #4f6353;
+  color: #8e9a90;
   letter-spacing: 0.05em;
   user-select: none;
 }
@@ -336,6 +336,10 @@ html, body {
   list-style: none;
   margin: 0;
   padding: 0;
+  max-height: 58vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #3b5a44 #0e1712;
 }
 .m-items li {
   display: flex;

@@ -12,36 +12,45 @@ function shellSvg(active) {
 function mineSvg(active) {
   const cls = active ? 'icon-mine on' : 'icon-mine off';
   return `<svg class="${cls}" viewBox="0 0 20 20" aria-hidden="true">
-    <!-- Anti-tank carry handle loop -->
-    <path d="M8 1.4 Q10 0.4 12 1.4" stroke="currentColor" stroke-width="1.2" fill="none"/>
-    <!-- Outer heavy casing rim -->
-    <circle cx="10" cy="10" r="8.8" fill="#141d16" stroke="currentColor" stroke-width="1.2"/>
-    <!-- Stepped casing bevel -->
-    <circle cx="10" cy="10" r="7.2" fill="#202c22"/>
-    <!-- Concentric pressure plate -->
-    <circle cx="10" cy="10" r="5.4" fill="currentColor"/>
-    <circle cx="10" cy="10" r="3.8" fill="#152017"/>
-    <!-- Central arming fuze cap -->
-    <circle cx="10" cy="10" r="2.3" fill="#ffd54a"/>
-    <line x1="8.8" y1="10" x2="11.2" y2="10" stroke="#111" stroke-width="0.8"/>
+    <!-- Isometric drop shadow under base -->
+    <ellipse cx="10" cy="14" rx="8.5" ry="3.8" fill="#080e0a" opacity="0.6"/>
+    <!-- Outer cylindrical casing wall -->
+    <path d="M1.5 10 C1.5 13.8 18.5 13.8 18.5 10 L18.5 13.2 C18.5 17 1.5 17 1.5 13.2 Z" fill="#1b241c" stroke="currentColor" stroke-width="0.8"/>
+    <!-- Top rim of main casing -->
+    <ellipse cx="10" cy="10" rx="8.5" ry="3.8" fill="#243327" stroke="currentColor" stroke-width="0.9"/>
+    <!-- Stepped inner bevel -->
+    <ellipse cx="10" cy="9.5" rx="6.8" ry="3.0" fill="#152017"/>
+    <!-- Raised pressure plate wall -->
+    <path d="M4.6 8.2 C4.6 10.8 15.4 10.8 15.4 8.2 L15.4 9.1 C15.4 11.7 4.6 11.7 4.6 9.1 Z" fill="#1c2b20"/>
+    <!-- Raised pressure plate top -->
+    <ellipse cx="10" cy="8.2" rx="5.4" ry="2.4" fill="currentColor"/>
+    <!-- Central arming fuze well -->
+    <ellipse cx="10" cy="8.0" rx="2.8" ry="1.3" fill="#141e16"/>
+    <ellipse cx="10" cy="7.7" rx="1.8" ry="0.8" fill="#ffd54a"/>
+    <!-- Side carrying bracket/handle in isometry -->
+    <path d="M2.2 10 C1.2 8.5 2.5 6.8 4.2 7.2" stroke="currentColor" stroke-width="1.1" fill="none"/>
   </svg>`;
 }
 
 function smokeSvg(active) {
   const cls = active ? 'icon-smoke on' : 'icon-smoke off';
   return `<svg class="${cls}" viewBox="0 0 20 20" aria-hidden="true">
-    <!-- Rounded symmetric cluster of smoke plumes -->
-    <g fill="currentColor">
-      <circle cx="10" cy="10" r="5.2"/>
-      <circle cx="10" cy="5.8" r="3.5"/>
-      <circle cx="13.6" cy="7.9" r="3.5"/>
-      <circle cx="13.6" cy="12.1" r="3.5"/>
-      <circle cx="10" cy="14.2" r="3.5"/>
-      <circle cx="6.4" cy="12.1" r="3.5"/>
-      <circle cx="6.4" cy="7.9" r="3.5"/>
-    </g>
-    <!-- Inner puffy billow lines -->
-    <path d="M8.2 8.6 A2.4 2.4 0 0 1 11.8 8.6 M8.2 11.4 A2.4 2.4 0 0 0 11.8 11.4" stroke="#18241c" stroke-width="0.8" fill="none" opacity="0.65"/>
+    <!-- Non-symmetric organic cloud silhouette embedded in a square -->
+    <path d="M4.5 14.8
+             C2.2 14.8 1.2 12.8 2.0 10.8
+             C2.5 9.4 3.8 8.6 5.2 8.7
+             C5.6 6.2 7.6 4.2 10.2 4.3
+             C12.4 4.4 14.2 5.8 14.8 7.8
+             C16.8 7.8 18.5 9.4 18.5 11.4
+             C18.5 13.5 16.9 15.1 14.8 15.0
+             C13.8 15.7 12.4 16.0 11.0 15.8
+             C9.5 16.2 7.8 16.0 6.6 15.2
+             Z"
+          fill="currentColor"/>
+    <!-- Internal non-symmetric billowing shading highlights -->
+    <path d="M4.2 10.4 C4.8 8.2 7.2 7.5 9.4 7.8" stroke="#16221a" stroke-width="0.8" fill="none" opacity="0.45"/>
+    <path d="M10.8 6.5 C13.2 6.8 14.8 8.8 14.6 11.2" stroke="#16221a" stroke-width="0.8" fill="none" opacity="0.45"/>
+    <path d="M7.5 14.5 C9.0 13.2 12.2 13.5 13.8 14.8" stroke="#16221a" stroke-width="0.8" fill="none" opacity="0.4"/>
   </svg>`;
 }
 
