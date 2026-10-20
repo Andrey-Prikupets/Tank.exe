@@ -1,5 +1,6 @@
 import * as C from '../constants.js';
 import { satOverlap, segmentVsObb, circleTouchesObb } from './geometry.js';
+import { generateObstacles, generatePits, tankPitOverlap } from './terrain.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const approach = (v, target, maxDelta) =>
@@ -80,7 +81,7 @@ function placeInHangar(t, row, i) {
   t.contacts = [];
 }
 
-export function createWorld() {
+export function createWorld(options = {}) {
   const world = {
     version: C.SAVE_FORMAT_VERSION,
     time: 0,
@@ -107,7 +108,13 @@ export function createWorld() {
     smokes: [],
     explosions: [],
     events: [],
+    obstacles: options.obstacles ? generateObstacles() : [],
+    pits: options.pits ? generatePits(options.obstacles ? [] : []) : [],
   };
+  if (options.pits) {
+    world.pits = generatePits(world.obstacles);
+  }
+
   for (const owner of [0, 1]) {
     const nums = C.TANK_NUMBERS[owner];
     for (let k = 0; k < C.TANKS_ON_FIELD_MAX; k++) {
@@ -299,14 +306,19 @@ export const playerKeyForTank = (owner, num) => {
 // ---------------------------------------------------------------------------
 // Destruction
 // ---------------------------------------------------------------------------
-function kill(world, t, killerOwner, big) {
+function kill(world, t, killerOwner, big, reason) {
   if (t.status === 'dead') return;
   const wasNumber = t.number;
   t.status = 'dead';
   t.number = null;
   t.speed = 0;
-  world.explosions.push({ x: t.x, y: t.y, t: 0, big: !!big });
-  emit(world, big ? 'mineBoom' : 'boom', t.x, t.owner);
+  if (reason === 'pit') {
+    world.explosions.push({ x: t.x, y: t.y, t: 0, big: true, splash: true });
+    emit(world, 'splash', t.x, t.owner);
+  } else {
+    world.explosions.push({ x: t.x, y: t.y, t: 0, big: !!big });
+    emit(world, big ? 'mineBoom' : 'boom', t.x, t.owner);
+  }
   const pl = world.players[t.owner];
   pl.lost++;
   if (killerOwner != null && killerOwner !== t.owner) world.players[killerOwner].hits++;
@@ -319,12 +331,10 @@ function kill(world, t, killerOwner, big) {
     if (spare) spare.number = wasNumber;
     if (pl.selected === wasNumber) {
       pl.selected = null;
-      setMsg(
-        world,
-        t.owner,
-        spare ? `TANK ${wasNumber} DESTROYED` : `TANK ${wasNumber} DESTROYED — NO SPARES`,
-        C.MESSAGE_DURATION_S * 2,
-      );
+      const msg = reason === 'pit'
+        ? (spare ? `TANK ${wasNumber} DROPPED INTO PIT` : `TANK ${wasNumber} DROPPED INTO PIT — NO SPARES`)
+        : (spare ? `TANK ${wasNumber} DESTROYED` : `TANK ${wasNumber} DESTROYED — NO SPARES`);
+      setMsg(world, t.owner, msg, C.MESSAGE_DURATION_S * 2);
     }
   }
 }
@@ -419,7 +429,19 @@ function resolveCollisions(world) {
         field[b].contacts.push({ kind: 'tank', nx: -ov.nx, ny: -ov.ny });
       }
     }
-    for (const t of field) borderPush(t, gateOpen);
+    for (const t of field) {
+      borderPush(t, gateOpen);
+      if (world.obstacles) {
+        for (const ob of world.obstacles) {
+          const ov = satOverlap(body(t), ob);
+          if (ov) {
+            t.x += ov.nx * ov.depth;
+            t.y += ov.ny * ov.depth;
+            t.contacts.push({ kind: 'wall', nx: ov.nx, ny: ov.ny });
+          }
+        }
+      }
+    }
   }
 }
 
@@ -541,6 +563,7 @@ function updateShells(world, dt) {
 
     let hitT = null;
     let hitTank = null;
+    let hitObstacle = false;
     for (const t of world.tanks) {
       if (t.status === 'dead') continue; // field tanks and tanks visible inside open hangars
       if (s.win && inDeadZone(s.owner, t.x, t.y)) continue;
@@ -548,10 +571,28 @@ function updateShells(world, dt) {
       if (hit != null && (hitT == null || hit < hitT)) {
         hitT = hit;
         hitTank = t;
+        hitObstacle = false;
+      }
+    }
+    if (world.obstacles) {
+      for (const ob of world.obstacles) {
+        const hit = segmentVsObb(s.x, s.y, x1, y1, ob);
+        if (hit != null && (hitT == null || hit < hitT)) {
+          hitT = hit;
+          hitTank = null;
+          hitObstacle = true;
+        }
       }
     }
     if (hitTank) {
       kill(world, hitTank, s.owner, false);
+      continue;
+    }
+    if (hitObstacle) {
+      const hx = s.x + s.dx * (stepLen * hitT);
+      const hy = s.y + s.dy * (stepLen * hitT);
+      world.explosions.push({ x: hx, y: hy, t: 0, big: false });
+      emit(world, 'boom', hx, s.owner);
       continue;
     }
     if (stopped) continue; // hit a closed door / wall
@@ -607,6 +648,20 @@ function compactHangars(world) {
   }
 }
 
+function updatePits(world) {
+  if (!world.pits || world.pits.length === 0) return;
+  const field = fieldTanks(world);
+  for (const t of field) {
+    if (t.status !== 'field') continue;
+    for (const pit of world.pits) {
+      if (tankPitOverlap(t, pit) >= C.PIT_DROP_OVERLAP_FRACTION) {
+        kill(world, t, null, false, 'pit');
+        break;
+      }
+    }
+  }
+}
+
 /** held: {windowTurn: [-1|0|1, -1|0|1]} */
 export function step(world, dt, held) {
   if (world.over) return;
@@ -628,6 +683,7 @@ export function step(world, dt, held) {
   }
   resolveCollisions(world);
   handleGateEntry(world);
+  updatePits(world);
   const wants = gateWants(world);
   tryDeploys(world, wants);
   updateGates(world, dt, wants);
@@ -643,3 +699,18 @@ export function step(world, dt, held) {
     world.winner = l0 && l1 ? 'draw' : l0 ? 1 : 0;
   }
 }
+
+export function syncWorldTerrain(world, options) {
+  if (!world) return;
+  if (options.obstacles && (!world.obstacles || world.obstacles.length === 0)) {
+    world.obstacles = generateObstacles();
+  } else if (!options.obstacles) {
+    world.obstacles = [];
+  }
+  if (options.pits && (!world.pits || world.pits.length === 0)) {
+    world.pits = generatePits(world.obstacles || []);
+  } else if (!options.pits) {
+    world.pits = [];
+  }
+}
+

@@ -1,6 +1,6 @@
 import './style.css';
 import * as C from './constants.js';
-import { createWorld, applyAction, step } from './sim/world.js';
+import { createWorld, applyAction, step, syncWorldTerrain } from './sim/world.js';
 import { slotInfo, saveSlot, loadSlot } from './sim/save.js';
 import { Input, keyLabel } from './input.js';
 import { createMap2D } from './render/map2d.js';
@@ -35,7 +35,24 @@ function isAiPlayer(p) {
   return p === 0 ? mode.leftAi : mode.rightAi;
 }
 
-let world = createWorld();
+let savedObstacles = false;
+try {
+  const val = localStorage.getItem(C.OBSTACLES_SETTINGS_KEY);
+  if (val !== null) savedObstacles = JSON.parse(val);
+} catch {}
+
+let savedPits = false;
+try {
+  const val = localStorage.getItem(C.PITS_SETTINGS_KEY);
+  if (val !== null) savedPits = JSON.parse(val);
+} catch {}
+
+const options = {
+  obstacles: savedObstacles,
+  pits: savedPits,
+};
+
+let world = createWorld(options);
 world.isAiPlayer = isAiPlayer;
 let appState = 'TITLE'; // 'TITLE' | 'PLAYING'
 let gameOverShown = false;
@@ -72,6 +89,38 @@ const soundItem = () => ({
     sfx.toggle();
   },
 });
+
+const obstaclesItem = () => ({
+  label: () => `Obstacles: ${options.obstacles ? 'ON' : 'OFF'}`,
+  action: () => {
+    options.obstacles = !options.obstacles;
+    localStorage.setItem(C.OBSTACLES_SETTINGS_KEY, JSON.stringify(options.obstacles));
+    syncWorldTerrain(world, options);
+  },
+});
+
+const pitsItem = () => ({
+  label: () => `Pits: ${options.pits ? 'ON' : 'OFF'}`,
+  action: () => {
+    options.pits = !options.pits;
+    localStorage.setItem(C.PITS_SETTINGS_KEY, JSON.stringify(options.pits));
+    syncWorldTerrain(world, options);
+  },
+});
+
+function optionsScreen() {
+  return {
+    title: 'OPTIONS',
+    text: '<div class="center">Game & Audio Settings</div>',
+    items: () => [
+      soundItem(),
+      obstaclesItem(),
+      pitsItem(),
+      { label: 'Back', action: () => menu.pop() },
+    ],
+    onEsc: () => menu.pop(),
+  };
+}
 
 function helpScreen() {
   const rows = [
@@ -195,7 +244,7 @@ function confirmScreen(text, onYes) {
 }
 
 function newGame() {
-  world = createWorld();
+  world = createWorld(options);
   world.isAiPlayer = isAiPlayer;
   aiControllers.forEach((c) => c.reset());
   appState = 'PLAYING';
@@ -218,7 +267,7 @@ function openTitle() {
       { label: 'Load game', action: () => menu.push(loadScreen()) },
       playersItem(),
       ...(currentMode().id !== 'HvH' ? [levelItem()] : []),
-      soundItem(),
+      { label: 'Options', action: () => menu.push(optionsScreen()) },
       { label: 'Help', action: () => menu.push(helpScreen()) },
     ],
     onEsc: null,
@@ -246,7 +295,7 @@ function openPause() {
       },
       playersItem(),
       ...(currentMode().id !== 'HvH' ? [levelItem()] : []),
-      soundItem(),
+      { label: 'Options', action: () => menu.push(optionsScreen()) },
       { label: 'Help', action: () => menu.push(helpScreen()) },
     ],
     onEsc: resume,

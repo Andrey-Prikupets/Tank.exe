@@ -132,7 +132,7 @@ export function createView3D(canvas) {
     return g;
   }
 
-  const pools = { shells: [], mines: [], smokes: [], explosions: [] };
+  const pools = { shells: [], mines: [], smokes: [], explosions: [], obstacles: [], pits: [] };
   function sync(pool, list, make, update) {
     while (pool.length < list.length) {
       const m = make();
@@ -150,6 +150,87 @@ export function createView3D(canvas) {
   const mineGeo = new THREE.CylinderGeometry(C.MINE_RADIUS_M, C.MINE_RADIUS_M, 0.25, 8);
   const mineUnarmed = mat(C.COLOR_MINE_UNARMED);
   const mineArmed = mat(C.COLOR_MINE_ARMED);
+  const obstacleMat = mat(C.COLOR_OBSTACLE);
+  const roofMat = mat(C.COLOR_OBSTACLE_ROOF);
+  const windowMat = basic(C.COLOR_OBSTACLE_WINDOW);
+  const pitWaterMat = new THREE.MeshLambertMaterial({ color: C.COLOR_PIT_WATER, transparent: true, opacity: 0.88, flatShading: true });
+  const pitRimMat = mat(C.COLOR_PIT_RIM);
+
+  function makeObstacle() {
+    const g = new THREE.Group();
+    const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), obstacleMat);
+    const roofMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), roofMat);
+    g.add(bodyMesh, roofMesh);
+    const windowMeshes = [];
+    for (let i = 0; i < 12; i++) {
+      const wm = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), windowMat);
+      g.add(wm);
+      windowMeshes.push(wm);
+    }
+    g.userData = { bodyMesh, roofMesh, windowMeshes };
+    return g;
+  }
+
+  function updateObstacle(g, ob) {
+    g.position.set(ob.x, 0, ob.y);
+    g.rotation.y = -ob.h;
+    const { bodyMesh, roofMesh, windowMeshes } = g.userData;
+    const h = ob.height || C.OBSTACLE_HEIGHT_M;
+    bodyMesh.scale.set(ob.l, h, ob.w);
+    bodyMesh.position.set(0, h / 2, 0);
+
+    roofMesh.scale.set(ob.l + 0.6, 0.4, ob.w + 0.6);
+    roofMesh.position.set(0, h + 0.2, 0);
+
+    let wIdx = 0;
+    const yFloors = [h * 0.35, h * 0.72];
+    const winW = 1.3;
+    const winH = 1.1;
+    const winD = 0.12;
+    for (const sideZ of [-1, 1]) {
+      const zPos = sideZ * (ob.w / 2 + winD / 2);
+      for (const col of [-0.28, 0.28]) {
+        for (const yf of yFloors) {
+          if (wIdx < windowMeshes.length) {
+            const wm = windowMeshes[wIdx++];
+            wm.scale.set(winW, winH, winD);
+            wm.position.set(col * ob.l, yf, zPos);
+          }
+        }
+      }
+    }
+    for (const sideX of [-1, 1]) {
+      const xPos = sideX * (ob.l / 2 + winD / 2);
+      if (wIdx < windowMeshes.length) {
+        const wm = windowMeshes[wIdx++];
+        wm.scale.set(winD, winH, winW * 1.2);
+        wm.position.set(xPos, yFloors[0], 0);
+      }
+    }
+    while (wIdx < windowMeshes.length) {
+      windowMeshes[wIdx++].scale.set(0.001, 0.001, 0.001);
+    }
+  }
+
+  function makePit() {
+    const g = new THREE.Group();
+    const rimMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), pitRimMat);
+    const waterMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), pitWaterMat);
+    g.add(rimMesh, waterMesh);
+    g.userData = { rimMesh, waterMesh };
+    return g;
+  }
+
+  function updatePit(g, pit) {
+    g.position.set(pit.x, 0, pit.y);
+    g.rotation.y = -pit.h;
+    const { rimMesh, waterMesh } = g.userData;
+    rimMesh.scale.set(pit.l + 1.2, 0.04, pit.w + 1.2);
+    rimMesh.position.set(0, 0.02, 0);
+
+    waterMesh.scale.set(pit.l, 0.06, pit.w);
+    waterMesh.position.set(0, 0.04, 0);
+  }
 
   function updateDynamic(world) {
     const seen = new Set();
@@ -171,6 +252,8 @@ export function createView3D(canvas) {
       m.position.set(t.x, 0, t.y);
       m.rotation.y = -t.heading;
     }
+    sync(pools.obstacles, world.obstacles || [], makeObstacle, updateObstacle);
+    sync(pools.pits, world.pits || [], makePit, updatePit);
     sync(pools.shells, world.shells, () => {
       const s = new THREE.Mesh(unitSphere, basic(C.COLOR_SHELL));
       s.scale.setScalar(C.SHELL_RADIUS_M);
@@ -191,8 +274,19 @@ export function createView3D(canvas) {
     sync(pools.explosions, world.explosions, () =>
       new THREE.Mesh(unitSphere, basic(C.COLOR_EXPLOSION, { transparent: true })), (m, e) => {
       const k = e.t / C.EXPLOSION_DURATION_S;
-      m.position.set(e.x, C.TANK_HEIGHT_M, e.y);
-      m.scale.setScalar(Math.max(0.1, (e.big ? C.MINE_EXPLOSION_RADIUS_M : C.EXPLOSION_RADIUS_M) * k));
+      if (e.splash) {
+        m.material.color.set(C.COLOR_PIT_WATER);
+        m.position.set(e.x, 1.2, e.y);
+        m.scale.set(
+          Math.max(0.1, C.EXPLOSION_RADIUS_M * 1.5 * k),
+          Math.max(0.1, C.EXPLOSION_RADIUS_M * 2.2 * k),
+          Math.max(0.1, C.EXPLOSION_RADIUS_M * 1.5 * k)
+        );
+      } else {
+        m.material.color.set(C.COLOR_EXPLOSION);
+        m.position.set(e.x, C.TANK_HEIGHT_M, e.y);
+        m.scale.setScalar(Math.max(0.1, (e.big ? C.MINE_EXPLOSION_RADIUS_M : C.EXPLOSION_RADIUS_M) * k));
+      }
       m.material.opacity = 1 - k;
     });
   }

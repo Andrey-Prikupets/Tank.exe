@@ -388,7 +388,7 @@ The game launches into the **Tank.exe Title Menu**:
   2. **Load game** (choose slot 1..10)
   3. **Players: Human vs Human | Human vs Computer | Computer vs Human** (1st is left player, 2nd is right)
   4. **Level: HARD | MEDIUM | EASY** (visible only when Computer mode is selected)
-  5. **Sound: ON / OFF**
+  5. **Options** (opens the Options submenu)
   6. **Help** (opens a scrollable modal detailing game concept, 90s lore, rules, and controls table)
 
 **In-Game Pause Menu (`Esc`):**
@@ -400,8 +400,17 @@ The game launches into the **Tank.exe Title Menu**:
   4. **New game** (with loss confirmation)
   5. **Players: Human vs Human | Human vs Computer | Computer vs Human** (1st is left player, 2nd is right)
   6. **Level: HARD | MEDIUM | EASY** (visible only when Computer mode is selected)
-  7. **Sound: ON / OFF**
+  7. **Options** (opens the Options submenu)
   8. **Help** (scrollable modal with rules & controls)
+
+**Options Submenu (`Options`):**
+- Title: `OPTIONS`
+- Subtitle: `Game & Audio Settings`
+- Options:
+  1. **Sound: ON | OFF** (toggles Web Audio master output)
+  2. **Obstacles: ON | OFF** (toggles building obstacles generator; initial default: `OFF`)
+  3. **Pits: ON | OFF** (toggles water pit / trench hazard generator; initial default: `OFF`)
+  4. **Back** (returns to previous menu)
 
 ---
 
@@ -413,7 +422,8 @@ When a player side is designated as **Computer** (`Human vs Computer` → Right 
 - **Autonomous Reserve Deployment:** When casualties occur or fewer than 5 tanks are deployed, the AI detects numbered spares in the hangar and issues deployment selection commands to restore battlefield strength.
 - **Target Selection & Ballistics:** Evaluates all active enemy tanks on the field based on distance and angular deviation to designate priority targets.
 - **Friendly Fire Prevention:** Performs line-of-fire raycast checks against friendly tanks before discharging shells to eliminate team-kills.
-- **Obstacle & Boundary Avoidance:** Steers away from border walls and dead corners; detects wall contact and automatically triggers reverse dislodgement maneuvers.
+- **Terrain & Hazard Avoidance:** Proactively steers around building obstacles and detects forward water pits, turning away and executing emergency braking when near pit boundaries.
+- **Obstacle Awareness:** Shell line-of-fire raycasting verifies that buildings do not obstruct the trajectory before firing, avoiding wasted munitions.
 - **Defensive Smoke & Mines:** Deploys smoke screens when ammo is low or incoming high-velocity shells are detected; places anti-tank mines when closely pursued.
 - **Tactical Rearming:** When all ammunition and defensive stores are depleted, retreats to the home base gate to rearm and redeploy.
 
@@ -433,6 +443,24 @@ When a player side is designated as **Computer** (`Human vs Computer` → Right 
   - High precision aiming: ~3.5° tolerance with full predictive target velocity lead.
   - Full top speed: 36 km/h.
   - Aggressive multi-tank brigade maneuvers, active shell avoidance, smoke countermeasures, and relentless pursuit.
+
+---
+
+## 13. Battlefield Hazards: Obstacles & Pits
+
+Battlefield hazards can be toggled on/off in the **Options** menu (initial state is `OFF` for both).
+
+### 13.1 Obstacles (Houses & Buildings)
+- **Visuals:** 3D rectangular low-poly buildings with dark roof slabs and multiple window blocks along the facades. On the 2D tactical map, rendered as distinct brown/gray architectural structures with roof outlines and window markings.
+- **Collision:** Acts as solid impassable walls for tanks with realistic sliding border drag.
+- **Ballistics & Visibility:** Shells detonate upon impact with obstacle walls (`boom` SFX) and cannot pass through. Obstacles block 3D line-of-sight.
+- **Placement:** Randomly generated in the central field (X: 55m to 195m, Y: 18m to 82m), strictly outside gate approaches and initial deployment lines.
+
+### 13.2 Pits (Water Trenches / Moats / Рвы, Траншеи)
+- **Visuals:** Excavated rectangular trenches filled with vibrant cyan water (`#00e5ff`) and surrounded by dark earthen borders. On the 2D map, drawn with cyan water fill, rippled surface highlights, and dark trench rims.
+- **Lethal Immersion Mechanic:** When a tank drives into a water pit such that more than 30% of its footprint area overlaps the pit (`tankPitOverlap >= 0.30`), the tank drops into the pit, triggers an aquatic splash explosion (`splash` SFX), and is destroyed.
+- **Shells:** High-velocity shells fly over pits unimpeded.
+- **Placement:** Randomly distributed throughout the central arena with safe clearance from obstacles and central bypass lanes.
 
 - Keyboard navigation (all menus & modals):
   - `↑` / `↓` move the selection highlight (wraps around).

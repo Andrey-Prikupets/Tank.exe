@@ -1,5 +1,6 @@
 import * as C from '../constants.js';
 import { applyAction, selectedTank, inDeadZone, gateX, inwardDir } from './world.js';
+import { segmentVsObb, toLocal } from './geometry.js';
 
 const PROFILES = {
   EASY: {
@@ -51,6 +52,17 @@ function isLineOfFireBlocked(world, owner, startX, startY, targetX, targetY, myT
   const nx = dx / dist;
   const ny = dy / dist;
 
+  // 1. Check obstacles (buildings block shells)
+  if (world.obstacles) {
+    for (const ob of world.obstacles) {
+      const hit = segmentVsObb(startX, startY, targetX, targetY, ob);
+      if (hit != null && hit > 0.01 && hit < 0.99) {
+        return true; // blocked by building!
+      }
+    }
+  }
+
+  // 2. Check friendly tanks
   for (const t of world.tanks) {
     if (t.owner === owner && t.status === 'field' && t.id !== myTankId) {
       const fx = t.x - startX;
@@ -225,6 +237,60 @@ export class AiController {
       desiredHeading = Math.atan2((C.FIELD_WIDTH_M - 25) - tank.y, Math.cos(tank.heading));
     }
 
+    // Terrain hazard avoidance (Pits and Obstacles)
+    const lookAhead = Math.max(12, Math.abs(tank.speed) * 1.8);
+    const fx = tank.x + Math.cos(tank.heading) * lookAhead;
+    const fy = tank.y + Math.sin(tank.heading) * lookAhead;
+    let emergencyBrake = false;
+    let avoidanceAngle = 0;
+
+    // Check water pits (lethal danger)
+    if (world.pits && world.pits.length > 0) {
+      for (const pit of world.pits) {
+        const dPit = Math.hypot(pit.x - tank.x, pit.y - tank.y);
+        const pitR = Math.hypot(pit.l, pit.w) / 2;
+        if (dPit > pitR + lookAhead + 4) continue;
+
+        const [flx, fly] = toLocal(pit, fx, fy);
+        const [tlx, tly] = toLocal(pit, tank.x, tank.y);
+        const marginL = pit.l / 2 + C.TANK_WIDTH_M + 1.5;
+        const marginW = pit.w / 2 + C.TANK_WIDTH_M + 1.5;
+
+        const headingToPit = Math.abs(flx) < marginL && Math.abs(fly) < marginW;
+        const closeToPit = Math.abs(tlx) < marginL + 3 && Math.abs(tly) < marginW + 3;
+
+        if (headingToPit || closeToPit) {
+          const awayAngle = Math.atan2(tank.y - pit.y, tank.x - pit.x);
+          const diff = normalizeAngle(awayAngle - tank.heading);
+          avoidanceAngle = diff > 0 ? 1.0 : -1.0;
+          if (dPit < pitR + 6 && Math.abs(diff) > Math.PI / 2) {
+            emergencyBrake = true;
+          }
+          break;
+        }
+      }
+    }
+
+    // Check obstacles (buildings)
+    if (!avoidanceAngle && world.obstacles && world.obstacles.length > 0) {
+      for (const ob of world.obstacles) {
+        const dOb = Math.hypot(ob.x - tank.x, ob.y - tank.y);
+        const obR = Math.hypot(ob.l, ob.w) / 2;
+        if (dOb > obR + lookAhead + 2) continue;
+
+        const hit = segmentVsObb(tank.x, tank.y, fx, fy, ob);
+        if (hit != null) {
+          const [, tly] = toLocal(ob, tank.x, tank.y);
+          avoidanceAngle = tly > 0 ? 0.8 : -0.8;
+          break;
+        }
+      }
+    }
+
+    if (avoidanceAngle !== 0) {
+      desiredHeading = normalizeAngle(tank.heading + avoidanceAngle);
+    }
+
     const angleErr = normalizeAngle(desiredHeading - tank.heading);
 
     // 9. Steering
@@ -240,7 +306,9 @@ export class AiController {
 
     // 10. Throttle control
     let desiredSpeed = profile.maxSpeedKmh;
-    if (outOfAmmo && profile.rearm) {
+    if (emergencyBrake) {
+      desiredSpeed = -C.SPEED_STEP_KMH;
+    } else if (outOfAmmo && profile.rearm) {
       desiredSpeed = profile.maxSpeedKmh;
     } else if (targetDist > 55) {
       desiredSpeed = profile.maxSpeedKmh;

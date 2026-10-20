@@ -177,6 +177,9 @@ export class Sfx {
       case 'rearm':
         this.tone(pan, 660, 0.12, 0.2);
         break;
+      case 'splash':
+        this.burst({ pan, dur: 0.8, freq: 700, gain: 0.95, thumpHz: 55 });
+        break;
       default:
     }
   }

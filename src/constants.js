@@ -23,6 +23,10 @@ export const SAVE_KEY_PREFIX = 'tank.exe.save.';
 export const AUDIO_SETTINGS_KEY = 'tank.exe.audio';
 export const PLAYERS_SETTINGS_KEY = 'tank.exe.players';
 export const AI_LEVEL_SETTINGS_KEY = 'tank.exe.ai_level';
+export const OBSTACLES_SETTINGS_KEY = 'tank.exe.obstacles';
+export const PITS_SETTINGS_KEY = 'tank.exe.pits';
+export const OBSTACLE_HEIGHT_M = 4.8;
+export const PIT_DROP_OVERLAP_FRACTION = 0.30;
 export const PLAYER_MODES = [
   { id: 'HvH', label: 'Human vs Human', leftAi: false, rightAi: false },
   { id: 'HvC', label: 'Human vs Computer', leftAi: false, rightAi: true },
@@ -202,6 +206,11 @@ export const COLOR_TANK_DETAIL = '#222222';
 export const COLOR_LEFT_TURRET = '#7a2219';
 export const COLOR_RIGHT_TURRET = '#1d3a82';
 export const COLOR_GATE_DOOR = '#9aa0a6';
+export const COLOR_OBSTACLE = '#6b635b';
+export const COLOR_OBSTACLE_ROOF = '#4a433c';
+export const COLOR_OBSTACLE_WINDOW = '#324759';
+export const COLOR_PIT_WATER = '#00e5ff';
+export const COLOR_PIT_RIM = '#19241b';
 
 // ---- Map rendering ----------------------------------------------------------
 export const MAP_MARGIN_X_M = HANGAR_DEPTH_M + 2;

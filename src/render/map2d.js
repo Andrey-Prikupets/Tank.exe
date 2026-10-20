@@ -161,6 +161,61 @@ export function createMap2D(canvas) {
       }
     }
 
+    // pits (water ditches)
+    if (world.pits) {
+      for (const p of world.pits) {
+        ctx.save();
+        ctx.translate(px(p.x), py(p.y));
+        ctx.rotate(p.h);
+        const pl = p.l * scale;
+        const pw = p.w * scale;
+        const rim = Math.max(1, 0.6 * scale);
+        ctx.fillStyle = C.COLOR_PIT_RIM;
+        ctx.fillRect(-pl / 2 - rim, -pw / 2 - rim, pl + rim * 2, pw + rim * 2);
+        ctx.fillStyle = C.COLOR_PIT_WATER;
+        ctx.fillRect(-pl / 2, -pw / 2, pl, pw);
+        // Water ripples
+        ctx.strokeStyle = '#bbfaff';
+        ctx.lineWidth = Math.max(1, 0.25 * scale);
+        ctx.beginPath();
+        ctx.moveTo(-pl * 0.28, -pw * 0.2);
+        ctx.lineTo(pl * 0.28, -pw * 0.2);
+        ctx.moveTo(-pl * 0.2, pw * 0.2);
+        ctx.lineTo(pl * 0.2, pw * 0.2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // obstacles (houses/buildings)
+    if (world.obstacles) {
+      for (const ob of world.obstacles) {
+        ctx.save();
+        ctx.translate(px(ob.x), py(ob.y));
+        ctx.rotate(ob.h);
+        const obl = ob.l * scale;
+        const obw = ob.w * scale;
+        ctx.fillStyle = C.COLOR_OBSTACLE;
+        ctx.fillRect(-obl / 2, -obw / 2, obl, obw);
+        ctx.strokeStyle = C.COLOR_OBSTACLE_ROOF;
+        ctx.lineWidth = Math.max(1.5, 0.4 * scale);
+        ctx.strokeRect(-obl / 2, -obw / 2, obl, obw);
+        // Roof block
+        ctx.fillStyle = C.COLOR_OBSTACLE_ROOF;
+        ctx.fillRect(-obl * 0.35, -obw * 0.3, obl * 0.7, obw * 0.6);
+        // Window dots on facades
+        ctx.fillStyle = C.COLOR_OBSTACLE_WINDOW;
+        const winW = Math.max(1.5, 0.22 * scale);
+        ctx.fillRect(-obl * 0.35, -obw / 2, winW, winW * 1.6);
+        ctx.fillRect(0, -obw / 2, winW, winW * 1.6);
+        ctx.fillRect(obl * 0.35 - winW, -obw / 2, winW, winW * 1.6);
+        ctx.fillRect(-obl * 0.35, obw / 2 - winW * 1.6, winW, winW * 1.6);
+        ctx.fillRect(0, obw / 2 - winW * 1.6, winW, winW * 1.6);
+        ctx.fillRect(obl * 0.35 - winW, obw / 2 - winW * 1.6, winW, winW * 1.6);
+        ctx.restore();
+      }
+    }
+
     // mines
     for (const m of world.mines) {
       ctx.fillStyle = m.armT > 0 ? C.COLOR_MINE_UNARMED : C.COLOR_MINE_ARMED;
