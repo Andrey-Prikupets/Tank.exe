@@ -100,6 +100,7 @@ export function createWorld() {
       msgT: 0,
       blocked: false,
     })),
+    gates: [{ open: 0 }, { open: 0 }], // sliding door open fraction 0..1 per owner
     tanks: [],
     shells: [],
     mines: [],
@@ -318,11 +319,10 @@ function kill(world, t, killerOwner, big) {
     if (spare) spare.number = wasNumber;
     if (pl.selected === wasNumber) {
       pl.selected = null;
-      const keyName = playerKeyForTank(t.owner, wasNumber);
       setMsg(
         world,
         t.owner,
-        spare ? `TANK ${wasNumber} DESTROYED — PRESS ${keyName} TO DEPLOY` : `TANK ${wasNumber} DESTROYED — NO SPARES`,
+        spare ? `TANK ${wasNumber} DESTROYED` : `TANK ${wasNumber} DESTROYED — NO SPARES`,
         C.MESSAGE_DURATION_S * 2,
       );
     }
@@ -404,7 +404,7 @@ function borderPush(t, gateOpen) {
 function resolveCollisions(world) {
   const field = fieldTanks(world);
   field.forEach((t) => (t.contacts = []));
-  const gateOpen = [!!freeSlot(world, 0), !!freeSlot(world, 1)];
+  const gateOpen = [0, 1].map((o) => gatePassable(world, o));
   for (let iter = 0; iter < 2; iter++) {
     for (let a = 0; a < field.length; a++) {
       for (let b = a + 1; b < field.length; b++) {
@@ -444,7 +444,40 @@ function handleGateEntry(world) {
   }
 }
 
-function tryDeploys(world) {
+/** Door is open far enough for a tank to drive through AND the hangar has room. */
+function gatePassable(world, owner) {
+  return world.gates[owner].open >= C.GATE_PASSABLE_FRACTION && !!freeSlot(world, owner);
+}
+
+/** Which gates want to be open this tick (own tank approaching / standing in the doorway). */
+function gateWants(world) {
+  const wants = [false, false];
+  for (const t of fieldTanks(world)) {
+    const o = t.owner;
+    const dir = inwardDir(o);
+    const lateral = Math.abs(t.y - C.GATE_CENTER_Y_M);
+    // Standing in (or just in front of) the doorway: keep the doors open.
+    for (const [x, y] of corners(t)) {
+      const depth = dir * (x - gateX(o));
+      if (depth <= C.GATE_DOOR_CLEAR_M && Math.abs(y - C.GATE_CENTER_Y_M) <= C.GATE_WIDTH_M / 2 + 1) wants[o] = true;
+    }
+    // Driving toward own gate with room to enter: open in advance.
+    const depthC = dir * (t.x - gateX(o));
+    const towardGate = -dir * Math.cos(t.heading) > 0.5 && t.speed > 0.5;
+    if (towardGate && depthC <= C.GATE_APPROACH_M && lateral <= C.GATE_WIDTH_M / 2 + 2 && freeSlot(world, o)) wants[o] = true;
+  }
+  return wants;
+}
+
+function updateGates(world, dt, wants) {
+  for (const o of [0, 1]) {
+    const g = world.gates[o];
+    const delta = dt / C.GATE_OPEN_TIME_S;
+    g.open = clamp(g.open + (wants[o] ? delta : -delta), 0, 1);
+  }
+}
+
+function tryDeploys(world, wants) {
   const field = fieldTanks(world);
   for (const pl of world.players) {
     const t = selectedTank(world, pl.id);
@@ -467,6 +500,8 @@ function tryDeploys(world) {
       continue;
     }
     pl.blocked = false;
+    wants[pl.id] = true; // open the doors for the exiting tank
+    if (world.gates[pl.id].open < 1) continue;
     t.status = 'field';
     t.x = spawn.x;
     t.y = spawn.y;
@@ -482,16 +517,32 @@ function tryDeploys(world) {
 
 function updateShells(world, dt) {
   const speed = C.SHELL_RANGE_M / C.SHELL_FLIGHT_TIME_S;
-  const field = fieldTanks(world);
+  const L = C.FIELD_LENGTH_M;
   const keep = [];
   for (const s of world.shells) {
     const stepLen = Math.min(speed * dt, C.SHELL_RANGE_M - s.dist);
-    const x1 = s.x + s.dx * stepLen;
-    const y1 = s.y + s.dy * stepLen;
+    let x1 = s.x + s.dx * stepLen;
+    let y1 = s.y + s.dy * stepLen;
+
+    // Crossing a gate wall: only passes through the currently open part of the doors.
+    let stopped = false;
+    for (const [wallX, owner] of [[0, 0], [L, 1]]) {
+      const crosses = owner === 0 ? s.x >= 0 && x1 < 0 : s.x <= L && x1 > L;
+      if (!crosses) continue;
+      const k = (wallX - s.x) / (x1 - s.x);
+      const yc = s.y + k * (y1 - s.y);
+      const half = (world.gates[owner].open * C.GATE_WIDTH_M) / 2;
+      if (half <= 0 || Math.abs(yc - C.GATE_CENTER_Y_M) > half) {
+        x1 = wallX;
+        y1 = yc;
+        stopped = true;
+      }
+    }
+
     let hitT = null;
     let hitTank = null;
-    for (const t of field) {
-      if (t.status !== 'field') continue;
+    for (const t of world.tanks) {
+      if (t.status === 'dead') continue; // field tanks and tanks visible inside open hangars
       if (s.win && inDeadZone(s.owner, t.x, t.y)) continue;
       const hit = segmentVsObb(s.x, s.y, x1, y1, body(t));
       if (hit != null && (hitT == null || hit < hitT)) {
@@ -503,11 +554,16 @@ function updateShells(world, dt) {
       kill(world, hitTank, s.owner, false);
       continue;
     }
+    if (stopped) continue; // hit a closed door / wall
     s.x = x1;
     s.y = y1;
     s.dist += stepLen;
     if (s.dist >= C.SHELL_RANGE_M - 1e-6) continue;
-    if (s.x < 0 || s.x > C.FIELD_LENGTH_M || s.y < 0 || s.y > C.FIELD_WIDTH_M) continue;
+    const inField = s.x >= 0 && s.x <= L && s.y >= 0 && s.y <= C.FIELD_WIDTH_M;
+    const inHangar =
+      ((s.x < 0 && s.x >= -C.HANGAR_DEPTH_M) || (s.x > L && s.x <= L + C.HANGAR_DEPTH_M)) &&
+      Math.abs(s.y - C.GATE_CENTER_Y_M) <= C.HANGAR_HALF_WIDTH_M;
+    if (!inField && !inHangar) continue;
     keep.push(s);
   }
   world.shells = keep;
@@ -572,7 +628,9 @@ export function step(world, dt, held) {
   }
   resolveCollisions(world);
   handleGateEntry(world);
-  tryDeploys(world);
+  const wants = gateWants(world);
+  tryDeploys(world, wants);
+  updateGates(world, dt, wants);
   updateShells(world, dt);
   updateMines(world, dt);
   updateTimed(world, dt);

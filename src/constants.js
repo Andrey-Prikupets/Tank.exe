@@ -17,7 +17,7 @@ export const SIM_TICK_S = 1 / SIM_TICK_HZ;
 export const SIM_MAX_FRAME_S = 0.1;
 export const HUD_UPDATE_INTERVAL_MS = 100;
 export const RENDER_TARGET_FPS = 45;
-export const SAVE_FORMAT_VERSION = 1;
+export const SAVE_FORMAT_VERSION = 2;
 export const SAVE_SLOT_COUNT = 3;
 export const SAVE_KEY_PREFIX = 'game90x.save.';
 export const AUDIO_SETTINGS_KEY = 'game90x.audio';
@@ -61,7 +61,7 @@ export const TANK_CONTACT_TURN_FACTOR = 0.5;
 // ---- Initial setup ----------------------------------------------------------
 export const START_BORDER_GAP_M = 6;
 export const START_SPACING_M = 10;
-export const SPAWN_OFFSET_FROM_GATE_M = 0.5;
+export const SPAWN_OFFSET_FROM_GATE_M = 1.5;
 export const SPAWN_CLEARANCE_M = 0.5;
 
 // ---- Hangar -----------------------------------------------------------------
@@ -72,6 +72,20 @@ export const HANGAR_FIRST_ROW_OFFSET_M = 4;
 export const HANGAR_SLOT_PITCH_M = 8;
 export const HANGAR_DEPTH_M = 17;
 export const HANGAR_HALF_WIDTH_M = 22;
+
+// ---- Sliding gate doors -----------------------------------------------------
+export const GATE_OPEN_TIME_S = 0.8;
+export const GATE_PASSABLE_FRACTION = 0.8;
+export const GATE_APPROACH_M = 14;
+export const GATE_DOOR_CLEAR_M = 1;
+export const GATE_DOOR_THICKNESS_FRACTION = 0.8;
+
+// ---- Tank turret (octagonal cone) -------------------------------------------
+export const TURRET_SIDES = 8;
+export const TURRET_RADIUS_M = 1.6;
+export const TURRET_TOP_RADIUS_M = 1.0;
+export const TURRET_OFFSET_M = -0.3;
+export const MAP_TURRET_STROKE_PX = 1;
 
 // ---- Weapons ----------------------------------------------------------------
 export const TANK_START_SHELLS = 5;
@@ -172,6 +186,9 @@ export const COLOR_MINE_ARMED = '#3a1010';
 export const COLOR_SMOKE = '#b8b8b8';
 export const COLOR_EXPLOSION = '#ff8a1f';
 export const COLOR_TANK_DETAIL = '#222222';
+export const COLOR_LEFT_TURRET = '#7a2219';
+export const COLOR_RIGHT_TURRET = '#1d3a82';
+export const COLOR_GATE_DOOR = '#9aa0a6';
 
 // ---- Map rendering ----------------------------------------------------------
 export const MAP_MARGIN_X_M = HANGAR_DEPTH_M + 2;

@@ -48,6 +48,8 @@ export function createView3D(canvas) {
   addBox(L + 2 * T, H, T, L / 2, H / 2, W + T / 2, wallMat);
   const g0 = C.GATE_CENTER_Y_M - C.GATE_WIDTH_M / 2;
   const g1 = C.GATE_CENTER_Y_M + C.GATE_WIDTH_M / 2;
+  const doors = [[], []];
+  const doorMat = mat(C.COLOR_GATE_DOOR);
   for (const owner of [0, 1]) {
     const cx = owner === 0 ? -T / 2 : L + T / 2;
     addBox(T, H, g0, cx, H / 2, g0 / 2, wallMat);
@@ -55,6 +57,12 @@ export function createView3D(canvas) {
     const teamMat = mat(owner === 0 ? C.COLOR_LEFT_TEAM : C.COLOR_RIGHT_TEAM);
     addBox(T, H + 1, T, cx, (H + 1) / 2, g0, teamMat);
     addBox(T, H + 1, T, cx, (H + 1) / 2, g1, teamMat);
+    // sliding door panels (slide sideways into the wall as the gate opens)
+    for (const side of [-1, 1]) {
+      const panel = addBox(T * C.GATE_DOOR_THICKNESS_FRACTION, H, C.GATE_WIDTH_M / 2, cx, H / 2, C.GATE_CENTER_Y_M, doorMat);
+      panel.userData.side = side;
+      doors[owner].push(panel);
+    }
     // window decals (field side)
     const dir = owner === 0 ? 1 : -1;
     for (const idx of [0, 1]) {
@@ -71,12 +79,18 @@ export function createView3D(canvas) {
 
   // ---- dynamic objects (shared geometries and materials) ----
   const hullGeo = new THREE.BoxGeometry(C.TANK_LENGTH_M, C.TANK_HEIGHT_M * 0.5, C.TANK_WIDTH_M);
-  const turretGeo = new THREE.BoxGeometry(C.TANK_LENGTH_M * 0.45, C.TANK_HEIGHT_M * 0.4, C.TANK_WIDTH_M * 0.6);
+  const turretGeo = new THREE.CylinderGeometry(
+    C.TURRET_TOP_RADIUS_M,
+    C.TURRET_RADIUS_M,
+    C.TANK_HEIGHT_M * 0.4,
+    C.TURRET_SIDES,
+  );
   const barrelGeo = new THREE.CylinderGeometry(0.2, 0.2, C.TANK_LENGTH_M * 0.7, 6);
   barrelGeo.rotateZ(Math.PI / 2);
   const trackGeo = new THREE.BoxGeometry(C.TANK_LENGTH_M, 0.7, 0.6);
 
   const teamMats = [mat(C.COLOR_LEFT_TEAM), mat(C.COLOR_RIGHT_TEAM)];
+  const turretMats = [mat(C.COLOR_LEFT_TURRET), mat(C.COLOR_RIGHT_TURRET)];
   const detailMat = mat(C.COLOR_TANK_DETAIL);
 
   const tankMeshes = new Map();
@@ -85,8 +99,8 @@ export function createView3D(canvas) {
     const teamMat = teamMats[owner];
     const hull = new THREE.Mesh(hullGeo, teamMat);
     hull.position.y = C.TANK_HEIGHT_M * 0.25 + 0.2;
-    const turret = new THREE.Mesh(turretGeo, teamMat);
-    turret.position.set(-0.3, C.TANK_HEIGHT_M * 0.7 + 0.2, 0);
+    const turret = new THREE.Mesh(turretGeo, turretMats[owner]);
+    turret.position.set(C.TURRET_OFFSET_M, C.TANK_HEIGHT_M * 0.7 + 0.2, 0);
     const barrel = new THREE.Mesh(barrelGeo, detailMat);
     barrel.position.set(C.TANK_LENGTH_M * 0.3, C.TANK_HEIGHT_M * 0.7 + 0.2, 0);
     for (const s of [-1, 1]) {
@@ -120,6 +134,13 @@ export function createView3D(canvas) {
 
   function updateDynamic(world) {
     const seen = new Set();
+    const halfDoor = C.GATE_WIDTH_M / 2;
+    for (const owner of [0, 1]) {
+      const open = world.gates ? world.gates[owner].open : 0;
+      for (const panel of doors[owner]) {
+        panel.position.z = C.GATE_CENTER_Y_M + panel.userData.side * (halfDoor / 2 + open * halfDoor);
+      }
+    }
     for (const t of world.tanks) {
       let m = tankMeshes.get(t.id);
       if (!m) {

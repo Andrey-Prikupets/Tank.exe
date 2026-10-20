@@ -82,6 +82,15 @@
   horizontal slits) — one above the gate, one below it on the map (see §9).
 - A player's gate is passable **only to that player's own tanks** and only when the hangar has a
   free slot (§10.3). To all other tanks, and when the hangar is full, the gate acts as wall.
+- **Sliding doors:** each gate is **closed** by default (two door panels, `COLOR_GATE_DOOR`). The doors
+  slide sideways into the wall (`GATE_OPEN_TIME_S` to fully open/close) **only** when needed:
+  - a tank is being deployed from the hangar (opens, tank exits, doors close right after it clears
+    the doorway `GATE_DOOR_CLEAR_M`);
+  - an own tank drives toward its gate (within `GATE_APPROACH_M`) to rearm (§10.4), or stands in the doorway.
+  Closed doors are a solid wall (tanks, shells). A tank can pass only when the opening is at least
+  `GATE_PASSABLE_FRACTION` wide.
+- **Hangar exposure:** while the doors are open, shells (from tanks or windows, friend or foe) fly through
+  the opening into the hangar and **can destroy tanks parked inside** that are visible through it.
 
 ---
 
@@ -109,10 +118,11 @@
 ### 4.1 Strategic map
 
 - Background: solid green (`COLOR_FIELD`). Border drawn as a thin line; gates as gaps.
-- Tanks drawn as oriented rectangles (to scale) with a short barrel line showing heading.
+- Tanks drawn as oriented rectangles (to scale) with a short barrel line showing heading, plus an
+  **octagonal turret** (top-down view of the cone-shaped turret head, `TURRET_RADIUS_M`) in a darker team shade.
   - Left team red, right team blue.
   - **Selected tank** of each player drawn in a **brighter** shade of team color.
-  - Tank **number digit** (1..5 for both teams) drawn centered on the tank (always upright, not rotated).
+  - Tank **number digit** (1..5 for both teams) drawn centered **inside the octagon** (always upright, not rotated).
 - Spare tanks drawn in their hangar slots; numbered spares show their digit (1..5), unnumbered ones are blank.
 - Shells: small bright dots. Mines: small dark dots/crosses. **[A5]**
 - Smoke clouds: gray filled circles drawn **above** tanks (tanks inside are hidden on the map). **[A6]**
@@ -126,7 +136,8 @@
 - Gun **cannot rotate** relative to the hull — aim by turning the tank. **[A7]**
 - **Crosshair** fixed in the center of the view.
 - Rendering: solid shaded polygons, no textures. Green ground plane, solid sky color, border walls,
-  gates, hangar buildings, low-poly tanks (hull + turret + barrel) in team colors, shells
+  gates (closed sliding doors), hangar buildings, low-poly tanks (box hull + tracks, **octagonal-cone turret**
+  + barrel) in team colors, shells
   (bright small spheres), mines (flat discs), smoke (opaque gray blobs that block line of sight),
   explosions (expanding orange/yellow spheres + debris boxes).
 - The view may show own-tank barrel tip at the bottom-center for orientation.
@@ -252,7 +263,8 @@ Tanks are oriented rectangles (OBB). Collision is checked every tick.
 - Range `SHELL_RANGE_M` = 62.5 (¼ of field length); flight time `SHELL_FLIGHT_TIME_S` = 0.4
   → speed ≈ 156 m/s. Deliberately slow so a quick maneuver can dodge it.
 - Shell is visible in both 3D views and on the map.
-- Shell disappears when it: reaches max range, hits the border, or hits a tank.
+- Shell disappears when it: reaches max range, hits the border or a **closed** gate door, or hits a tank
+  (including tanks inside a hangar through an open gate).
 - **Hit = instant destruction** of the tank (one-shot kill). Friendly fire **is** possible. **[A11]**
 - Shells pass through smoke (smoke only blocks vision). **[A12]**
 
@@ -322,12 +334,12 @@ Tanks are oriented rectangles (OBB). Collision is checked every tick.
   outer row. When an inner-row slot frees up, outer-row spares shift into it (cosmetic).
 - If no unnumbered spare exists, number `n` becomes unavailable (selection key does nothing).
 - If the destroyed tank was selected, the player's 3D view shows a "destroyed" screen with the
-  message:
-  - Left player: `TANK n DESTROYED — PRESS n TO DEPLOY`
-  - Right player: `TANK n DESTROYED — PRESS k TO DEPLOY` (where `k` is the key 6..0 corresponding to tank `n`).
+  message `TANK n DESTROYED` (or `TANK n DESTROYED — NO SPARES` if no spare can take its number).
 
 ### 10.3 Deploying from the hangar
 - Selecting a numbered tank that is in the hangar attempts to **deploy** it:
+  - The gate doors **slide open**; once fully open the tank appears just outside the gate (rear edge
+    `SPAWN_OFFSET_FROM_GATE_M` from the wall), facing into the field, speed zero; the doors close right after.
   - Spawn position: just outside the gate in the field, facing into the field, speed zero.
   - If the spawn area (`GATE_SPAWN_ZONE`, a tank-sized OBB + `SPAWN_CLEARANCE_M`) overlaps **any**
     tank (own or enemy), deployment is **blocked**; banner shows `GATE BLOCKED`. The tank stays
@@ -336,7 +348,8 @@ Tanks are oriented rectangles (OBB). Collision is checked every tick.
 - While selected but still in the hangar, the 3D view looks out through the gate.
 
 ### 10.4 Returning to the hangar (rearm)
-- A field tank driving into **its own** gate enters the hangar if there is a free slot.
+- A field tank driving into **its own** gate enters the hangar if there is a free slot. The doors open
+  automatically as the tank approaches (`GATE_APPROACH_M`) and close once it is in.
 - On entry: tank keeps its number, goes to a free slot, speed zeroed, inventory refilled to
   5 / 2 / 2.
 - It can be deployed again by selecting it (if it is selected while entering, it stays in hangar

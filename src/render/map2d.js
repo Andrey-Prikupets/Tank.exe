@@ -62,11 +62,16 @@ export function createMap2D(canvas) {
     ctx.lineTo(px(C.FIELD_LENGTH_M), py(C.FIELD_WIDTH_M));
     ctx.lineTo(px(C.FIELD_LENGTH_M), py(g1));
     ctx.stroke();
-    // gate markers
+    // gate doors: two sliding panels; the closed remainder sits at the edges of the gap
     [0, 1].forEach((o) => {
+      const open = world.gates ? world.gates[o].open : 0;
+      const closedLen = ((1 - open) * C.GATE_WIDTH_M) / 2;
+      if (closedLen <= 0.01) return;
       ctx.strokeStyle = TEAM[o].sel;
       ctx.beginPath();
       ctx.moveTo(px(gateX(o)), py(g0));
+      ctx.lineTo(px(gateX(o)), py(g0 + closedLen));
+      ctx.moveTo(px(gateX(o)), py(g1 - closedLen));
       ctx.lineTo(px(gateX(o)), py(g1));
       ctx.stroke();
     });
@@ -112,11 +117,30 @@ export function createMap2D(canvas) {
       ctx.fillRect(-tl / 2, -tw / 2, tl, tw);
       ctx.fillStyle = C.COLOR_TANK_DETAIL;
       ctx.fillRect(tl / 2 - 1, -1, tl * 0.35, 2);
+      // octagonal turret seen from above (vertex pointing along the barrel)
+      const tr = C.TURRET_RADIUS_M * scale;
+      ctx.beginPath();
+      for (let k = 0; k < C.TURRET_SIDES; k++) {
+        const a = (k * 2 * Math.PI) / C.TURRET_SIDES;
+        const vx = C.TURRET_OFFSET_M * scale + Math.cos(a) * tr;
+        const vy = Math.sin(a) * tr;
+        if (k === 0) ctx.moveTo(vx, vy);
+        else ctx.lineTo(vx, vy);
+      }
+      ctx.closePath();
+      ctx.fillStyle = t.owner === 0 ? C.COLOR_LEFT_TURRET : C.COLOR_RIGHT_TURRET;
+      ctx.fill();
+      ctx.lineWidth = C.MAP_TURRET_STROKE_PX;
+      ctx.strokeStyle = C.COLOR_TANK_DETAIL;
+      ctx.stroke();
       ctx.restore();
       if (t.number != null) {
+        // digit stays upright, centred inside the octagon
+        const cx = px(t.x) + Math.cos(t.heading) * C.TURRET_OFFSET_M * scale;
+        const cy = py(t.y) + Math.sin(t.heading) * C.TURRET_OFFSET_M * scale;
         ctx.fillStyle = '#fff';
-        ctx.font = `bold ${Math.round(tw * C.MAP_DIGIT_SCALE)}px "Share Tech Mono", monospace`;
-        ctx.fillText(t.number, px(t.x), py(t.y) + 1);
+        ctx.font = `bold ${Math.round(tr * C.MAP_DIGIT_SCALE * 1.6)}px "Share Tech Mono", monospace`;
+        ctx.fillText(t.number, cx, cy + 1);
       }
     }
 
