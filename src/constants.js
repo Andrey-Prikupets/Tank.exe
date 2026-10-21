@@ -26,6 +26,8 @@ export const AI_LEVEL_SETTINGS_KEY = 'tank.exe.ai_level';
 export const OBSTACLES_SETTINGS_KEY = 'tank.exe.obstacles';
 export const PITS_SETTINGS_KEY = 'tank.exe.pits';
 export const OBSTACLE_HEIGHT_M = 4.8;
+export const OBSTACLE_ROOF_HEIGHT_M = 1.6;
+export const OBSTACLE_ROOF_EAVE_M = 0.5;
 export const PIT_DROP_OVERLAP_FRACTION = 0.30;
 export const PLAYER_MODES = [
   { id: 'HvH', label: 'Human vs Human', leftAi: false, rightAi: false },
@@ -217,9 +219,22 @@ export const COLOR_TANK_DETAIL = '#222222';
 export const COLOR_LEFT_TURRET = '#7a2219';
 export const COLOR_RIGHT_TURRET = '#1d3a82';
 export const COLOR_GATE_DOOR = '#9aa0a6';
-export const COLOR_OBSTACLE = '#6b635b';
-export const COLOR_OBSTACLE_ROOF = '#4a433c';
+export const OBSTACLE_WALL_COLORS = [
+  '#b8b0a5', // Warm light stone gray
+  '#c4b7a4', // Bright sandy tan
+  '#b8a89b', // Light khaki brown
+  '#bdb9ad', // Bright concrete gray
+  '#cbbfae', // Light plaster beige
+  '#b2a297', // Warm dusty gray-brown
+  '#c0b7a6', // Light desert stone
+  '#aab0b4', // Bright cool slate gray
+];
+export const COLOR_OBSTACLE = OBSTACLE_WALL_COLORS[0];
+export const COLOR_OBSTACLE_ROOF = '#524c46';
+export const COLOR_OBSTACLE_ROOF_RIDGE = '#38322c';
 export const COLOR_OBSTACLE_WINDOW = '#324759';
+export const getObstacleWallColor = (id) =>
+  OBSTACLE_WALL_COLORS[((id || 1) - 1) % OBSTACLE_WALL_COLORS.length];
 export const COLOR_PIT_WATER = '#00e5ff';
 export const COLOR_PIT_RIM = '#19241b';
 

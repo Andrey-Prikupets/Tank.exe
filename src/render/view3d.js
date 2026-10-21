@@ -160,16 +160,54 @@ export function createView3D(canvas) {
   const mineGeo = new THREE.CylinderGeometry(C.MINE_RADIUS_M, C.MINE_RADIUS_M, 0.25, 8);
   const mineUnarmed = mat(C.COLOR_MINE_UNARMED);
   const mineArmed = mat(C.COLOR_MINE_ARMED);
-  const obstacleMat = mat(C.COLOR_OBSTACLE);
+  const obstacleMats = C.OBSTACLE_WALL_COLORS.map((c) => mat(c));
   const roofMat = mat(C.COLOR_OBSTACLE_ROOF);
   const windowMat = basic(C.COLOR_OBSTACLE_WINDOW);
   const pitWaterMat = new THREE.MeshLambertMaterial({ color: C.COLOR_PIT_WATER, transparent: true, opacity: 0.88, flatShading: true });
   const pitRimMat = mat(C.COLOR_PIT_RIM);
 
+  const roofGeoCache = new Map();
+  function getHipRoofGeo(L, W, H) {
+    const key = `${L}_${W}_${H}`;
+    let geo = roofGeoCache.get(key);
+    if (!geo) {
+      const e = C.OBSTACLE_ROOF_EAVE_M;
+      const bl = L / 2 + e;
+      const bw = W / 2 + e;
+      const rl = Math.max(0, (L - W) * 0.45);
+
+      const positions = [
+        // North slope (facing -Z)
+        -bl, 0, -bw,   bl, 0, -bw,   rl, H, 0,
+        -bl, 0, -bw,   rl, H, 0,    -rl, H, 0,
+
+        // South slope (facing +Z)
+        bl, 0, bw,   -bl, 0, bw,   -rl, H, 0,
+        bl, 0, bw,   -rl, H, 0,     rl, H, 0,
+
+        // East slope (facing +X)
+        bl, 0, -bw,   bl, 0, bw,    rl, H, 0,
+
+        // West slope (facing -X)
+        -bl, 0, bw,  -bl, 0, -bw,  -rl, H, 0,
+
+        // Bottom soffit (facing -Y)
+        -bl, 0, -bw,  -bl, 0, bw,   bl, 0, bw,
+        -bl, 0, -bw,   bl, 0, bw,   bl, 0, -bw,
+      ];
+
+      geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.computeVertexNormals();
+      roofGeoCache.set(key, geo);
+    }
+    return geo;
+  }
+
   function makeObstacle() {
     const g = new THREE.Group();
-    const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), obstacleMat);
-    const roofMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), roofMat);
+    const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), obstacleMats[0]);
+    const roofMesh = new THREE.Mesh(new THREE.BufferGeometry(), roofMat);
     g.add(bodyMesh, roofMesh);
     const windowMeshes = [];
     for (let i = 0; i < 12; i++) {
@@ -186,11 +224,13 @@ export function createView3D(canvas) {
     g.rotation.y = -ob.h;
     const { bodyMesh, roofMesh, windowMeshes } = g.userData;
     const h = ob.height || C.OBSTACLE_HEIGHT_M;
+    const matIdx = ((ob.id || 1) - 1) % obstacleMats.length;
+    bodyMesh.material = obstacleMats[matIdx];
     bodyMesh.scale.set(ob.l, h, ob.w);
     bodyMesh.position.set(0, h / 2, 0);
 
-    roofMesh.scale.set(ob.l + 0.6, 0.4, ob.w + 0.6);
-    roofMesh.position.set(0, h + 0.2, 0);
+    roofMesh.geometry = getHipRoofGeo(ob.l, ob.w, C.OBSTACLE_ROOF_HEIGHT_M);
+    roofMesh.position.set(0, h, 0);
 
     let wIdx = 0;
     const yFloors = [h * 0.35, h * 0.72];

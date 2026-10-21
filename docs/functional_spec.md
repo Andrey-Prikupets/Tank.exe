@@ -644,6 +644,9 @@ Music, sampled audio, AI opponents, online play, gamepads, mobile/touch, terrain
 | `AI_SMOKE_INCOMING_SHELL_DIST_M` | 30 | m |
 | `AI_SMOKE_SHELL_DOT_THRESHOLD` | 0.8 | |
 | `AI_MINE_BEHIND_ANGLE_RAD` | 0.7 | rad |
+| `OBSTACLE_HEIGHT_M` | 4.8 | m |
+| `OBSTACLE_ROOF_HEIGHT_M` | 1.6 | m |
+| `OBSTACLE_ROOF_EAVE_M` | 0.5 | m |
 
 ---
 
@@ -661,6 +664,7 @@ Music, sampled audio, AI opponents, online play, gamepads, mobile/touch, terrain
 | A2 | Build tooling | Vite + Three.js from npm. |
 | A19 | Sound | Simple synthesized Web Audio effects in v1. |
 | A15 | Window targeting | Direct ballistic line of sight without dead zone immunity. |
+| A20 | Barracks Architecture | Buildings feature slightly conical / hipped roofs with overhangs and per-building wall variations in bright, unsaturated gray and brown tones. |
 
 ## 18. Remaining Assumptions (not yet confirmed — defaults apply)
 

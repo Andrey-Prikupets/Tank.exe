@@ -195,14 +195,39 @@ export function createMap2D(canvas) {
         ctx.rotate(ob.h);
         const obl = ob.l * scale;
         const obw = ob.w * scale;
-        ctx.fillStyle = C.COLOR_OBSTACLE;
+        // Wall base with house-specific bright gray/brown shade
+        ctx.fillStyle = C.getObstacleWallColor(ob.id);
         ctx.fillRect(-obl / 2, -obw / 2, obl, obw);
-        ctx.strokeStyle = C.COLOR_OBSTACLE_ROOF;
-        ctx.lineWidth = Math.max(1.5, 0.4 * scale);
+        ctx.strokeStyle = '#222';
+        ctx.lineWidth = Math.max(1, 0.25 * scale);
         ctx.strokeRect(-obl / 2, -obw / 2, obl, obw);
-        // Roof block
+
+        // Hipped / conical barrack roof
+        const margin = Math.max(1.5, 0.4 * scale);
+        const rbl = obl / 2 - margin;
+        const rbw = obw / 2 - margin;
+        const rl = Math.max(0, (rbl - rbw) * 0.45);
+
         ctx.fillStyle = C.COLOR_OBSTACLE_ROOF;
-        ctx.fillRect(-obl * 0.35, -obw * 0.3, obl * 0.7, obw * 0.6);
+        ctx.fillRect(-rbl, -rbw, rbl * 2, rbw * 2);
+
+        // Conical / hipped roof ridge and hip slope lines
+        ctx.strokeStyle = C.COLOR_OBSTACLE_ROOF_RIDGE;
+        ctx.lineWidth = Math.max(1, 0.3 * scale);
+        ctx.beginPath();
+        // Central ridge line
+        ctx.moveTo(-rl, 0);
+        ctx.lineTo(rl, 0);
+        // Hip slope lines from ridge ends to the 4 roof corners
+        ctx.lineTo(rbl, -rbw);
+        ctx.moveTo(rl, 0);
+        ctx.lineTo(rbl, rbw);
+        ctx.moveTo(-rl, 0);
+        ctx.lineTo(-rbl, -rbw);
+        ctx.moveTo(-rl, 0);
+        ctx.lineTo(-rbl, rbw);
+        ctx.stroke();
+
         // Window dots on facades
         ctx.fillStyle = C.COLOR_OBSTACLE_WINDOW;
         const winW = Math.max(1.5, 0.22 * scale);
