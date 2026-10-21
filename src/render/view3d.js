@@ -52,28 +52,38 @@ export function createView3D(canvas) {
   const doorMat = mat(C.COLOR_GATE_DOOR);
   for (const owner of [0, 1]) {
     const cx = owner === 0 ? -T / 2 : L + T / 2;
-    addBox(T, H, g0, cx, H / 2, g0 / 2, wallMat);
-    addBox(T, H, W - g1, cx, H / 2, g1 + (W - g1) / 2, wallMat);
+    // Border walls ending flush with gate pillars (no Z overlap)
+    const upperWallLen = g0 - T;
+    addBox(T, H, upperWallLen, cx, H / 2, upperWallLen / 2, wallMat);
+    const lowerWallLen = W - (g1 + T);
+    addBox(T, H, lowerWallLen, cx, H / 2, (g1 + T) + lowerWallLen / 2, wallMat);
+
+    // Gate pillars framing the gate opening [g0, g1], slightly proud in X to prevent coplanar fighting
     const teamMat = mat(owner === 0 ? C.COLOR_LEFT_TEAM : C.COLOR_RIGHT_TEAM);
-    addBox(T, H + 1, T, cx, (H + 1) / 2, g0, teamMat);
-    addBox(T, H + 1, T, cx, (H + 1) / 2, g1, teamMat);
-    // sliding door panels (slide sideways into the wall as the gate opens)
+    const postThickX = T + 0.08;
+    const postHeight = H + 0.8;
+    addBox(postThickX, postHeight, T, cx, postHeight / 2, g0 - T / 2, teamMat);
+    addBox(postThickX, postHeight, T, cx, postHeight / 2, g1 + T / 2, teamMat);
+
+    // sliding door panels (slide sideways into the wall pocket; height slightly lower to avoid top/bottom Z-fighting)
+    const doorHeight = H - 0.08;
     for (const side of [-1, 1]) {
-      const panel = addBox(T * C.GATE_DOOR_THICKNESS_FRACTION, H, C.GATE_WIDTH_M / 2, cx, H / 2, C.GATE_CENTER_Y_M, doorMat);
+      const panel = addBox(T * C.GATE_DOOR_THICKNESS_FRACTION, doorHeight, C.GATE_WIDTH_M / 2, cx, H / 2, C.GATE_CENTER_Y_M, doorMat);
       panel.userData.side = side;
       doors[owner].push(panel);
     }
     // window decals (field side)
     const dir = owner === 0 ? 1 : -1;
     for (const idx of [0, 1]) {
-      addBox(0.1, 1, C.WINDOW_LENGTH_M, gateX(owner) + dir * 0.05, 2.2, windowY(owner, idx), basic(C.COLOR_WINDOW));
+      addBox(0.1, 1, C.WINDOW_LENGTH_M, gateX(owner) + dir * 0.06, 2.2, windowY(owner, idx), basic(C.COLOR_WINDOW));
     }
     // hangar building
     const D = C.HANGAR_DEPTH_M;
     const hx = owner === 0 ? -(T + D / 2) : L + T + D / 2;
     const hw = C.HANGAR_HALF_WIDTH_M;
     addBox(D, 0.1, 2 * hw, hx, 0.05, C.GATE_CENTER_Y_M, mat(C.COLOR_HANGAR_FLOOR));
-    addBox(T, H, 2 * hw, owner === 0 ? -(T + D) : L + T + D, H / 2, C.GATE_CENTER_Y_M, mat(C.COLOR_HANGAR_WALL));
+    const backWallX = owner === 0 ? -(T + D + T / 2) : L + T + D + T / 2;
+    addBox(T, H, 2 * hw + 2 * T, backWallX, H / 2, C.GATE_CENTER_Y_M, mat(C.COLOR_HANGAR_WALL));
     for (const s of [-1, 1]) addBox(D, H, T, hx, H / 2, C.GATE_CENTER_Y_M + s * hw, mat(C.COLOR_HANGAR_WALL));
   }
 

@@ -92,6 +92,7 @@
   `GATE_PASSABLE_FRACTION` wide.
 - **Hangar exposure:** while the doors are open, shells (from tanks or windows, friend or foe) fly through
   the opening into the hangar and **can destroy tanks parked inside** that are visible through it.
+- **Gate pillars & non-overlapping geometry:** The gateway is framed by team-colored structural pillars positioned outside the gate opening width. Border walls meet the outer edges of the pillars flush with zero overlap, and sliding door panels operate within recessed wall pockets with vertical clearance to prevent coplanar Z-fighting/flashing.
 
 ---
 
