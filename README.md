@@ -64,25 +64,25 @@ Two players share one keyboard. Controls are optimized for anti-ghosting layout 
 
 ## 🔗 Startup URL Parameters (Query String)
 
-You can launch the game with pre-configured settings or start directly into battle (bypassing the title menu) using URL query string parameters:
+You can launch the game with pre-configured settings or start directly into battle (bypassing the title menu) using URL query string parameters. All parameters and string values are **case-insensitive**, and all boolean parameters accept only **`Y`** or **`N`**:
 
-| Parameter | Values | Description |
-|---|---|---|
-| **`mode`** / **`players`** | `HvH`, `HvC`, `CvH`, `CvC` | Player mode: Human vs Human, Human vs Computer, Computer vs Human, or Computer vs Computer |
-| **`level`** / **`ai`** | `EASY`, `MEDIUM`, `HARD` | AI difficulty level (defaults to `MEDIUM`) |
-| **`sound`** / **`audio`** | `1` / `0`, `true` / `false`, `on` / `off` | Enable or mute procedural synthesized Web Audio |
-| **`obstacles`** | `1` / `0`, `true` / `false`, `on` / `off` | Enable or disable building obstacles on the field |
-| **`pits`** | `1` / `0`, `true` / `false`, `on` / `off` | Enable or disable water hazard trenches / moats |
-| **`lang`** | `en`, `es`, `ru` | Pre-select language for the History dialog |
-| **`start`** / **`autostart`** / **`play`** | `1`, `true`, or flag without value | Automatically start a new game immediately |
+| Parameter | Type | Values | Description |
+|---|:---:|---|---|
+| **`mode`** | String | `HvH`, `HvC`, `CvH`, `CvC` | Player mode: Human vs Human, Human vs Computer, Computer vs Human, or Computer vs Computer |
+| **`level`** | String | `EASY`, `MEDIUM`, `HARD` | AI difficulty level (defaults to `MEDIUM`) |
+| **`sound`** | Boolean | `Y` / `N` | Enable (`Y`) or mute (`N`) procedural synthesized Web Audio |
+| **`obstacles`** | Boolean | `Y` / `N` | Enable (`Y`) or disable (`N`) building obstacles on the field |
+| **`pits`** | Boolean | `Y` / `N` | Enable (`Y`) or disable (`N`) water hazard trenches / moats |
+| **`lang`** | String | `EN`, `ES`, `RU` | Pre-select language for the History dialog |
+| **`start`** | Boolean | `Y` / `N` | When `Y`, immediately starts a new game, bypassing the title menu |
 
 ### Quick Launch Examples:
 * **Computer vs Computer Spectator Mode:**  
-  [`https://andrey-prikupets.github.io/Tank.exe/?mode=CvC&start=1`](https://andrey-prikupets.github.io/Tank.exe/?mode=CvC&start=1)
+  [`https://andrey-prikupets.github.io/Tank.exe/?mode=CvC&start=Y`](https://andrey-prikupets.github.io/Tank.exe/?mode=CvC&start=Y)
 * **AI Duel with Hazards & Hard Difficulty:**  
-  [`https://andrey-prikupets.github.io/Tank.exe/?mode=CvC&start=1&level=HARD&obstacles=1&pits=1`](https://andrey-prikupets.github.io/Tank.exe/?mode=CvC&start=1&level=HARD&obstacles=1&pits=1)
-* **Human vs Computer with Obstacles:**  
-  [`https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&start=1&obstacles=1`](https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&start=1&obstacles=1)
+  [`https://andrey-prikupets.github.io/Tank.exe/?mode=CvC&start=Y&level=HARD&obstacles=Y&pits=Y`](https://andrey-prikupets.github.io/Tank.exe/?mode=CvC&start=Y&level=HARD&obstacles=Y&pits=Y)
+* **Human vs Computer with Obstacles & Sound Muted:**  
+  [`https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&start=Y&obstacles=Y&sound=N`](https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&start=Y&obstacles=Y&sound=N)
 
 ---
 

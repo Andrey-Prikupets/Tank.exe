@@ -422,16 +422,16 @@ The game launches into the **Tank.exe Title Menu**:
 
 ### 11.4 Startup Query String Parameters
 
-The application supports URL query string parameters on startup to configure settings or launch directly into combat without manual menu interaction:
-- **`mode` or `players`:** Configures game player mode (`HvH`, `HvC`, `CvH`, `CvC`, or names like `Computer vs Computer`).
-- **`level` or `ai`:** Configures AI difficulty level (`EASY`, `MEDIUM`, `HARD`).
-- **`sound` or `audio`:** Toggles sound output (`1`/`0`, `true`/`false`, `on`/`off`).
-- **`obstacles`:** Toggles building obstacles (`1`/`0`, `true`/`false`, `on`/`off`).
-- **`pits`:** Toggles water pit / moat hazard trenches (`1`/`0`, `true`/`false`, `on`/`off`).
-- **`lang`:** Pre-selects history language (`en`, `es`, `ru`).
-- **`start`, `autostart`, or `play`:** When present (or set to `1`/`true`), immediately starts a new game with the configured options, bypassing the title menu.
+The application supports URL query string parameters on startup to configure settings or launch directly into combat without manual menu interaction. All parameters and string values are **case-insensitive**, and all boolean parameters accept only **`Y`** or **`N`**:
+- **`mode`:** Configures game player mode (`HvH`, `HvC`, `CvH`, `CvC`).
+- **`level`:** Configures AI difficulty level (`EASY`, `MEDIUM`, `HARD`).
+- **`sound`:** Toggles procedural sound output (`Y` / `N`).
+- **`obstacles`:** Toggles building obstacles (`Y` / `N`).
+- **`pits`:** Toggles water pit / moat hazard trenches (`Y` / `N`).
+- **`lang`:** Pre-selects history language (`EN`, `ES`, `RU`).
+- **`start`:** When set to `Y`, immediately starts a new game with the configured options, bypassing the title menu.
 
-*Example:* `http://localhost:5174/?mode=CvC&start=1&level=HARD&obstacles=1&pits=1&sound=0` launches directly into a Computer vs Computer match on Hard difficulty with hazards enabled and audio muted.
+*Example:* `http://localhost:5174/?mode=CvC&start=Y&level=HARD&obstacles=Y&pits=Y&sound=N` launches directly into a Computer vs Computer match on Hard difficulty with hazards enabled and audio muted.
 
 ### 11.5 Keyboard Layout Configuration (`Options` → `KEYBOARD LAYOUT`)
 

@@ -92,47 +92,57 @@ const options = {
 // URL query string parameters for startup overrides
 const urlParams = new URLSearchParams(window.location.search);
 
-const modeParam = urlParams.get('mode') || urlParams.get('players');
-if (modeParam) {
-  const clean = modeParam.trim().toLowerCase().replace(/[\s-_]+/g, '');
-  const idx = C.PLAYER_MODES.findIndex(
-    (m) => m.id.toLowerCase() === clean || m.label.toLowerCase().replace(/[\s-_]+/g, '') === clean
-  );
+function parseBoolParam(key) {
+  if (!urlParams.has(key)) return null;
+  const val = (urlParams.get(key) || '').trim().toUpperCase();
+  if (val === 'Y') return true;
+  if (val === 'N') return false;
+  return null;
+}
+
+// 1. Mode: ?mode=HvH | HvC | CvH | CvC (case-insensitive)
+const modeVal = urlParams.get('mode');
+if (modeVal) {
+  const clean = modeVal.trim().toUpperCase();
+  const idx = C.PLAYER_MODES.findIndex((m) => m.id.toUpperCase() === clean);
   if (idx >= 0) playerModeIndex = idx;
 }
 
-const levelParam = urlParams.get('level') || urlParams.get('ai');
-if (levelParam) {
-  const clean = levelParam.trim().toUpperCase();
+// 2. AI Level: ?level=EASY | MEDIUM | HARD (case-insensitive)
+const levelVal = urlParams.get('level');
+if (levelVal) {
+  const clean = levelVal.trim().toUpperCase();
   const idx = C.AI_LEVELS.indexOf(clean);
   if (idx >= 0) aiLevelIndex = idx;
 }
 
-const soundParam = urlParams.get('sound') || urlParams.get('audio');
-if (soundParam !== null) {
-  const on = !['0', 'false', 'off', 'no'].includes(soundParam.trim().toLowerCase());
-  sfx.setEnabled(on);
+// 3. Sound: ?sound=Y | N (case-insensitive)
+const soundBool = parseBoolParam('sound');
+if (soundBool !== null) {
+  sfx.setEnabled(soundBool);
 }
 
-const obstaclesParam = urlParams.get('obstacles');
-if (obstaclesParam !== null) {
-  options.obstacles = !['0', 'false', 'off', 'no'].includes(obstaclesParam.trim().toLowerCase());
+// 4. Obstacles: ?obstacles=Y | N (case-insensitive)
+const obstaclesBool = parseBoolParam('obstacles');
+if (obstaclesBool !== null) {
+  options.obstacles = obstaclesBool;
 }
 
-const pitsParam = urlParams.get('pits');
-if (pitsParam !== null) {
-  options.pits = !['0', 'false', 'off', 'no'].includes(pitsParam.trim().toLowerCase());
+// 5. Pits: ?pits=Y | N (case-insensitive)
+const pitsBool = parseBoolParam('pits');
+if (pitsBool !== null) {
+  options.pits = pitsBool;
 }
 
-const langParam = urlParams.get('lang');
-if (langParam && HISTORY_DOCS[langParam.trim().toLowerCase()]) {
-  historyLang = langParam.trim().toLowerCase();
+// 6. Language: ?lang=EN | ES | RU (case-insensitive)
+const langVal = urlParams.get('lang');
+if (langVal) {
+  const clean = langVal.trim().toLowerCase();
+  if (HISTORY_DOCS[clean]) historyLang = clean;
 }
 
-const startVal = urlParams.get('start') || urlParams.get('autostart') || urlParams.get('play');
-const autoStart =
-  (urlParams.has('start') || urlParams.has('autostart') || urlParams.has('play')) &&
-  !['0', 'false', 'no'].includes(String(startVal).trim().toLowerCase());
+// 7. Auto-start: ?start=Y | N (case-insensitive)
+const autoStart = parseBoolParam('start') === true;
 
 let world = createWorld(options);
 world.isAiPlayer = isAiPlayer;
