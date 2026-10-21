@@ -505,6 +505,19 @@ html, body {
   font-size: 15px;
   line-height: 1.5;
 }
+.help-badge-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 6px 0 16px;
+}
+.help-badge {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6), 0 0 12px rgba(80, 200, 120, 0.25);
+  display: block;
+}
 .m-text.center {
   text-align: center;
   color: var(--dim);
