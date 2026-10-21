@@ -395,7 +395,7 @@ The game launches into the **Tank.exe Title Menu**:
   3. **Players: Human vs Human | Human vs Computer | Computer vs Human | Computer vs Computer** (1st is left player, 2nd is right)
   4. **Level: HARD | MEDIUM | EASY** (visible only when Computer mode is selected)
   5. **Options** (opens the Options submenu)
-  6. **Help** (opens a scrollable modal detailing game concept, 90s lore, rules, and controls table)
+  6. **Help** (opens a scrollable modal detailing game concept, initial status, controls table with remapping note, arsenal & defense, base hangars, and victory conditions with multilingual support for English, Spanish, and Russian (`src/help/help_en.html`, `src/help/help_es.html`, `src/help/help_ru.html`). Features an in-header language switcher (`[ EN | ES | RU ]`) and keyboard shortcut (`L`), default locale detection from the browser (`navigator.language`), and `localStorage` persistence)
   7. **History** (opens a scrollable modal displaying the game's origins and lore with multilingual support for English, Spanish, and Russian (`src/history/history_en.html`, `src/history/history_es.html`, `src/history/history_ru.html`). Features an in-header language switcher (`[ EN | ES | RU ]`) and keyboard shortcut (`L`), default locale detection from the browser (`navigator.language`), and `localStorage` persistence)
 
 **In-Game Pause Menu (`Esc`):**
@@ -408,7 +408,7 @@ The game launches into the **Tank.exe Title Menu**:
   5. **Players: Human vs Human | Human vs Computer | Computer vs Human | Computer vs Computer** (1st is left player, 2nd is right)
   6. **Level: HARD | MEDIUM | EASY** (visible only when Computer mode is selected)
   7. **Options** (opens the Options submenu)
-  8. **Help** (scrollable modal with rules & controls)
+  8. **Help** (opens the scrollable game manual modal with in-header language switcher)
   9. **History** (opens the scrollable game history and lore modal with in-header language switcher)
 
 **Options Submenu (`Options`):**

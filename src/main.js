@@ -13,6 +13,9 @@ import { AiController } from './sim/ai.js';
 import historyRu from './history/history_ru.html?raw';
 import historyEn from './history/history_en.html?raw';
 import historyEs from './history/history_es.html?raw';
+import helpRu from './help/help_ru.html?raw';
+import helpEn from './help/help_en.html?raw';
+import helpEs from './help/help_es.html?raw';
 
 const HISTORY_DOCS = {
   ru: historyRu,
@@ -44,6 +47,39 @@ function getInitialHistoryLang() {
 }
 
 let historyLang = getInitialHistoryLang();
+
+const HELP_DOCS = {
+  ru: helpRu,
+  en: helpEn,
+  es: helpEs,
+};
+
+const HELP_TITLES = {
+  en: 'HELP — TANK.EXE MANUAL',
+  es: 'AYUDA — MANUAL TANK.EXE',
+  ru: 'ПОМОЩЬ — РУКОВОДСТВО TANK.EXE',
+};
+
+const HELP_BACK_LABELS = {
+  en: 'Back (Esc)',
+  es: 'Volver (Esc)',
+  ru: 'Назад (Esc)',
+};
+
+function getInitialHelpLang() {
+  try {
+    const saved = localStorage.getItem('tank_help_lang');
+    if (saved && HELP_DOCS[saved]) return saved;
+    const historySaved = localStorage.getItem('tank_history_lang');
+    if (historySaved && HELP_DOCS[historySaved]) return historySaved;
+  } catch {}
+  const navLang = (navigator.language || (navigator.languages && navigator.languages[0]) || '').toLowerCase();
+  if (navLang.startsWith('ru') || navLang.startsWith('be') || navLang.startsWith('uk')) return 'ru';
+  if (navLang.startsWith('es')) return 'es';
+  return 'en';
+}
+
+let helpLang = getInitialHelpLang();
 
 document.documentElement.style.setProperty('--mask-h', `${C.WINDOW_MASK_PERCENT}%`);
 
@@ -139,6 +175,7 @@ const langVal = urlParams.get('lang');
 if (langVal) {
   const clean = langVal.trim().toLowerCase();
   if (HISTORY_DOCS[clean]) historyLang = clean;
+  if (HELP_DOCS[clean]) helpLang = clean;
 }
 
 // 7. Auto-start: ?start=Y | N (case-insensitive)
@@ -230,65 +267,27 @@ function optionsScreen() {
 }
 
 function helpScreen() {
-  const k = input.getKeys();
-  const fmtKey = (val) => [].concat(val || []).map(keyLabel).join(' / ') || '—';
-  const leftSel = (k.LEFT.SELECT || []).map(keyLabel).join(', ');
-  const rightSel = (k.RIGHT.SELECT || []).map(keyLabel).join(', ');
-  const rows = [
-    ['Select tank', leftSel, rightSel],
-    ['Accelerate', fmtKey(k.LEFT.FORWARD), fmtKey(k.RIGHT.FORWARD)],
-    ['Decelerate / reverse', fmtKey(k.LEFT.BACK), fmtKey(k.RIGHT.BACK)],
-    ['Turn left', fmtKey(k.LEFT.TURN_L), fmtKey(k.RIGHT.TURN_L)],
-    ['Turn right', fmtKey(k.LEFT.TURN_R), fmtKey(k.RIGHT.TURN_R)],
-    ['Left window', fmtKey(k.LEFT.WIN_L), fmtKey(k.RIGHT.WIN_L)],
-    ['Right window', fmtKey(k.LEFT.WIN_R), fmtKey(k.RIGHT.WIN_R)],
-    ['Fire', fmtKey(k.LEFT.FIRE), fmtKey(k.RIGHT.FIRE)],
-    ['Drop mine', fmtKey(k.LEFT.MINE), fmtKey(k.RIGHT.MINE)],
-    ['Smoke cloud', fmtKey(k.LEFT.SMOKE), fmtKey(k.RIGHT.SMOKE)],
-  ];
-  const tableRows = rows
-    .map(([name, k1, k2]) => `<tr><td><strong>${name}</strong></td><td>${k1}</td><td>${k2}</td></tr>`)
-    .join('');
-
-  const html = `
-    <h3>1. CONCEPT & LORE</h3>
-    <p><strong>Tank.exe</strong> pays homage to early 1990s PC DOS split-screen 3D vehicular combat simulations. Two commanders share a single keyboard to lead opposing tank battalions across a 250m × 100m tactical arena.</p>
-
-    <h3>2. INITIAL STATUS & FORCES</h3>
-    <p>Each army commands 15 tanks total: 5 active units deployed in line formation on the field and 10 reserves waiting in the hangar. Tanks on both sides display numbers <strong>1 to 5</strong>.</p>
-    <p><strong>Zero Auto-Movement:</strong> Tanks never move on their own. They start stationary at 0 km/h and only accelerate or steer upon your direct key commands.</p>
-
-    <h3>3. CONTROLS TABLE</h3>
-    <table>
-      <tr><th>ACTION</th><th>RED (Left Player)</th><th>BLUE (Right Player)</th></tr>
-      ${tableRows}
-      <tr><td>Pause / Menu</td><td colspan="2">Esc (shared)</td></tr>
-    </table>
-
-    <h3>4. INERTIA & MULTI-TANK ARCS</h3>
-    <p>Tanks possess authentic mass inertia. Accelerating or turning commands a speed/turn rate that the tank preserves. You can initiate an arcing maneuver on Tank 1, switch instantly to Tank 2 to push forward, and advance multiple units in coordinated multi-tank assaults!</p>
-
-    <h3>5. ARSENAL & DEFENSE</h3>
-    <p>• <strong>Shells (5):</strong> High-velocity artillery round. Passes through smoke. Lethal on impact to friend or foe.<br>
-       • <strong>Mines (2):</strong> Deployed behind your tank. Arms after 1.5 seconds. Remains indefinitely until triggered.<br>
-       • <strong>Smoke (2):</strong> Deploys a dense 10-second thermal cloud blocking 3D line-of-sight and obscuring tanks from radar.</p>
-
-    <h3>6. BASE HANGARS & WINDOWS</h3>
-    <p>• <strong>Rearming:</strong> Drive any of your surviving tanks through your home gate into a free hangar slot to fully replenish ammo, mines, and smoke.<br>
-       • <strong>Gate Defense:</strong> Hangar slit windows allow defensive surveillance and firing with unlimited ammo to protect against enemy assaults.<br>
-       • <strong>Gate Blockade:</strong> A tank standing in front of an opponent's gate blocks reserve deployments!</p>
-
-    <h3>7. VICTORY CONDITIONS</h3>
-    <p>Destroy all 15 enemy tanks to win the war.</p>
-  `;
-
-  return {
-    title: 'HELP — TANK.EXE MANUAL',
-    text: html,
+  const s = {
+    title: () => HELP_TITLES[helpLang] || HELP_TITLES.en,
+    text: () => renderMarkup(HELP_DOCS[helpLang] || HELP_DOCS.en),
     scrollable: true,
-    items: [{ label: 'Back (Esc)', action: () => menu.pop() }],
+    langSwitch: {
+      get current() {
+        return helpLang;
+      },
+      onChange: (lang) => {
+        if (!HELP_DOCS[lang]) return;
+        helpLang = lang;
+        try {
+          localStorage.setItem('tank_help_lang', lang);
+        } catch {}
+        menu.refresh();
+      },
+    },
+    items: () => [{ label: HELP_BACK_LABELS[helpLang] || 'Back (Esc)', action: () => menu.pop() }],
     onEsc: () => menu.pop(),
   };
+  return s;
 }
 
 function escapeHtml(str) {
