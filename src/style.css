@@ -246,7 +246,137 @@ html, body {
 }
 #menu.hidden { display: none; }
 
+/* Game Over screen: field remains visible and grayed out, stats displayed above it */
+#menu.gameover {
+  background: rgba(8, 12, 10, 0.42);
+  backdrop-filter: grayscale(45%) contrast(85%);
+  -webkit-backdrop-filter: grayscale(45%) contrast(85%);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  padding-top: 32px;
+}
+
+#menu.gameover .card {
+  min-width: min(560px, 94vw);
+  max-width: 640px;
+  max-height: 85vh;
+  padding: 18px 28px 22px;
+  background: linear-gradient(160deg, rgba(16, 28, 22, 0.88), rgba(9, 14, 12, 0.92));
+  border: 1px solid rgba(80, 200, 120, 0.45);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.75), 0 0 35px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+#menu.gameover .m-version {
+  display: none;
+}
+
+#menu.gameover .m-title {
+  font-size: 28px;
+  margin: 0 0 4px;
+}
+
+#menu.gameover.winner-red .m-title {
+  color: #ff7060;
+  text-shadow: 0 0 20px rgba(255, 112, 96, 0.55);
+}
+
+#menu.gameover.winner-blue .m-title {
+  color: #6fa0ff;
+  text-shadow: 0 0 20px rgba(111, 160, 255, 0.55);
+}
+
+#menu.gameover.winner-draw .m-title {
+  color: #ffd54a;
+  text-shadow: 0 0 20px rgba(255, 213, 74, 0.55);
+}
+
+#menu.gameover .m-scroll-wrap {
+  max-height: none;
+  overflow: visible;
+  margin: 4px 0 8px;
+  padding: 0;
+}
+
+#menu.gameover .gameover-stats {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  gap: 20px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid #23362a;
+  border-radius: 8px;
+  padding: 12px 18px;
+  margin: 8px 0 12px;
+}
+
+#menu.gameover .stat-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#menu.gameover .stat-col.red .stat-team {
+  color: #ff7060;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  border-bottom: 1px solid rgba(255, 112, 96, 0.3);
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+#menu.gameover .stat-col.blue .stat-team {
+  color: #6fa0ff;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  border-bottom: 1px solid rgba(111, 160, 255, 0.3);
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+#menu.gameover .stat-divider {
+  width: 1px;
+  background: #2b3d30;
+}
+
+#menu.gameover .stat-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #a8b8a8;
+}
+
+#menu.gameover .stat-line strong {
+  color: #ffffff;
+}
+
+#menu.gameover .m-items {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  gap: 16px;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+#menu.gameover .m-items li {
+  min-width: 140px;
+  text-align: center;
+  padding: 8px 18px;
+}
+
+#menu.gameover .m-hint {
+  margin-top: 10px;
+}
+
 .card {
+  position: relative;
   min-width: min(600px, 94vw);
   max-width: 760px;
   max-height: 90vh;
@@ -257,6 +387,52 @@ html, body {
   border-radius: 12px;
   background: linear-gradient(160deg, rgba(16, 28, 22, 0.98), rgba(9, 14, 12, 0.98));
   box-shadow: 0 20px 60px rgba(0,0,0,.7), 0 0 40px rgba(80,200,120,.1);
+}
+
+.m-lang-switch {
+  position: absolute;
+  top: 22px;
+  right: 28px;
+  display: inline-flex;
+  gap: 3px;
+  background: rgba(14, 23, 18, 0.88);
+  border: 1px solid #3b5a44;
+  border-radius: 6px;
+  padding: 3px 4px;
+  z-index: 10;
+}
+.m-lang-switch.hidden {
+  display: none;
+}
+.m-lang-switch .lang-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #7d967d;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.m-lang-switch .lang-btn:hover {
+  color: var(--accent);
+  background: rgba(80, 200, 120, 0.15);
+  border-color: rgba(255, 213, 74, 0.3);
+}
+.m-lang-switch .lang-btn.active {
+  color: #0b140e;
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 10px rgba(255, 213, 74, 0.45);
+}
+@media (max-width: 640px) {
+  .m-lang-switch {
+    position: static;
+    margin: 0 auto 8px auto;
+  }
 }
 
 .m-title {
@@ -331,6 +507,22 @@ html, body {
 .m-text p {
   margin: 6px 0 10px;
   color: #b5c7b5;
+}
+.m-text ul {
+  margin: 6px 0 12px 20px;
+  padding: 0;
+  color: #b5c7b5;
+}
+.m-text li {
+  margin: 4px 0;
+  line-height: 1.45;
+}
+.m-text strong {
+  color: #f2f7f2;
+  font-weight: bold;
+}
+.m-text em {
+  color: var(--accent);
 }
 
 .m-items {

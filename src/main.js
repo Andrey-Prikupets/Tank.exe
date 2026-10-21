@@ -10,6 +10,40 @@ import { createMenu } from './ui/menu.js';
 import { createKeyboardScreen } from './ui/keyboard_screen.js';
 import { Sfx } from './audio/sfx.js';
 import { AiController } from './sim/ai.js';
+import historyRu from './history/history_ru.html?raw';
+import historyEn from './history/history_en.html?raw';
+import historyEs from './history/history_es.html?raw';
+
+const HISTORY_DOCS = {
+  ru: historyRu,
+  en: historyEn,
+  es: historyEs,
+};
+
+const HISTORY_TITLES = {
+  en: 'HISTORY — TANK.EXE',
+  es: 'HISTORIA — TANK.EXE',
+  ru: 'ИСТОРИЯ — TANK.EXE',
+};
+
+const HISTORY_BACK_LABELS = {
+  en: 'Back (Esc)',
+  es: 'Volver (Esc)',
+  ru: 'Назад (Esc)',
+};
+
+function getInitialHistoryLang() {
+  try {
+    const saved = localStorage.getItem('tank_history_lang');
+    if (saved && HISTORY_DOCS[saved]) return saved;
+  } catch {}
+  const navLang = (navigator.language || (navigator.languages && navigator.languages[0]) || '').toLowerCase();
+  if (navLang.startsWith('ru') || navLang.startsWith('be') || navLang.startsWith('uk')) return 'ru';
+  if (navLang.startsWith('es')) return 'es';
+  return 'en';
+}
+
+let historyLang = getInitialHistoryLang();
 
 document.documentElement.style.setProperty('--mask-h', `${C.WINDOW_MASK_PERCENT}%`);
 
@@ -186,7 +220,7 @@ function helpScreen() {
 
     <h3>6. BASE HANGARS & WINDOWS</h3>
     <p>• <strong>Rearming:</strong> Drive any of your surviving tanks through your home gate into a free hangar slot to fully replenish ammo, mines, and smoke.<br>
-       • <strong>Gate Defense:</strong> Hangar slit windows allow defensive surveillance and firing with unlimited ammo. The area directly in front of the gate is a dead zone protected from window fire.<br>
+       • <strong>Gate Defense:</strong> Hangar slit windows allow defensive surveillance and firing with unlimited ammo to protect against enemy assaults.<br>
        • <strong>Gate Blockade:</strong> A tank standing in front of an opponent's gate blocks reserve deployments!</p>
 
     <h3>7. VICTORY CONDITIONS</h3>
@@ -200,6 +234,69 @@ function helpScreen() {
     items: [{ label: 'Back (Esc)', action: () => menu.pop() }],
     onEsc: () => menu.pop(),
   };
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function formatInline(str) {
+  return str
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`(.+?)`/g, '<code>$1</code>');
+}
+
+function renderMarkup(content) {
+  if (!content) return '';
+  const trimmed = content.trim();
+  if (/<(p|h[1-6]|div|table|ul|ol|section|article)[\s>]/i.test(trimmed)) {
+    return trimmed;
+  }
+  return trimmed
+    .split(/\n{2,}/)
+    .map((block) => {
+      const b = block.trim();
+      if (!b) return '';
+      if (b.startsWith('### ')) return `<h3>${escapeHtml(b.slice(4))}</h3>`;
+      if (b.startsWith('## ')) return `<h2>${escapeHtml(b.slice(3))}</h2>`;
+      if (b.startsWith('# ')) return `<h1>${escapeHtml(b.slice(2))}</h1>`;
+      if (b.startsWith('- ') || b.startsWith('* ')) {
+        const items = b
+          .split('\n')
+          .map((l) => l.replace(/^[-*]\s+/, '').trim())
+          .filter(Boolean)
+          .map((item) => `<li>${formatInline(item)}</li>`)
+          .join('');
+        return `<ul>${items}</ul>`;
+      }
+      return `<p>${formatInline(b.replace(/\n/g, '<br>'))}</p>`;
+    })
+    .join('\n');
+}
+
+function historyScreen() {
+  const s = {
+    title: () => HISTORY_TITLES[historyLang] || HISTORY_TITLES.en,
+    text: () => renderMarkup(HISTORY_DOCS[historyLang] || HISTORY_DOCS.en),
+    scrollable: true,
+    langSwitch: {
+      get current() {
+        return historyLang;
+      },
+      onChange: (lang) => {
+        if (!HISTORY_DOCS[lang]) return;
+        historyLang = lang;
+        try {
+          localStorage.setItem('tank_history_lang', lang);
+        } catch {}
+        menu.refresh();
+      },
+    },
+    items: () => [{ label: HISTORY_BACK_LABELS[historyLang] || 'Back (Esc)', action: () => menu.pop() }],
+    onEsc: () => menu.pop(),
+  };
+  return s;
 }
 
 const fmtSlot = (i) => {
@@ -291,6 +388,7 @@ function openTitle() {
       ...(currentMode().id !== 'HvH' ? [levelItem()] : []),
       { label: 'Options', action: () => menu.push(optionsScreen()) },
       { label: 'Help', action: () => menu.push(helpScreen()) },
+      { label: 'History', action: () => menu.push(historyScreen()) },
     ],
     onEsc: null,
   });
@@ -319,6 +417,7 @@ function openPause() {
       ...(currentMode().id !== 'HvH' ? [levelItem()] : []),
       { label: 'Options', action: () => menu.push(optionsScreen()) },
       { label: 'Help', action: () => menu.push(helpScreen()) },
+      { label: 'History', action: () => menu.push(historyScreen()) },
     ],
     onEsc: resume,
   });
@@ -327,11 +426,34 @@ function openPause() {
 function openGameOver() {
   const [a, b] = world.players;
   const winner = world.winner === 'draw' ? 'DRAW' : world.winner === 0 ? 'RED WINS' : 'BLUE WINS';
+  const redAcc = a.shots ? Math.round((a.hits / a.shots) * 100) : 0;
+  const blueAcc = b.shots ? Math.round((b.hits / b.shots) * 100) : 0;
   menu.clear();
   dirty = true;
   menu.push({
     title: winner,
-    text: `Red: lost ${a.lost}/15, shots ${a.shots}, hits ${a.hits}<br>Blue: lost ${b.lost}/15, shots ${b.shots}, hits ${b.hits}`,
+    gameOver: true,
+    winner: world.winner,
+    hint: '← → / ↑ ↓ select  ·  Space / Enter confirm',
+    text: `
+      <div class="gameover-stats">
+        <div class="stat-col red">
+          <div class="stat-team">RED SQUADRON</div>
+          <div class="stat-line"><span>Tanks Lost:</span><strong>${a.lost} / 15</strong></div>
+          <div class="stat-line"><span>Shots Fired:</span><strong>${a.shots}</strong></div>
+          <div class="stat-line"><span>Direct Hits:</span><strong>${a.hits}</strong></div>
+          <div class="stat-line"><span>Accuracy:</span><strong>${redAcc}%</strong></div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-col blue">
+          <div class="stat-team">BLUE SQUADRON</div>
+          <div class="stat-line"><span>Tanks Lost:</span><strong>${b.lost} / 15</strong></div>
+          <div class="stat-line"><span>Shots Fired:</span><strong>${b.shots}</strong></div>
+          <div class="stat-line"><span>Direct Hits:</span><strong>${b.hits}</strong></div>
+          <div class="stat-line"><span>Accuracy:</span><strong>${blueAcc}%</strong></div>
+        </div>
+      </div>
+    `,
     items: [
       { label: 'New game', action: newGame },
       { label: 'Main menu', action: openTitle },

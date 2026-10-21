@@ -585,7 +585,6 @@ function updateShells(world, dt) {
     let hitObstacle = false;
     for (const t of world.tanks) {
       if (t.status === 'dead') continue; // field tanks and tanks visible inside open hangars
-      if (s.win && inDeadZone(s.owner, t.x, t.y)) continue;
       const hit = segmentVsObb(s.x, s.y, x1, y1, body(t));
       if (hit != null && (hitT == null || hit < hitT)) {
         hitT = hit;

@@ -34,7 +34,7 @@ Tanks possess true momentum. Accelerating or turning commands a speed/turn rate 
 
 ### 4. Base Hangars & Window Slits
 * **Rearming:** Drive any surviving tank through your home gate into a free hangar slot to fully replenish ammo, mines, and smoke.
-* **Gate Defense:** Hangar slit windows allow defensive surveillance and firing with unlimited ammo. The area directly in front of the gate is a dead zone protected from slit fire.
+* **Gate Defense:** Hangar slit windows allow defensive surveillance and firing with unlimited ammo to protect against enemy assaults.
 * **Gate Blockade:** Positioning a tank directly in front of the enemy gate prevents their reserve deployments!
 
 ### 5. Victory Condition

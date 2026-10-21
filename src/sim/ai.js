@@ -1,5 +1,5 @@
 import * as C from '../constants.js';
-import { applyAction, selectedTank, inDeadZone, gateX, inwardDir } from './world.js';
+import { applyAction, selectedTank, gateX, inwardDir } from './world.js';
 import { segmentVsObb, toLocal } from './geometry.js';
 
 const PROFILES = {
@@ -231,10 +231,20 @@ export class AiController {
     }
 
     if (this.reverseTimer > 0) {
-      this.reverseTimer -= dt;
-      if (tank.cmdSpeedKmh > -C.TANK_MAX_REVERSE_KMH) applyAction(world, owner, 'BACK');
-      if (tank.cmdTurnDeg < C.TANK_MAX_TURN_DEG_S) applyAction(world, owner, 'TURN_R');
-      return;
+      // Check if a mine is directly behind the tank before reversing
+      const mineBehind = world.mines && world.mines.some((m) => {
+        const [mlx, mly] = toLocal(tank, m.x, m.y);
+        return mlx < 0.5 && mlx > -8.0 && Math.abs(mly) < C.TANK_WIDTH_M / 2 + C.MINE_TRIGGER_RADIUS_M + 0.8;
+      });
+      if (mineBehind) {
+        // Abort reverse timer to avoid backing into the mine, turn away instead
+        this.reverseTimer = 0;
+      } else {
+        this.reverseTimer -= dt;
+        if (tank.cmdSpeedKmh > -C.TANK_MAX_REVERSE_KMH) applyAction(world, owner, 'BACK');
+        if (tank.cmdTurnDeg < C.TANK_MAX_TURN_DEG_S) applyAction(world, owner, 'TURN_R');
+        return;
+      }
     }
 
     // 6. Tactical decision tick rate throttling
@@ -329,6 +339,68 @@ export class AiController {
       }
     }
 
+    // Check mines (lethal danger to any tank)
+    if (!avoidanceAngle && world.mines && world.mines.length > 0) {
+      const mineSafetyR = C.TANK_WIDTH_M / 2 + C.MINE_TRIGGER_RADIUS_M + 1.2;
+      let closestMine = null;
+      let closestDist = Infinity;
+
+      for (const m of world.mines) {
+        const dMine = Math.hypot(m.x - tank.x, m.y - tank.y);
+        if (dMine > lookAhead + 6) continue;
+
+        const [mlx, mly] = toLocal(tank, m.x, m.y);
+        const toMineAngle = Math.atan2(m.y - tank.y, m.x - tank.x);
+        const relDesired = normalizeAngle(toMineAngle - desiredHeading);
+        const fwdDesired = dMine * Math.cos(relDesired);
+        const latDesired = Math.abs(dMine * Math.sin(relDesired));
+
+        const inCurrentPath = mlx > -1.0 && mlx < lookAhead + 2 && Math.abs(mly) < mineSafetyR;
+        const inDesiredPath = fwdDesired > 0 && fwdDesired < lookAhead + 2 && latDesired < mineSafetyR;
+
+        if (inCurrentPath || inDesiredPath) {
+          if (dMine < closestDist) {
+            closestDist = dMine;
+            closestMine = { m, dMine, mlx, mly, toMineAngle };
+          }
+        }
+      }
+
+      if (closestMine) {
+        const rClear = mineSafetyR + 0.5;
+        const dClear = Math.max(rClear + 0.1, closestMine.dMine);
+        const alpha = Math.asin(Math.min(1.0, rClear / dClear)) + 0.2;
+        const steerLeft = normalizeAngle(closestMine.toMineAngle + alpha);
+        const steerRight = normalizeAngle(closestMine.toMineAngle - alpha);
+
+        // Check which candidate heading is safer (stays within field boundaries)
+        const leftOutOfBounds = (Math.sin(steerLeft) < 0 && tank.y < 12) || (Math.sin(steerLeft) > 0 && tank.y > C.FIELD_WIDTH_M - 12);
+        const rightOutOfBounds = (Math.sin(steerRight) < 0 && tank.y < 12) || (Math.sin(steerRight) > 0 && tank.y > C.FIELD_WIDTH_M - 12);
+
+        let bestSteer = steerLeft;
+        if (leftOutOfBounds && !rightOutOfBounds) {
+          bestSteer = steerRight;
+        } else if (!leftOutOfBounds && rightOutOfBounds) {
+          bestSteer = steerLeft;
+        } else {
+          if (closestMine.mly > 0.1) bestSteer = steerRight;
+          else if (closestMine.mly < -0.1) bestSteer = steerLeft;
+          else {
+            const diffL = Math.abs(normalizeAngle(steerLeft - desiredHeading));
+            const diffR = Math.abs(normalizeAngle(steerRight - desiredHeading));
+            bestSteer = diffL <= diffR ? steerLeft : steerRight;
+          }
+        }
+
+        avoidanceAngle = normalizeAngle(bestSteer - tank.heading);
+
+        // Emergency braking if mine is dangerously close in the forward path
+        if (closestMine.dMine < 8.5 || (closestMine.mlx > -0.5 && closestMine.mlx < 6.5 && Math.abs(closestMine.mly) < mineSafetyR)) {
+          emergencyBrake = true;
+        }
+      }
+    }
+
     // Check obstacles (buildings)
     if (!avoidanceAngle && world.obstacles && world.obstacles.length > 0) {
       for (const ob of world.obstacles) {
@@ -384,6 +456,18 @@ export class AiController {
     } else {
       // Too close to opponent: reverse to back off and avoid collision!
       desiredSpeed = -C.SPEED_STEP_KMH;
+    }
+
+    // Avoid reversing if a mine is behind the tank
+    if (desiredSpeed < 0 && world.mines && world.mines.length > 0) {
+      const mineSafetyR = C.TANK_WIDTH_M / 2 + C.MINE_TRIGGER_RADIUS_M + 0.8;
+      const mineBehind = world.mines.some((m) => {
+        const [mlx, mly] = toLocal(tank, m.x, m.y);
+        return mlx < 0.5 && mlx > -8.0 && Math.abs(mly) < mineSafetyR;
+      });
+      if (mineBehind) {
+        desiredSpeed = 0;
+      }
     }
 
     if (desiredSpeed === 0 && tank.cmdSpeedKmh > 0) {

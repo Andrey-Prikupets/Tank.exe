@@ -308,13 +308,15 @@ Tanks are oriented rectangles (OBB). Collision is checked every tick.
   last tank). Pressing the other window key switches windows.
 - While in window view, the player's tanks continue moving per their commands.
 
-### 9.1 Gate dead zone
-- Rectangle directly in front of the gate: width = `GATE_WIDTH_M` + 2 × 0.5 × `TANK_LENGTH_M`,
-  depth `DEAD_ZONE_DEPTH_M` (= 1 tank length). **[A15]**
-- A tank in the dead zone **is visible** from the windows but **cannot be hit** from them: shells
-  fired from a window ignore any tank whose center is inside the dead zone.
-- Window yaw limits and positions are chosen so that the crosshair cannot point into the dead zone
-  anyway; the shell rule is the authoritative guarantee.
+### 9.1 Gate defense line of sight
+- Slit windows provide direct defensive surveillance and ballistic line-of-sight across their full yaw range (`±WINDOW_MAX_YAW_DEG`).
+- Shells fired from a window hit any target on the field intersecting their path according to standard projectile collision rules; there is no artificial dead zone immunity for targets close to the gate.
+
+### 9.2 AI Hazard and Mine Avoidance
+- AI-controlled tanks actively scan the field ahead and behind for mine hazards (`world.mines`).
+- When a mine is detected in the travel corridor (width equal to hull width + trigger radius + safety margin), the AI calculates tangent escape headings to steer safely around the mine.
+- If approaching a mine at close proximity, emergency braking is engaged to pivot-turn clear before proceeding.
+- Reverse maneuvers check the rear corridor and disallow reversing if a mine is located directly behind the tank.
 
 ---
 
@@ -377,8 +379,9 @@ Tanks are oriented rectangles (OBB). Collision is checked every tick.
 ### 11.2 Win condition
 - A player loses when all **15** of their tanks are destroyed; the other player wins.
 - If both lose their last tank in the same tick → **draw**.
-- `GAME_OVER` screen shows winner and stats (tanks lost, shots fired, hits); options:
-  New game, Main menu.
+- `GAME_OVER` screen:
+  - The tactical battlefield (2D strategic radar and 3D split-screen viewports) remains fully visible rather than hidden or blurred, gently grayed out (`grayscale(45%) contrast(85%)`) so players can observe final unit wrecks and enjoy their victory.
+  - A sleek floating statistics card appears above the field displaying side-by-side squadron combat telemetry (tanks lost / 15, shots fired, direct hits, accuracy percentage) with options: `New game`, `Main menu`.
 
 ### 11.3 Menus & Navigation
 
@@ -392,6 +395,7 @@ The game launches into the **Tank.exe Title Menu**:
   4. **Level: HARD | MEDIUM | EASY** (visible only when Computer mode is selected)
   5. **Options** (opens the Options submenu)
   6. **Help** (opens a scrollable modal detailing game concept, 90s lore, rules, and controls table)
+  7. **History** (opens a scrollable modal displaying the game's origins and lore with multilingual support for English, Spanish, and Russian (`src/history/history_en.html`, `src/history/history_es.html`, `src/history/history_ru.html`). Features an in-header language switcher (`[ EN | ES | RU ]`) and keyboard shortcut (`L`), default locale detection from the browser (`navigator.language`), and `localStorage` persistence)
 
 **In-Game Pause Menu (`Esc`):**
 - Pauses the fixed-step simulation immediately.
@@ -404,6 +408,7 @@ The game launches into the **Tank.exe Title Menu**:
   6. **Level: HARD | MEDIUM | EASY** (visible only when Computer mode is selected)
   7. **Options** (opens the Options submenu)
   8. **Help** (scrollable modal with rules & controls)
+  9. **History** (opens the scrollable game history and lore modal with in-header language switcher)
 
 **Options Submenu (`Options`):**
 - Title: `OPTIONS`
@@ -630,6 +635,7 @@ Music, sampled audio, AI opponents, online play, gamepads, mobile/touch, terrain
 | A18 | Rearm | Tank enters a hangar slot, is refilled, must be re-deployed via its number key. |
 | A2 | Build tooling | Vite + Three.js from npm. |
 | A19 | Sound | Simple synthesized Web Audio effects in v1. |
+| A15 | Window targeting | Direct ballistic line of sight without dead zone immunity. |
 
 ## 18. Remaining Assumptions (not yet confirmed — defaults apply)
 
@@ -639,6 +645,5 @@ Music, sampled audio, AI opponents, online play, gamepads, mobile/touch, terrain
 - **[A7]** Gun fixed to hull (no turret rotation).
 - **[A9]** Border/contact drag applies only while touching; commanded speeds are preserved.
 - **[A10]** Gun reload delay `GUN_RELOAD_S` = 1 s.
-- **[A15]** Dead zone depth = 1 tank length.
 - **[A16]** Tanks 1 and 6 are selected at game start.
 - All numeric values in §16 are starting points for play-testing.

@@ -8,6 +8,8 @@ export function createMenu(root) {
   const textEl = root.querySelector('.m-text');
   const scrollWrap = root.querySelector('.m-scroll-wrap');
   const listEl = root.querySelector('.m-items');
+  const hintEl = root.querySelector('.m-hint');
+  const langSwitchEl = root.querySelector('.m-lang-switch');
 
   const top = () => stack[stack.length - 1];
   const labelOf = (it) => (typeof it.label === 'function' ? it.label() : it.label);
@@ -16,12 +18,37 @@ export function createMenu(root) {
   function render() {
     const s = top();
     root.classList.toggle('hidden', !s);
+    root.classList.toggle('gameover', !!(s && s.gameOver));
+    root.classList.toggle('winner-red', !!(s && s.winner === 0));
+    root.classList.toggle('winner-blue', !!(s && s.winner === 1));
+    root.classList.toggle('winner-draw', !!(s && s.winner === 'draw'));
     if (!s) return;
-    titleEl.textContent = s.title;
+    titleEl.textContent = typeof s.title === 'function' ? s.title() : s.title;
     if (versionEl) {
       versionEl.textContent = s.version || C.VERSION_LABEL;
     }
+    if (langSwitchEl) {
+      if (s.langSwitch) {
+        langSwitchEl.classList.remove('hidden');
+        const btns = langSwitchEl.querySelectorAll('.lang-btn');
+        btns.forEach((btn) => {
+          const l = btn.dataset.lang;
+          btn.classList.toggle('active', l === s.langSwitch.current);
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            if (s.langSwitch.onChange && l !== s.langSwitch.current) {
+              s.langSwitch.onChange(l);
+            }
+          };
+        });
+      } else {
+        langSwitchEl.classList.add('hidden');
+      }
+    }
     textEl.innerHTML = typeof s.text === 'function' ? s.text() : s.text || '';
+    if (hintEl) {
+      hintEl.textContent = s.hint || '↑ ↓ select  ·  Space / Enter confirm  ·  Esc back';
+    }
     if (scrollWrap) {
       scrollWrap.scrollTop = 0;
     }
@@ -81,6 +108,13 @@ export function createMenu(root) {
       if (e.code === 'Tab') return true;
 
       const items = itemsOf(s);
+      if (s.langSwitch && e.code === 'KeyL') {
+        const langs = ['en', 'es', 'ru'];
+        const cur = s.langSwitch.current || 'en';
+        const next = langs[(langs.indexOf(cur) + 1) % langs.length];
+        if (s.langSwitch.onChange) s.langSwitch.onChange(next);
+        return true;
+      }
       if (s.scrollable && scrollWrap) {
         if (e.code === 'PageDown') {
           scrollWrap.scrollTop += 180;

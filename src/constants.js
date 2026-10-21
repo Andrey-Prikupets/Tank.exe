@@ -188,8 +188,8 @@ export const DEFAULT_KEYS = {
 };
 export const KEYS = DEFAULT_KEYS;
 export const MENU_KEYS = {
-  UP: ['ArrowUp'],
-  DOWN: ['ArrowDown'],
+  UP: ['ArrowUp', 'ArrowLeft'],
+  DOWN: ['ArrowDown', 'ArrowRight'],
   ACTIVATE: ['Space', 'Enter', 'NumpadEnter'],
   BACK: ['Escape'],
 };
