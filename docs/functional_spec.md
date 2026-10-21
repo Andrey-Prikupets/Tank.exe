@@ -380,8 +380,9 @@ Tanks are oriented rectangles (OBB). Collision is checked every tick.
 - A player loses when all **15** of their tanks are destroyed; the other player wins.
 - If both lose their last tank in the same tick → **draw**.
 - `GAME_OVER` screen:
-  - The tactical battlefield (2D strategic radar and 3D split-screen viewports) remains fully visible rather than hidden or blurred, gently grayed out (`grayscale(45%) contrast(85%)`) so players can observe final unit wrecks and enjoy their victory.
+  - The tactical battlefield (2D strategic radar and 3D split-screen viewports) remains fully visible rather than hidden or blurred, gently grayed out (`grayscale(45%) contrast(85%)`) with a high-transparency shade overlay (`rgba(8, 12, 10, 0.21)`, 50% more transparent than standard menus) so players can clearly observe final unit wrecks and battlefield layout.
   - A sleek floating statistics card appears above the field displaying side-by-side squadron combat telemetry (tanks lost / 15, shots fired, direct hits, accuracy percentage) with options: `New game`, `Main menu`.
+  - The statistics modal window is draggable across the screen via mouse/pointer by clicking and holding on the modal background or header, allowing players to move the card out of the way to inspect any part of the battlefield while keeping action menu buttons immediately clickable.
 
 ### 11.3 Menus & Navigation
 

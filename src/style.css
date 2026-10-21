@@ -248,9 +248,9 @@ html, body {
 
 /* Game Over screen: field remains visible and grayed out, stats displayed above it */
 #menu.gameover {
-  background: rgba(8, 12, 10, 0.42);
-  backdrop-filter: grayscale(45%) contrast(85%);
-  -webkit-backdrop-filter: grayscale(45%) contrast(85%);
+  background: rgba(8, 12, 10, 0.21);
+  backdrop-filter: grayscale(25%) contrast(90%);
+  -webkit-backdrop-filter: grayscale(25%) contrast(90%);
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -268,6 +268,29 @@ html, body {
   box-shadow: 0 16px 50px rgba(0, 0, 0, 0.75), 0 0 35px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+#menu.gameover .card.dragging {
+  cursor: grabbing;
+}
+
+#menu.gameover .card .m-title,
+#menu.gameover .card .gameover-stats,
+#menu.gameover .card .m-scroll-wrap {
+  cursor: grab;
+}
+
+#menu.gameover .card.dragging .m-title,
+#menu.gameover .card.dragging .gameover-stats,
+#menu.gameover .card.dragging .m-scroll-wrap {
+  cursor: grabbing;
+}
+
+#menu.gameover .card .m-items li {
+  cursor: pointer;
 }
 
 #menu.gameover .m-version {

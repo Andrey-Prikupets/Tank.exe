@@ -7,9 +7,59 @@ export function createMenu(root) {
   const versionEl = root.querySelector('.m-version');
   const textEl = root.querySelector('.m-text');
   const scrollWrap = root.querySelector('.m-scroll-wrap');
+  const cardEl = root.querySelector('.card');
   const listEl = root.querySelector('.m-items');
   const hintEl = root.querySelector('.m-hint');
   const langSwitchEl = root.querySelector('.m-lang-switch');
+
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+  let curX = 0;
+  let curY = 0;
+
+  function resetDrag() {
+    isDragging = false;
+    curX = 0;
+    curY = 0;
+    if (cardEl) {
+      cardEl.style.transform = '';
+      cardEl.classList.remove('dragging');
+    }
+  }
+
+  if (cardEl) {
+    cardEl.addEventListener('pointerdown', (e) => {
+      const s = top();
+      if (!s || !s.gameOver) return;
+      if (e.target.closest('.m-items') || e.target.closest('button')) return;
+      isDragging = true;
+      startX = e.clientX - curX;
+      startY = e.clientY - curY;
+      cardEl.classList.add('dragging');
+      cardEl.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+
+    cardEl.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      curX = e.clientX - startX;
+      curY = e.clientY - startY;
+      cardEl.style.transform = `translate(${curX}px, ${curY}px)`;
+    });
+
+    const endDrag = (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      cardEl.classList.remove('dragging');
+      try {
+        cardEl.releasePointerCapture(e.pointerId);
+      } catch {}
+    };
+
+    cardEl.addEventListener('pointerup', endDrag);
+    cardEl.addEventListener('pointercancel', endDrag);
+  }
 
   const top = () => stack[stack.length - 1];
   const labelOf = (it) => (typeof it.label === 'function' ? it.label() : it.label);
@@ -22,6 +72,9 @@ export function createMenu(root) {
     root.classList.toggle('winner-red', !!(s && s.winner === 0));
     root.classList.toggle('winner-blue', !!(s && s.winner === 1));
     root.classList.toggle('winner-draw', !!(s && s.winner === 'draw'));
+    if (!s || !s.gameOver) {
+      resetDrag();
+    }
     if (!s) return;
     titleEl.textContent = typeof s.title === 'function' ? s.title() : s.title;
     if (versionEl) {
