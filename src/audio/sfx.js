@@ -37,6 +37,12 @@ export class Sfx {
     if (this.master) this.master.gain.value = this.enabled ? C.AUDIO_MASTER_VOLUME : 0;
   }
 
+  setEnabled(enabled) {
+    this.enabled = !!enabled;
+    localStorage.setItem(C.AUDIO_SETTINGS_KEY, JSON.stringify({ enabled: this.enabled }));
+    if (this.master) this.master.gain.value = this.enabled ? C.AUDIO_MASTER_VOLUME : 0;
+  }
+
   panner(pan) {
     const p = this.ctx.createStereoPanner();
     p.pan.value = pan;

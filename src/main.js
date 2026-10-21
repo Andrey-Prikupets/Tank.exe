@@ -48,6 +48,8 @@ let historyLang = getInitialHistoryLang();
 document.documentElement.style.setProperty('--mask-h', `${C.WINDOW_MASK_PERCENT}%`);
 
 const aiControllers = [new AiController(0), new AiController(1)];
+const input = new Input();
+const sfx = new Sfx();
 
 let playerModeIndex = 0;
 const savedMode = localStorage.getItem(C.PLAYERS_SETTINGS_KEY);
@@ -87,13 +89,56 @@ const options = {
   pits: savedPits,
 };
 
+// URL query string parameters for startup overrides
+const urlParams = new URLSearchParams(window.location.search);
+
+const modeParam = urlParams.get('mode') || urlParams.get('players');
+if (modeParam) {
+  const clean = modeParam.trim().toLowerCase().replace(/[\s-_]+/g, '');
+  const idx = C.PLAYER_MODES.findIndex(
+    (m) => m.id.toLowerCase() === clean || m.label.toLowerCase().replace(/[\s-_]+/g, '') === clean
+  );
+  if (idx >= 0) playerModeIndex = idx;
+}
+
+const levelParam = urlParams.get('level') || urlParams.get('ai');
+if (levelParam) {
+  const clean = levelParam.trim().toUpperCase();
+  const idx = C.AI_LEVELS.indexOf(clean);
+  if (idx >= 0) aiLevelIndex = idx;
+}
+
+const soundParam = urlParams.get('sound') || urlParams.get('audio');
+if (soundParam !== null) {
+  const on = !['0', 'false', 'off', 'no'].includes(soundParam.trim().toLowerCase());
+  sfx.setEnabled(on);
+}
+
+const obstaclesParam = urlParams.get('obstacles');
+if (obstaclesParam !== null) {
+  options.obstacles = !['0', 'false', 'off', 'no'].includes(obstaclesParam.trim().toLowerCase());
+}
+
+const pitsParam = urlParams.get('pits');
+if (pitsParam !== null) {
+  options.pits = !['0', 'false', 'off', 'no'].includes(pitsParam.trim().toLowerCase());
+}
+
+const langParam = urlParams.get('lang');
+if (langParam && HISTORY_DOCS[langParam.trim().toLowerCase()]) {
+  historyLang = langParam.trim().toLowerCase();
+}
+
+const startVal = urlParams.get('start') || urlParams.get('autostart') || urlParams.get('play');
+const autoStart =
+  (urlParams.has('start') || urlParams.has('autostart') || urlParams.has('play')) &&
+  !['0', 'false', 'no'].includes(String(startVal).trim().toLowerCase());
+
 let world = createWorld(options);
 world.isAiPlayer = isAiPlayer;
 let appState = 'TITLE'; // 'TITLE' | 'PLAYING'
 let gameOverShown = false;
 
-const input = new Input();
-const sfx = new Sfx();
 const menu = createMenu(document.getElementById('menu'));
 const kbScreen = createKeyboardScreen(document.getElementById('keyboardScreen'));
 const map = createMap2D(document.getElementById('map'));
@@ -569,6 +614,10 @@ function frame(now) {
   hud.update(world, now, false);
 }
 
-openTitle();
+if (autoStart) {
+  newGame();
+} else {
+  openTitle();
+}
 hud.update(world, performance.now(), true);
 requestAnimationFrame(frame);

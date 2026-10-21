@@ -391,7 +391,7 @@ The game launches into the **Tank.exe Title Menu**:
 - Options:
   1. **Start game**
   2. **Load game** (choose slot 1..10)
-  3. **Players: Human vs Human | Human vs Computer | Computer vs Human** (1st is left player, 2nd is right)
+  3. **Players: Human vs Human | Human vs Computer | Computer vs Human | Computer vs Computer** (1st is left player, 2nd is right)
   4. **Level: HARD | MEDIUM | EASY** (visible only when Computer mode is selected)
   5. **Options** (opens the Options submenu)
   6. **Help** (opens a scrollable modal detailing game concept, 90s lore, rules, and controls table)
@@ -404,7 +404,7 @@ The game launches into the **Tank.exe Title Menu**:
   2. **Save game** (choose slot 1..10)
   3. **Load game** (choose slot 1..10)
   4. **New game** (with loss confirmation)
-  5. **Players: Human vs Human | Human vs Computer | Computer vs Human** (1st is left player, 2nd is right)
+  5. **Players: Human vs Human | Human vs Computer | Computer vs Human | Computer vs Computer** (1st is left player, 2nd is right)
   6. **Level: HARD | MEDIUM | EASY** (visible only when Computer mode is selected)
   7. **Options** (opens the Options submenu)
   8. **Help** (scrollable modal with rules & controls)
@@ -420,7 +420,20 @@ The game launches into the **Tank.exe Title Menu**:
   4. **KEYBOARD LAYOUT** (opens the interactive desktop keyboard layout configuration screen)
   5. **Back** (returns to previous menu)
 
-### 11.4 Keyboard Layout Configuration (`Options` → `KEYBOARD LAYOUT`)
+### 11.4 Startup Query String Parameters
+
+The application supports URL query string parameters on startup to configure settings or launch directly into combat without manual menu interaction:
+- **`mode` or `players`:** Configures game player mode (`HvH`, `HvC`, `CvH`, `CvC`, or names like `Computer vs Computer`).
+- **`level` or `ai`:** Configures AI difficulty level (`EASY`, `MEDIUM`, `HARD`).
+- **`sound` or `audio`:** Toggles sound output (`1`/`0`, `true`/`false`, `on`/`off`).
+- **`obstacles`:** Toggles building obstacles (`1`/`0`, `true`/`false`, `on`/`off`).
+- **`pits`:** Toggles water pit / moat hazard trenches (`1`/`0`, `true`/`false`, `on`/`off`).
+- **`lang`:** Pre-selects history language (`en`, `es`, `ru`).
+- **`start`, `autostart`, or `play`:** When present (or set to `1`/`true`), immediately starts a new game with the configured options, bypassing the title menu.
+
+*Example:* `http://localhost:5174/?mode=CvC&start=1&level=HARD&obstacles=1&pits=1&sound=0` launches directly into a Computer vs Computer match on Hard difficulty with hazards enabled and audio muted.
+
+### 11.5 Keyboard Layout Configuration (`Options` → `KEYBOARD LAYOUT`)
 
 The game provides a full visual desktop keyboard layout configuration tool:
 - **Desktop QWERTY Keyboard Visualizer:**
@@ -455,7 +468,7 @@ The game provides a full visual desktop keyboard layout configuration tool:
 
 ## 12. Computer AI & Difficulty Levels
 
-When a player side is designated as **Computer** (`Human vs Computer` → Right player AI; `Computer vs Human` → Left player AI), an autonomous AI controller operates that player's battalion:
+When a player side is designated as **Computer** (`Human vs Computer` → Right player AI; `Computer vs Human` → Left player AI; `Computer vs Computer` → Both players AI), an autonomous AI controller operates that player's battalion:
 
 ### 12.1 Core AI Capabilities
 - **Real-Time Firing Reflex:** Evaluates gun alignment and ballistic reach on every simulation step; discharges the cannon instantly when the crosshairs sweep across an enemy tank within physical reach (`dist <= SHELL_RANGE_M - 1.5m`), avoiding missed firing windows caused by coarse decision tick rates.

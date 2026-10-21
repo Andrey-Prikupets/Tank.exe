@@ -31,6 +31,7 @@ export const PLAYER_MODES = [
   { id: 'HvH', label: 'Human vs Human', leftAi: false, rightAi: false },
   { id: 'HvC', label: 'Human vs Computer', leftAi: false, rightAi: true },
   { id: 'CvH', label: 'Computer vs Human', leftAi: true, rightAi: false },
+  { id: 'CvC', label: 'Computer vs Computer', leftAi: true, rightAi: true },
 ];
 export const AI_LEVELS = ['HARD', 'MEDIUM', 'EASY'];
 export const AI_MAX_FIRE_DIST_M = 115;
