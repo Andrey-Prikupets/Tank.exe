@@ -62,6 +62,30 @@ Two players share one keyboard. Controls are optimized for anti-ghosting layout 
 
 ---
 
+## 🔗 Startup URL Parameters (Query String)
+
+You can launch the game with pre-configured settings or start directly into battle (bypassing the title menu) using URL query string parameters:
+
+| Parameter | Values | Description |
+|---|---|---|
+| **`mode`** / **`players`** | `HvH`, `HvC`, `CvH`, `CvC` | Player mode: Human vs Human, Human vs Computer, Computer vs Human, or Computer vs Computer |
+| **`level`** / **`ai`** | `EASY`, `MEDIUM`, `HARD` | AI difficulty level (defaults to `MEDIUM`) |
+| **`sound`** / **`audio`** | `1` / `0`, `true` / `false`, `on` / `off` | Enable or mute procedural synthesized Web Audio |
+| **`obstacles`** | `1` / `0`, `true` / `false`, `on` / `off` | Enable or disable building obstacles on the field |
+| **`pits`** | `1` / `0`, `true` / `false`, `on` / `off` | Enable or disable water hazard trenches / moats |
+| **`lang`** | `en`, `es`, `ru` | Pre-select language for the History dialog |
+| **`start`** / **`autostart`** / **`play`** | `1`, `true`, or flag without value | Automatically start a new game immediately |
+
+### Quick Launch Examples:
+* **Computer vs Computer Spectator Mode:**  
+  [`https://andrey-prikupets.github.io/Tank.exe/?mode=CvC&start=1`](https://andrey-prikupets.github.io/Tank.exe/?mode=CvC&start=1)
+* **AI Duel with Hazards & Hard Difficulty:**  
+  [`https://andrey-prikupets.github.io/Tank.exe/?mode=CvC&start=1&level=HARD&obstacles=1&pits=1`](https://andrey-prikupets.github.io/Tank.exe/?mode=CvC&start=1&level=HARD&obstacles=1&pits=1)
+* **Human vs Computer with Obstacles:**  
+  [`https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&start=1&obstacles=1`](https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&start=1&obstacles=1)
+
+---
+
 ## 🛠️ Tech Stack & Architecture
 
 * **Zero Backend:** 100% static client-side web application. Can be hosted from any static server, CDN, or GitHub Pages.
