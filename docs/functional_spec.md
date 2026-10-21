@@ -38,6 +38,7 @@
 | Deployment | Continuous Deployment to GitHub Pages on every commit to `main` via GitHub Actions. |
 | Versioning | Automatic commit-based version counter (`v0.1.<commit_count>`) injected by Vite from git history and displayed in the game menu. |
 | Performance | Optimized for software WebGL (no HW acceleration required): `MAX_PIXEL_RATIO = 1.0`, `antialias: false`, `RENDER_TARGET_FPS = 45`, static scene render skip when paused/on menus, and ephemeral Web Audio node disposal. |
+| Favicon & Icons | In-game accurate blue tank (chamfered rectangular body, octagonal turret, cannon barrel, no tracks) diagonally oriented, prominent and lowered over battlefield green (`#3f9b3f`) background, crowned by widened retro yellow letters "EXE" across the top. Formats include scalable SVG (`favicon.svg`), multi-resolution ICO (`favicon.ico`), standard raster PNGs (`favicon-16x16.png`, `favicon-32x32.png`), and Apple Touch Icon (`apple-touch-icon.png`). |
 
 ### 2.1 Constants rule (mandatory)
 

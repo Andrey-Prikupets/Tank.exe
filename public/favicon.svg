@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="100%" height="100%">
+  <!-- 1. Battlefield Green Background -->
+  <rect width="64" height="64" rx="14" fill="#3f9b3f" />
+
+  <!-- Subtle ground border -->
+  <rect x="2" y="2" width="60" height="60" rx="12" fill="none" stroke="#338533" stroke-width="1.5" />
+
+  <!-- 2. Yellow Letters "EXE" on top, widened to the icon width -->
+  <!-- Shadow for "EXE" -->
+  <g fill="#235923">
+    <!-- Letter 'E' Shadow -->
+    <path d="M 6.5 6.5 L 19.5 6.5 L 19.5 9.5 L 10.2 9.5 L 10.2 10.8 L 17.5 10.8 L 17.5 13.4 L 10.2 13.4 L 10.2 14.7 L 19.5 14.7 L 19.5 17.7 L 6.5 17.7 Z" />
+    <!-- Letter 'X' Shadow -->
+    <path d="M 24.5 6.5 L 28.5 6.5 L 33 11.3 L 37.5 6.5 L 41.5 6.5 L 35.5 12.1 L 41.5 17.7 L 37.5 17.7 L 33 12.9 L 28.5 17.7 L 24.5 17.7 L 30.5 12.1 Z" />
+    <!-- Letter 'E' Shadow -->
+    <path d="M 46.5 6.5 L 59.5 6.5 L 59.5 9.5 L 50.2 9.5 L 50.2 10.8 L 57.5 10.8 L 57.5 13.4 L 50.2 13.4 L 50.2 14.7 L 59.5 14.7 L 59.5 17.7 L 46.5 17.7 Z" />
+  </g>
+
+  <!-- Yellow Foreground "EXE" -->
+  <g fill="#ffd54a">
+    <!-- Letter 'E' (Left) -->
+    <path d="M 5.5 5.5 L 18.5 5.5 L 18.5 8.5 L 9.2 8.5 L 9.2 9.8 L 16.5 9.8 L 16.5 12.4 L 9.2 12.4 L 9.2 13.7 L 18.5 13.7 L 18.5 16.7 L 5.5 16.7 Z" />
+    <!-- Letter 'X' (Center) -->
+    <path d="M 23.5 5.5 L 27.5 5.5 L 32 10.3 L 36.5 5.5 L 40.5 5.5 L 34.5 11.1 L 40.5 16.7 L 36.5 16.7 L 32 11.9 L 27.5 16.7 L 23.5 16.7 L 29.5 11.1 Z" />
+    <!-- Letter 'E' (Right) -->
+    <path d="M 45.5 5.5 L 58.5 5.5 L 58.5 8.5 L 49.2 8.5 L 49.2 9.8 L 56.5 9.8 L 56.5 12.4 L 49.2 12.4 L 49.2 13.7 L 58.5 13.7 L 58.5 16.7 L 45.5 16.7 Z" />
+  </g>
+
+  <!-- 3. Tank exactly as in game: Chamfered rectangular hull, octagonal turret, cannon barrel, no tracks -->
+  <!-- Ground Drop Shadow under Tank -->
+  <g transform="translate(31.5, 44) rotate(-45)">
+    <polygon points="
+      16.5, -6.9
+      12.5, -11
+      -12.5, -11
+      -16.5, -6.9
+      -16.5, 6.9
+      -12.5, 11
+      12.5, 11
+      16.5, 6.9
+    " fill="#286928" />
+    <rect x="0" y="-2" width="23" height="4" rx="1" fill="#286928" />
+  </g>
+
+  <!-- Blue Tank Body (Lowered to cy=42.5, bigger size: length 32 x width 21.3, chamfer 4) -->
+  <g transform="translate(30, 42.5) rotate(-45)">
+    <!-- Base Chamfered Rectangular Body (Blue Commander Color) -->
+    <polygon points="
+      16, -6.65
+      12, -10.65
+      -12, -10.65
+      -16, -6.65
+      -16, 6.65
+      -12, 10.65
+      12, 10.65
+      16, 6.65
+    " fill="#2c55b8" stroke="#1b3980" stroke-width="1.2" stroke-linejoin="round" />
+
+    <!-- Top Armor Highlight Plate -->
+    <polygon points="
+      14.5, -5.6
+      11, -9.1
+      -11, -9.1
+      -14.5, -5.6
+      -14.5, 5.6
+      -11, 9.1
+      11, 9.1
+      14.5, 5.6
+    " fill="#3f72ee" />
+
+    <!-- Gun Barrel (extending forward past the nose) -->
+    <rect x="0" y="-1.8" width="22" height="3.6" rx="0.8" fill="#1e1e1e" stroke="#111" stroke-width="0.8" />
+    <!-- Muzzle Tip -->
+    <rect x="20" y="-2.2" width="2.4" height="4.4" rx="0.5" fill="#333333" />
+
+    <!-- Octagonal Turret (8 sides: TURRET_SIDES = 8) -->
+    <polygon points="
+      6.65, -2.76
+      2.76, -6.65
+      -2.76, -6.65
+      -6.65, -2.76
+      -6.65, 2.76
+      -2.76, 6.65
+      2.76, 6.65
+      6.65, 2.76
+    " fill="#1d3a82" stroke="#122554" stroke-width="1" stroke-linejoin="round" />
+
+    <!-- Turret Top Highlight -->
+    <polygon points="
+      5.3, -2.2
+      2.2, -5.3
+      -2.2, -5.3
+      -5.3, -2.2
+      -5.3, 2.2
+      -2.2, 5.3
+      2.2, 5.3
+      5.3, 2.2
+    " fill="#2a53b3" />
+
+    <!-- Commander Cupola / Hatch Dot -->
+    <circle cx="-0.8" cy="0" r="2.2" fill="#1b3473" stroke="#4d7be8" stroke-width="0.8" />
+  </g>
+</svg>
