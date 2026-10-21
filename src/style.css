@@ -238,8 +238,12 @@ html, body {
 #menu {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  padding-top: max(24px, calc(50vh - 250px));
+  overflow-y: auto;
   background: rgba(4, 8, 6, .78);
   backdrop-filter: blur(5px);
   z-index: 20;
@@ -751,7 +755,26 @@ html, body {
   z-index: 1;
 }
 
-/* Key overlay shade when mapped */
+.kb-key.mapped .kb-key-base-label {
+  color: #ffffff;
+  font-weight: 700;
+  opacity: 0.95;
+}
+.kb-key.mapped {
+  cursor: grab;
+  user-select: none;
+  -webkit-user-drag: element;
+}
+.kb-key.mapped * {
+  pointer-events: none;
+  user-select: none;
+}
+.kb-key.mapped.dragging {
+  opacity: 0.45;
+  cursor: grabbing;
+}
+
+/* Key overlay shade when mapped (50% transparent) */
 .kb-shade {
   position: absolute;
   inset: 0;
@@ -761,6 +784,7 @@ html, body {
   justify-content: center;
   pointer-events: none;
   z-index: 2;
+  opacity: 0.5;
 }
 .kb-shade.red {
   background: rgba(181, 55, 43, 0.52);
@@ -892,7 +916,12 @@ html, body {
   gap: 2px;
   cursor: grab;
   user-select: none;
+  -webkit-user-drag: element;
   transition: transform 0.1s;
+}
+.kb-fn-item * {
+  pointer-events: none;
+  user-select: none;
 }
 .kb-fn-item:hover {
   transform: translateY(-2px);

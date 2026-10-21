@@ -166,6 +166,8 @@ export class AiController {
           applyAction(world, owner, 'SELECT', alt.number);
           tank = alt;
         }
+      } else {
+        applyAction(world, owner, 'FORWARD');
       }
       return; // Waiting for hangar doors to open & spawn
     }
@@ -180,6 +182,7 @@ export class AiController {
         const reserve = world.tanks.find((t) => t.owner === owner && t.status === 'hangar' && t.number != null);
         if (reserve) {
           applyAction(world, owner, 'SELECT', reserve.number);
+          applyAction(world, owner, 'FORWARD');
         }
         return;
       }
@@ -193,6 +196,7 @@ export class AiController {
         const readyReserve = world.tanks.find((t) => t.owner === owner && t.status === 'hangar' && t.number != null);
         if (readyReserve) {
           applyAction(world, owner, 'SELECT', readyReserve.number);
+          applyAction(world, owner, 'FORWARD');
           return;
         }
       }

@@ -195,6 +195,12 @@ Uses `KeyboardEvent.code` (layout-independent). All game keys call `preventDefau
 - **Key ghosting**: cheap keyboards may drop simultaneous keys. Not solvable in software; noted
   in the help screen.
 
+### 5.2 Keyboard Layout Configuration Screen
+- Accessible via **Options → Keyboard Layout**.
+- **50% Transparent Overlays:** Mapped key overlay badges on the virtual keyboard are styled with 50% opacity (`opacity: 0.5`) and high-contrast bold lettering so the physical keyboard key symbols (letters, numbers, modifiers) remain clearly visible through the overlay.
+- **Immediate Drag-and-Drop:** Keys can be dragged immediately on first mousedown drag from either the bottom function palettes or from already mapped keyboard keycaps without requiring a prior selection click.
+- **Click-to-Bind:** Alternatively, clicking a function badge and then clicking a virtual keycap or pressing any physical keyboard key binds the action.
+
 ---
 
 ## 6. Tank Movement
@@ -343,15 +349,14 @@ Tanks are oriented rectangles (OBB). Collision is checked every tick.
   message `TANK n DESTROYED` (or `TANK n DESTROYED — NO SPARES` if no spare can take its number).
 
 ### 10.3 Deploying from the hangar
-- Selecting a numbered tank that is in the hangar attempts to **deploy** it:
-  - The gate doors **slide open**; once fully open the tank appears just outside the gate (rear edge
-    `SPAWN_OFFSET_FROM_GATE_M` from the wall), facing into the field, speed zero; the doors close right after.
-  - Spawn position: just outside the gate in the field, facing into the field, speed zero.
-  - If the spawn area (`GATE_SPAWN_ZONE`, a tank-sized OBB + `SPAWN_CLEARANCE_M`) overlaps **any**
-    tank (own or enemy), deployment is **blocked**; banner shows `GATE BLOCKED`. The tank stays
-    selected and deploys automatically as soon as the area becomes clear.
+- Selecting a numbered tank that is in the hangar selects the unit for surveillance and standby without automatically deploying it.
+- To deploy the selected reserve tank through the gate into the field, the player must explicitly press **Forward** (`W` for Red, `↑` for Blue).
+- Once Forward is pressed:
+  - The gate doors **slide open**; once fully open, the tank emerges through the gate (rear edge `SPAWN_OFFSET_FROM_GATE_M` from the wall) facing into the field, and **immediately begins moving forward at slowest speed** (`SPEED_STEP_KMH` = 6 km/h).
+  - The doors close behind the exiting tank once it clears the doorway.
+  - If the spawn area (`GATE_SPAWN_ZONE`, a tank-sized OBB + `SPAWN_CLEARANCE_M`) overlaps **any** tank (own or enemy), deployment is **blocked**; banner shows `GATE BLOCKED`. The tank remains in standby until the doorway is cleared.
   - Mines in the spawn area do **not** block deployment — the tank is destroyed on exit if one is there.
-- While selected but still in the hangar, the 3D view looks out through the gate.
+- While selected in the hangar prior to deployment, the 3D view observes the arena through the gate slit windows.
 
 ### 10.4 Returning to the hangar (rearm)
 - A field tank driving into **its own** gate enters the hangar if there is a free slot. The doors open
@@ -420,6 +425,10 @@ The game launches into the **Tank.exe Title Menu**:
   3. **Pits: ON | OFF** (toggles water pit / trench hazard generator; initial default: `OFF`)
   4. **KEYBOARD LAYOUT** (opens the interactive desktop keyboard layout configuration screen)
   5. **Back** (returns to previous menu)
+
+**Menu Navigation & Layout Behavior:**
+- **Click-Only Selection:** Menu selection highlight is controlled strictly by mouse clicks or keyboard arrow keys; moving the mouse cursor over items does not shift the active selection.
+- **Top-Anchored Downward Expansion:** The menu card is anchored to a fixed top offset rather than vertically centered, so when dynamic items appear or disappear (such as toggling `Players` mode to reveal or hide the `Level` item), the menu expands downward without shifting vertically or shaking the active item under the mouse pointer.
 
 ### 11.4 Startup Query String Parameters
 

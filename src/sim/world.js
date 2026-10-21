@@ -49,6 +49,7 @@ function makeTank(id, owner) {
     owner,
     number: null,
     status: 'hangar', // 'field' | 'hangar' | 'dead'
+    deployRequested: false,
     row: 0,
     i: 0,
     x: 0,
@@ -69,6 +70,7 @@ function makeTank(id, owner) {
 function placeInHangar(t, row, i) {
   const p = slotPos(t.owner, row, i);
   t.status = 'hangar';
+  t.deployRequested = false;
   t.row = row;
   t.i = i;
   t.x = p.x;
@@ -218,6 +220,9 @@ export function applyAction(world, p, action, arg) {
       } else {
         pl.selected = arg;
         pl.msgT = 0;
+        if (t.status === 'hangar') {
+          setMsg(world, p, `TANK ${arg} IN HANGAR — PRESS FORWARD TO EXIT GATE`, C.MESSAGE_DURATION_S * 2);
+        }
       }
       break;
     }
@@ -227,6 +232,9 @@ export function applyAction(world, p, action, arg) {
         if (tank.cmdSpeedKmh !== 0) {
           tank.cmdTurnDeg = clamp(tank.cmdTurnDeg, -C.TANK_MAX_TURN_DEG_S, C.TANK_MAX_TURN_DEG_S);
         }
+      } else if (tank && tank.status === 'hangar' && pl.view === 'tank') {
+        tank.deployRequested = true;
+        setMsg(world, p, `EXITING GATE WITH TANK ${tank.number}...`);
       }
       break;
     case 'BACK':
@@ -479,7 +487,7 @@ function handleGateEntry(world) {
     if (pl.selected === t.number) {
       pl.selected = null;
       const keyName = playerKeyForTank(t.owner, t.number);
-      setMsg(world, t.owner, `TANK ${t.number} IN HANGAR — PRESS ${keyName} TO DEPLOY`);
+      setMsg(world, t.owner, `TANK ${t.number} IN HANGAR — SELECT ${keyName} THEN PRESS FORWARD`);
     }
     emit(world, 'rearm', t.x, t.owner);
   }
@@ -522,7 +530,7 @@ function tryDeploys(world, wants) {
   const field = fieldTanks(world);
   for (const pl of world.players) {
     const t = selectedTank(world, pl.id);
-    if (!t || t.status !== 'hangar') {
+    if (!t || t.status !== 'hangar' || !t.deployRequested) {
       pl.blocked = false;
       continue;
     }
@@ -544,12 +552,13 @@ function tryDeploys(world, wants) {
     wants[pl.id] = true; // open the doors for the exiting tank
     if (world.gates[pl.id].open < 1) continue;
     t.status = 'field';
+    t.deployRequested = false;
     t.x = spawn.x;
     t.y = spawn.y;
     t.heading = spawn.h;
-    t.speed = 0;
+    t.speed = C.kmhToMs(C.SPEED_STEP_KMH);
+    t.cmdSpeedKmh = C.SPEED_STEP_KMH;
     t.turn = 0;
-    t.cmdSpeedKmh = 0;
     t.cmdTurnDeg = 0;
     t.contacts = [];
     field.push(t);

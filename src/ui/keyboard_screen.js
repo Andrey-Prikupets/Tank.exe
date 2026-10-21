@@ -301,6 +301,29 @@ export function createKeyboardScreen(root) {
     const binding = getBindingForCode(def.code);
     if (binding) {
       cap.classList.add('mapped', binding.player === 0 ? 'p0' : 'p1');
+      cap.setAttribute('draggable', 'true');
+      cap.addEventListener('dragstart', (e) => {
+        activeDrag = {
+          player: binding.player,
+          type: binding.type,
+          action: binding.action,
+          index: binding.index,
+          name: binding.full,
+          fromCode: def.code,
+        };
+        e.dataTransfer.setData('text/plain', binding.full);
+        e.dataTransfer.setData('application/json', JSON.stringify(activeDrag));
+        e.dataTransfer.effectAllowed = 'copyMove';
+        cap.classList.add('dragging');
+        statusMsg = `Move ${binding.player === 0 ? 'Red' : 'Blue'} "${binding.full}" to another key...`;
+        const bar = document.querySelector('.kb-status-bar');
+        if (bar) bar.classList.add('active');
+      });
+      cap.addEventListener('dragend', () => {
+        activeDrag = null;
+        cap.classList.remove('dragging');
+      });
+
       const shade = document.createElement('div');
       shade.className = `kb-shade ${binding.player === 0 ? 'red' : 'blue'}`;
 
@@ -441,11 +464,13 @@ export function createKeyboardScreen(root) {
     // Drag-and-drop source
     item.addEventListener('dragstart', (e) => {
       activeDrag = { player, type, action, index, name: labelText };
+      e.dataTransfer.setData('text/plain', labelText);
       e.dataTransfer.setData('application/json', JSON.stringify(activeDrag));
       e.dataTransfer.effectAllowed = 'copyMove';
       item.classList.add('dragging');
       statusMsg = `Drag "${labelText}" to any keyboard key...`;
-      document.querySelector('.kb-status-bar')?.classList.add('active');
+      const bar = document.querySelector('.kb-status-bar');
+      if (bar) bar.classList.add('active');
     });
     item.addEventListener('dragend', () => {
       activeDrag = null;
