@@ -425,7 +425,7 @@ The game launches into the **Tank.exe Title Menu**:
   1. **Sound: ON | OFF** (toggles Web Audio master output)
   2. **Obstacles: ON | OFF** (toggles building obstacles generator; initial default: `OFF`)
   3. **Pits: ON | OFF** (toggles water pit / trench hazard generator; initial default: `OFF`)
-  4. **KEYBOARD LAYOUT** (opens the interactive desktop keyboard layout configuration screen)
+  4. **Keyboard layout** (opens the interactive desktop keyboard layout configuration screen)
   5. **Back** (returns to previous menu)
 
 **Menu Navigation & Layout Behavior:**
@@ -445,7 +445,7 @@ The application supports URL query string parameters on startup to configure set
 
 *Example:* `http://localhost:5174/?mode=CvC&start=Y&level=HARD&obstacles=Y&pits=Y&sound=N` launches directly into a Computer vs Computer match on Hard difficulty with hazards enabled and audio muted.
 
-### 11.5 Keyboard Layout Configuration (`Options` → `KEYBOARD LAYOUT`)
+### 11.5 Keyboard Layout Configuration (`Options` → `Keyboard layout`)
 
 The game provides a full visual desktop keyboard layout configuration tool:
 - **Desktop QWERTY Keyboard Visualizer:**

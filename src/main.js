@@ -245,7 +245,7 @@ function optionsScreen() {
       obstaclesItem(),
       pitsItem(),
       {
-        label: 'KEYBOARD LAYOUT',
+        label: 'Keyboard layout',
         action: () => {
           document.getElementById('menu').classList.add('hidden');
           kbScreen.open({
