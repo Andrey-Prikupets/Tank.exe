@@ -178,7 +178,7 @@ Uses `KeyboardEvent.code` (layout-independent). All game keys call `preventDefau
 | Turn left (step) | `A` | `←` |
 | Turn right (step) | `D` | `→` |
 | Left hangar window | `Q` | `[` |
-| Right hangar window | `R` | `]` |
+| Right hangar window | `E` | `]` |
 | Fire | `Tab` | `Enter` (main + numpad) |
 | Drop mine | `Z` | `,` (`<` key) |
 | Release smoke | `X` | `.` (`>` key) |
@@ -299,7 +299,7 @@ Tanks are oriented rectangles (OBB). Collision is checked every tick.
 
 ## 9. Hangar Window View
 
-- Each player can switch their 3D view to one of their two hangar windows (`Q`/`R` or `[`/`]`).
+- Each player can switch their 3D view to one of their two hangar windows (`Q`/`E` or `[`/`]`).
 - Window positions: in the player's border wall, centered `WINDOW_OFFSET_FROM_GATE_M` (8) above and
   below the gate center, length `WINDOW_LENGTH_M` (5).
 - View is rendered through a **narrow horizontal slit** mask (black above/below) to look like a

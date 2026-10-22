@@ -171,7 +171,7 @@ export const DEFAULT_KEYS = {
     TURN_L: 'KeyA',
     TURN_R: 'KeyD',
     WIN_L: 'KeyQ',
-    WIN_R: 'KeyR',
+    WIN_R: 'KeyE',
     FIRE: 'Tab',
     MINE: 'KeyZ',
     SMOKE: 'KeyX',
