@@ -772,6 +772,7 @@ html, body {
   color: #ffffff;
   font-weight: 700;
   opacity: 0.95;
+  z-index: 3;
 }
 .kb-key.mapped {
   cursor: grab;
@@ -787,17 +788,17 @@ html, body {
   cursor: grabbing;
 }
 
-/* Key overlay shade when mapped (50% transparent) */
+/* Key overlay shade when mapped */
 .kb-shade {
   position: absolute;
   inset: 0;
   border-radius: 3px;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
+  padding-bottom: 2px;
   pointer-events: none;
   z-index: 2;
-  opacity: 0.5;
 }
 .kb-shade.red {
   background: rgba(181, 55, 43, 0.52);
@@ -811,26 +812,29 @@ html, body {
 }
 
 .kb-badge {
-  font-size: 10px;
+  font-size: 8px;
   font-weight: bold;
   color: #fff;
   text-shadow: 0 1px 2px #000;
-  letter-spacing: 0.03em;
+  letter-spacing: -0.01em;
+  line-height: 1;
 }
 .kb-badge.circle {
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
+  font-size: 8px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.65);
 }
 .kb-badge.rect {
-  padding: 1px 3px;
-  border-radius: 3px;
-  background: rgba(0, 0, 0, 0.35);
+  padding: 1px 2px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
 }
 
 /* Numpad 4x4 Grid */

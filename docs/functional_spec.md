@@ -199,7 +199,7 @@ Uses `KeyboardEvent.code` (layout-independent). All game keys call `preventDefau
 
 ### 5.2 Keyboard Layout Configuration Screen
 - Accessible via **Options → Keyboard Layout**.
-- **50% Transparent Overlays:** Mapped key overlay badges on the virtual keyboard are styled with 50% opacity (`opacity: 0.5`) and high-contrast bold lettering so the physical keyboard key symbols (letters, numbers, modifiers) remain clearly visible through the overlay.
+- **Non-colliding Function Overlays:** Mapped key overlays use rich team-colored shading with bottom-aligned, compact function badges (`8px`, single-line nowrap) shifted downward, while base key labels (letters, digits, modifiers) remain crisp and prominently visible at the top without visual collision (e.g., `ACCEL` cleanly under `W`).
 - **Immediate Drag-and-Drop:** Keys can be dragged immediately on first mousedown drag from either the bottom function palettes or from already mapped keyboard keycaps without requiring a prior selection click.
 - **Click-to-Bind:** Alternatively, clicking a function badge and then clicking a virtual keycap or pressing any physical keyboard key binds the action.
 
