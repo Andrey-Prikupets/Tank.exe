@@ -125,6 +125,7 @@ export const TANK_START_SMOKES = 2;
 export const GUN_RELOAD_S = 1;
 export const WINDOW_RELOAD_S = 1.5;
 export const SHELL_RANGE_M = FIELD_LENGTH_M / 4;
+export const DEBUG_VECTOR_LENGTH_M = SHELL_RANGE_M * 0.65;
 export const SHELL_FLIGHT_TIME_S = 0.4;
 export const SHELL_MUZZLE_OFFSET_M = 0.5;
 export const SHELL_RADIUS_M = 0.5;

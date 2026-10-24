@@ -250,21 +250,28 @@ export function createMap2D(canvas, options = {}) {
       ctx.fill();
     }
 
+    // tanks selection lookup
+    const selIds = world.players.map((pl) => {
+      const t = world.tanks.find((x) => x.owner === pl.id && x.number === pl.selected && x.status !== 'dead');
+      return t ? t.id : -1;
+    });
+
     // debug aiming vectors (debugVectors=Y)
     if (debugVectors) {
       const muzzleDist = C.TANK_LENGTH_M / 2 + C.SHELL_MUZZLE_OFFSET_M;
       for (const t of world.tanks) {
-        if (t.status === 'dead') continue;
-        const color = t.owner === 0 ? '#ff3333' : '#3388ff';
+        if (t.status !== 'field') continue;
+        const selected = t.id === selIds[t.owner] && world.players[t.owner].view === 'tank';
+        const color = selected ? TEAM[t.owner].sel : TEAM[t.owner].base;
         const startX = t.x + Math.cos(t.heading) * muzzleDist;
         const startY = t.y + Math.sin(t.heading) * muzzleDist;
-        const endX = startX + Math.cos(t.heading) * C.SHELL_RANGE_M;
-        const endY = startY + Math.sin(t.heading) * C.SHELL_RANGE_M;
+        const endX = startX + Math.cos(t.heading) * C.DEBUG_VECTOR_LENGTH_M;
+        const endY = startY + Math.sin(t.heading) * C.DEBUG_VECTOR_LENGTH_M;
 
         ctx.save();
         ctx.strokeStyle = color;
         ctx.fillStyle = color;
-        ctx.lineWidth = Math.max(1.5, 0.4 * scale);
+        ctx.lineWidth = selected ? Math.max(1.8, 0.45 * scale) : Math.max(1.2, 0.35 * scale);
         ctx.lineCap = 'round';
 
         // Aiming vector line
@@ -275,7 +282,7 @@ export function createMap2D(canvas, options = {}) {
 
         // Terminal range indicator (circle at max ammo flight range)
         ctx.beginPath();
-        ctx.arc(px(endX), py(endY), Math.max(2.5, 0.65 * scale), 0, Math.PI * 2);
+        ctx.arc(px(endX), py(endY), selected ? Math.max(3, 0.75 * scale) : Math.max(2, 0.55 * scale), 0, Math.PI * 2);
         ctx.fill();
 
         ctx.restore();
@@ -283,10 +290,6 @@ export function createMap2D(canvas, options = {}) {
     }
 
     // tanks
-    const selIds = world.players.map((pl) => {
-      const t = world.tanks.find((x) => x.owner === pl.id && x.number === pl.selected && x.status !== 'dead');
-      return t ? t.id : -1;
-    });
     for (const t of world.tanks) {
       if (t.status === 'dead') continue;
       const selected = t.id === selIds[t.owner] && world.players[t.owner].view === 'tank';

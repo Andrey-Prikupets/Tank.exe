@@ -203,7 +203,7 @@ let gameOverShown = false;
 const menu = createMenu(document.getElementById('menu'));
 const kbScreen = createKeyboardScreen(document.getElementById('keyboardScreen'));
 const map = createMap2D(document.getElementById('map'), { debugVectors });
-const view = createView3D(document.getElementById('gl'), { debugVectors });
+const view = createView3D(document.getElementById('gl'));
 const hud = createHud();
 
 // Hardware keyboard detection: desktop defaults to true; mobile/touch defaults to false until a physical key is pressed

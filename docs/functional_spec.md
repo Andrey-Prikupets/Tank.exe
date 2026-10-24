@@ -482,10 +482,10 @@ The application supports URL query string parameters on startup to configure set
 - **`pits`:** Toggles water pit / moat hazard trenches (`Y` / `N`).
 - **`lang`:** Pre-selects history language (`EN`, `ES`, `RU`).
 - **`mobile`:** When set to `Y`, forces mobile mode on even on desktop (activates on-screen touch controls, analog joystick, and mouse click/drag interaction while omitting the keyboard layout menu).
-- **`debugVectors`:** When set to `Y`, renders aiming vectors for each tank (red for Red team, blue for Blue team) across both 2D tactical map and 3D split-screen viewports, with vector length equal to the maximum ammo flight distance (`SHELL_RANGE_M` = 62.5m).
+- **`debugVectors`:** When set to `Y`, renders aiming vectors for each tank deployed on the battlefield on the 2D strategic/tactical radar map view, with vector color matching the tank color (bright for active/selected tank, dark for passive/unselected tanks: `#ff7060`/`#b5372b` for Red, `#6fa0ff`/`#2c55b8` for Blue), and vector length equal to 65% of the ammo flight distance (`DEBUG_VECTOR_LENGTH_M` = `65%` of `SHELL_RANGE_M` = `40.625m`). Vectors are not shown for tanks parked in the hangar, nor in the 3D first-person viewport.
 - **`start`:** When set to `Y`, immediately starts a new game with the configured options, bypassing the title menu.
 
-*Example:* `http://localhost:5174/?mode=HvC&debugVectors=Y&start=Y` launches directly into combat with live aiming vectors displayed for all tanks.
+*Example:* `http://localhost:5174/?mode=HvC&debugVectors=Y&start=Y` launches directly into combat with live aiming vectors displayed on the map for all deployed field tanks.
 
 ### 11.5 Keyboard Layout Configuration (`Options` → `Keyboard layout`)
 

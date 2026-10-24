@@ -5,8 +5,7 @@ import { viewPose, windowY, gateX } from '../sim/world.js';
 const mat = (color) => new THREE.MeshLambertMaterial({ color, flatShading: true });
 const basic = (color, extra = {}) => new THREE.MeshBasicMaterial({ color, ...extra });
 
-export function createView3D(canvas, options = {}) {
-  const debugVectors = !!options.debugVectors;
+export function createView3D(canvas) {
   const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: false,
@@ -143,7 +142,7 @@ export function createView3D(canvas, options = {}) {
     return g;
   }
 
-  const pools = { shells: [], mines: [], smokes: [], explosions: [], obstacles: [], pits: [], aimVectors: [] };
+  const pools = { shells: [], mines: [], smokes: [], explosions: [], obstacles: [], pits: [] };
   function sync(pool, list, make, update) {
     while (pool.length < list.length) {
       const m = make();
@@ -166,51 +165,6 @@ export function createView3D(canvas, options = {}) {
   const windowMat = basic(C.COLOR_OBSTACLE_WINDOW);
   const pitWaterMat = new THREE.MeshLambertMaterial({ color: C.COLOR_PIT_WATER, transparent: true, opacity: 0.88, flatShading: true });
   const pitRimMat = mat(C.COLOR_PIT_RIM);
-
-  const aimVectorMat = [
-    basic(0xff3333, { transparent: true, opacity: 0.85 }),
-    basic(0x3388ff, { transparent: true, opacity: 0.85 }),
-  ];
-  const aimLineMat = [
-    new THREE.LineBasicMaterial({ color: 0xff3333 }),
-    new THREE.LineBasicMaterial({ color: 0x3388ff }),
-  ];
-  const aimCylinderGeo = new THREE.CylinderGeometry(0.04, 0.04, C.SHELL_RANGE_M, 6);
-  aimCylinderGeo.rotateZ(Math.PI / 2);
-  aimCylinderGeo.translate(C.SHELL_RANGE_M / 2, 0, 0);
-
-  const aimTipGeo = new THREE.SphereGeometry(0.25, 8, 6);
-  aimTipGeo.translate(C.SHELL_RANGE_M, 0, 0);
-
-  const aimLineGeo = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(0, 0, 0),
-    new THREE.Vector3(C.SHELL_RANGE_M, 0, 0),
-  ]);
-
-  function makeAimVector() {
-    const g = new THREE.Group();
-    const shaft = new THREE.Mesh(aimCylinderGeo, aimVectorMat[0]);
-    const tip = new THREE.Mesh(aimTipGeo, aimVectorMat[0]);
-    const line = new THREE.Line(aimLineGeo, aimLineMat[0]);
-    g.add(shaft, tip, line);
-    g.userData = { shaft, tip, line };
-    return g;
-  }
-
-  function updateAimVector(g, tank) {
-    const muzzleDist = C.TANK_LENGTH_M / 2 + C.SHELL_MUZZLE_OFFSET_M;
-    const muzzleY = C.CAMERA_HEIGHT_M * 0.7;
-    const startX = tank.x + Math.cos(tank.heading) * muzzleDist;
-    const startZ = tank.y + Math.sin(tank.heading) * muzzleDist;
-    g.position.set(startX, muzzleY, startZ);
-    g.rotation.y = -tank.heading;
-
-    const owner = tank.owner === 0 ? 0 : 1;
-    const { shaft, tip, line } = g.userData;
-    shaft.material = aimVectorMat[owner];
-    tip.material = aimVectorMat[owner];
-    line.material = aimLineMat[owner];
-  }
 
   const roofGeoCache = new Map();
   function getHipRoofGeo(L, W, H) {
@@ -385,10 +339,6 @@ export function createView3D(canvas, options = {}) {
       }
       m.material.opacity = 1 - k;
     });
-    if (debugVectors) {
-      const aliveTanks = world.tanks.filter((t) => t.status !== 'dead');
-      sync(pools.aimVectors, aliveTanks, makeAimVector, updateAimVector);
-    }
   }
 
   const camera = new THREE.PerspectiveCamera(C.CAMERA_FOV_DEG, 1, C.CAMERA_NEAR_M, C.CAMERA_FAR_M);
