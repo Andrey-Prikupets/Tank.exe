@@ -482,9 +482,10 @@ The application supports URL query string parameters on startup to configure set
 - **`pits`:** Toggles water pit / moat hazard trenches (`Y` / `N`).
 - **`lang`:** Pre-selects history language (`EN`, `ES`, `RU`).
 - **`mobile`:** When set to `Y`, forces mobile mode on even on desktop (activates on-screen touch controls, analog joystick, and mouse click/drag interaction while omitting the keyboard layout menu).
+- **`debugVectors`:** When set to `Y`, renders aiming vectors for each tank (red for Red team, blue for Blue team) across both 2D tactical map and 3D split-screen viewports, with vector length equal to the maximum ammo flight distance (`SHELL_RANGE_M` = 62.5m).
 - **`start`:** When set to `Y`, immediately starts a new game with the configured options, bypassing the title menu.
 
-*Example:* `http://localhost:5174/?mode=HvC&mobile=Y&start=Y` launches directly into a mobile touch match on desktop with full mouse-controlled touch HUD.
+*Example:* `http://localhost:5174/?mode=HvC&debugVectors=Y&start=Y` launches directly into combat with live aiming vectors displayed for all tanks.
 
 ### 11.5 Keyboard Layout Configuration (`Options` → `Keyboard layout`)
 

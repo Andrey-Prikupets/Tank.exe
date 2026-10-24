@@ -6,8 +6,9 @@ const TEAM = [
   { base: C.COLOR_RIGHT_TEAM, sel: C.COLOR_RIGHT_SELECTED },
 ];
 
-export function createMap2D(canvas) {
+export function createMap2D(canvas, options = {}) {
   const ctx = canvas.getContext('2d');
+  const debugVectors = !!options.debugVectors;
   let w = 0;
   let h = 0;
   let dpr = 1;
@@ -247,6 +248,38 @@ export function createMap2D(canvas) {
       ctx.beginPath();
       ctx.arc(px(m.x), py(m.y), Math.max(2, C.MINE_RADIUS_M * scale), 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    // debug aiming vectors (debugVectors=Y)
+    if (debugVectors) {
+      const muzzleDist = C.TANK_LENGTH_M / 2 + C.SHELL_MUZZLE_OFFSET_M;
+      for (const t of world.tanks) {
+        if (t.status === 'dead') continue;
+        const color = t.owner === 0 ? '#ff3333' : '#3388ff';
+        const startX = t.x + Math.cos(t.heading) * muzzleDist;
+        const startY = t.y + Math.sin(t.heading) * muzzleDist;
+        const endX = startX + Math.cos(t.heading) * C.SHELL_RANGE_M;
+        const endY = startY + Math.sin(t.heading) * C.SHELL_RANGE_M;
+
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = Math.max(1.5, 0.4 * scale);
+        ctx.lineCap = 'round';
+
+        // Aiming vector line
+        ctx.beginPath();
+        ctx.moveTo(px(startX), py(startY));
+        ctx.lineTo(px(endX), py(endY));
+        ctx.stroke();
+
+        // Terminal range indicator (circle at max ammo flight range)
+        ctx.beginPath();
+        ctx.arc(px(endX), py(endY), Math.max(2.5, 0.65 * scale), 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      }
     }
 
     // tanks

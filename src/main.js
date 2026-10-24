@@ -130,10 +130,15 @@ const options = {
 const urlParams = new URLSearchParams(window.location.search);
 
 function parseBoolParam(key) {
-  if (!urlParams.has(key)) return null;
-  const val = (urlParams.get(key) || '').trim().toUpperCase();
-  if (val === 'Y') return true;
-  if (val === 'N') return false;
+  const target = key.toLowerCase();
+  for (const [k, v] of urlParams.entries()) {
+    if (k.toLowerCase() === target) {
+      const val = (v || '').trim().toUpperCase();
+      if (val === 'Y') return true;
+      if (val === 'N') return false;
+      return null;
+    }
+  }
   return null;
 }
 
@@ -186,6 +191,10 @@ const autoStart = parseBoolParam('start') === true;
 const mobileBool = parseBoolParam('mobile');
 const forceMobile = mobileBool === true;
 
+// 9. Debug Vectors: ?debugVectors=Y | N (case-insensitive)
+const debugVectorsBool = parseBoolParam('debugVectors');
+const debugVectors = debugVectorsBool === true;
+
 let world = createWorld(options);
 world.isAiPlayer = isAiPlayer;
 let appState = 'TITLE'; // 'TITLE' | 'PLAYING'
@@ -193,8 +202,8 @@ let gameOverShown = false;
 
 const menu = createMenu(document.getElementById('menu'));
 const kbScreen = createKeyboardScreen(document.getElementById('keyboardScreen'));
-const map = createMap2D(document.getElementById('map'));
-const view = createView3D(document.getElementById('gl'));
+const map = createMap2D(document.getElementById('map'), { debugVectors });
+const view = createView3D(document.getElementById('gl'), { debugVectors });
 const hud = createHud();
 
 // Hardware keyboard detection: desktop defaults to true; mobile/touch defaults to false until a physical key is pressed

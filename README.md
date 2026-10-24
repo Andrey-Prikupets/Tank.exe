@@ -75,9 +75,12 @@ You can launch the game with pre-configured settings or start directly into batt
 | **`pits`** | Boolean | `Y` / `N` | Enable (`Y`) or disable (`N`) water hazard trenches / moats |
 | **`lang`** | String | `EN`, `ES`, `RU` | Pre-select language for the History dialog |
 | **`mobile`** | Boolean | `Y` / `N` | When `Y`, forces mobile mode on even on desktop (activates on-screen touch controls, analog joystick, and mouse click/drag interaction while omitting the keyboard layout menu) |
+| **`debugVectors`** | Boolean | `Y` / `N` | When `Y`, displays aiming vectors for each tank (red for Red team, blue for Blue team) with vector length equal to the ammo flight distance (`SHELL_RANGE_M` = 62.5m) |
 | **`start`** | Boolean | `Y` / `N` | When `Y`, immediately starts a new game, bypassing the title menu |
 
 ### Quick Launch Examples:
+* **Battle with Aiming Vectors Visualization:**  
+  [`https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&debugVectors=Y&start=Y`](https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&debugVectors=Y&start=Y)
 * **Mobile Touch Mode on Desktop with Mouse Controls:**  
   [`https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&mobile=Y&start=Y`](https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&mobile=Y&start=Y)
 * **Computer vs Computer Spectator Mode:**  
