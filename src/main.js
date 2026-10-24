@@ -8,6 +8,7 @@ import { createView3D } from './render/view3d.js';
 import { createHud } from './render/hud.js';
 import { createMenu } from './ui/menu.js';
 import { createKeyboardScreen } from './ui/keyboard_screen.js';
+import { createTouchControls } from './ui/touch.js';
 import { Sfx } from './audio/sfx.js';
 import { AiController } from './sim/ai.js';
 import historyRu from './history/history_ru.html?raw';
@@ -181,6 +182,10 @@ if (langVal) {
 // 7. Auto-start: ?start=Y | N (case-insensitive)
 const autoStart = parseBoolParam('start') === true;
 
+// 8. Mobile Mode: ?mobile=Y | N (case-insensitive)
+const mobileBool = parseBoolParam('mobile');
+const forceMobile = mobileBool === true;
+
 let world = createWorld(options);
 world.isAiPlayer = isAiPlayer;
 let appState = 'TITLE'; // 'TITLE' | 'PLAYING'
@@ -191,6 +196,59 @@ const kbScreen = createKeyboardScreen(document.getElementById('keyboardScreen'))
 const map = createMap2D(document.getElementById('map'));
 const view = createView3D(document.getElementById('gl'));
 const hud = createHud();
+
+// Hardware keyboard detection: desktop defaults to true; mobile/touch defaults to false until a physical key is pressed
+const isTouchCapable =
+  'ontouchstart' in window ||
+  navigator.maxTouchPoints > 0 ||
+  window.matchMedia('(pointer: coarse)').matches;
+
+let hasKeyboard = !isTouchCapable && !forceMobile;
+
+window.addEventListener('keydown', (e) => {
+  if (!forceMobile && !hasKeyboard && e.isTrusted) {
+    hasKeyboard = true;
+    if (menu.isOpen()) menu.refresh();
+  }
+});
+
+const touchSteer = [0, 0];
+
+const touch = createTouchControls({
+  root: document.getElementById('app'),
+  forceMobile,
+  onAction: (player, action, arg) => {
+    if (appState !== 'PLAYING' || menu.isOpen() || isAiPlayer(player)) return;
+    if (action === 'STOP') {
+      const pl = world.players[player];
+      const t = world.tanks.find((tank) => tank.owner === player && tank.number === pl.selected);
+      if (t && t.status === 'field' && pl.view === 'tank') {
+        t.cmdSpeedKmh = 0;
+        t.cmdTurnDeg = 0;
+      }
+      return;
+    }
+    applyAction(world, player, action, arg);
+  },
+  onContinuousTurn: (player, factor) => {
+    touchSteer[player] = factor;
+    if (appState !== 'PLAYING' || menu.isOpen() || isAiPlayer(player)) return;
+    const pl = world.players[player];
+    const t = world.tanks.find((tank) => tank.owner === player && tank.number === pl.selected);
+    if (t && t.status === 'field' && pl.view === 'tank') {
+      const maxTurn = t.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
+      t.cmdTurnDeg = Math.round(factor * maxTurn);
+    }
+  },
+  isHumanPlayer: (p) => !isAiPlayer(p),
+  openMenu: () => {
+    if (appState === 'PLAYING') {
+      input.clear();
+      openPause();
+    }
+  },
+  sfxResume: () => sfx.resume(),
+});
 
 // ---------------------------------------------------------------- screens ---
 const playersItem = () => ({
@@ -236,32 +294,47 @@ const pitsItem = () => ({
   },
 });
 
+const touchSettingItem = () => ({
+  label: () => `Touch controls: ${touch.getSetting()}`,
+  action: () => {
+    const cur = touch.getSetting();
+    const next = cur === 'AUTO' ? 'ON' : cur === 'ON' ? 'OFF' : 'AUTO';
+    touch.setSetting(next);
+  },
+});
+
 function optionsScreen() {
   return {
     title: 'OPTIONS',
     text: '<div class="center">Game & Audio Settings</div>',
-    items: () => [
-      soundItem(),
-      obstaclesItem(),
-      pitsItem(),
-      {
-        label: 'Keyboard layout',
-        action: () => {
-          document.getElementById('menu').classList.add('hidden');
-          kbScreen.open({
-            getKeys: () => input.getKeys(),
-            onSave: (k) => {
-              input.setKeys(k);
-            },
-            onClose: () => {
-              document.getElementById('menu').classList.remove('hidden');
-              menu.refresh();
-            },
-          });
-        },
-      },
-      { label: 'Back', action: () => menu.pop() },
-    ],
+    items: () => {
+      const list = [
+        soundItem(),
+        obstaclesItem(),
+        pitsItem(),
+        touchSettingItem(),
+      ];
+      if (hasKeyboard) {
+        list.push({
+          label: 'Keyboard layout',
+          action: () => {
+            document.getElementById('menu').classList.add('hidden');
+            kbScreen.open({
+              getKeys: () => input.getKeys(),
+              onSave: (k) => {
+                input.setKeys(k);
+              },
+              onClose: () => {
+                document.getElementById('menu').classList.remove('hidden');
+                menu.refresh();
+              },
+            });
+          },
+        });
+      }
+      list.push({ label: 'Back', action: () => menu.pop() });
+      return list;
+    },
     onEsc: () => menu.pop(),
   };
 }
@@ -592,8 +665,8 @@ function frame(now) {
     while (acc >= C.SIM_TICK_S) {
       step(world, C.SIM_TICK_S, {
         windowTurn: [
-          isAiPlayer(0) ? 0 : input.windowTurn(0),
-          isAiPlayer(1) ? 0 : input.windowTurn(1),
+          isAiPlayer(0) ? 0 : (touchSteer[0] !== 0 ? touchSteer[0] : input.windowTurn(0)),
+          isAiPlayer(1) ? 0 : (touchSteer[1] !== 0 ? touchSteer[1] : input.windowTurn(1)),
         ],
       });
       acc -= C.SIM_TICK_S;
@@ -621,6 +694,7 @@ function frame(now) {
   map.render(world);
   view.render(world);
   hud.update(world, now, false);
+  touch.update(world, appState, menu.isOpen());
 }
 
 if (autoStart) {
@@ -629,4 +703,5 @@ if (autoStart) {
   openTitle();
 }
 hud.update(world, performance.now(), true);
+touch.update(world, appState, menu.isOpen());
 requestAnimationFrame(frame);

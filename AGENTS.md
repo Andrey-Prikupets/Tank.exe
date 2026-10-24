@@ -16,3 +16,10 @@
 - **Always use `.\build.cmd` when building the project.**
 - Do NOT execute direct node or npm build commands directly.
 
+## 4. Preview and Dev Server Commands
+
+- **Always use `.\preview.cmd` when starting the Vite preview server.**
+- **Always use `.\dev.cmd` when starting the Vite dev server.**
+- Do NOT execute direct `npm` or `node` preview/dev commands directly.
+
+

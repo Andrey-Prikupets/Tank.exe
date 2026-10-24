@@ -486,8 +486,7 @@ function handleGateEntry(world) {
     const pl = world.players[t.owner];
     if (pl.selected === t.number) {
       pl.selected = null;
-      const keyName = playerKeyForTank(t.owner, t.number);
-      setMsg(world, t.owner, `TANK ${t.number} IN HANGAR — SELECT ${keyName} THEN PRESS FORWARD`);
+      setMsg(world, t.owner, `TANK ${t.number} IN HANGAR — SELECT TANK ${t.number} THEN PRESS FORWARD`);
     }
     emit(world, 'rearm', t.x, t.owner);
   }

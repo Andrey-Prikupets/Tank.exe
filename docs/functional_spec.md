@@ -203,6 +203,44 @@ Uses `KeyboardEvent.code` (layout-independent). All game keys call `preventDefau
 - **Immediate Drag-and-Drop:** Keys can be dragged immediately on first mousedown drag from either the bottom function palettes or from already mapped keyboard keycaps without requiring a prior selection click.
 - **Click-to-Bind:** Alternatively, clicking a function badge and then clicking a virtual keycap or pressing any physical keyboard key binds the action.
 
+### 5.3 Mobile Touch Controls & Ergonomic Side-by-Side Adaptation
+- **Touch & Hardware Keyboard Detection:**
+  - Touch-first environments are detected via `'ontouchstart'`, `navigator.maxTouchPoints > 0`, and CSS `(pointer: coarse)`.
+  - On touch-only devices without a physical keyboard, the **Keyboard layout** option is omitted from the Options menu.
+  - A global physical `keydown` listener dynamically detects connected hardware keyboards (e.g. iPad Magic Keyboard or external USB/Bluetooth keyboards), immediately revealing the Keyboard layout menu upon first hardware keypress.
+  - An explicit toggle (**Options → Touch controls: AUTO | ON | OFF**) allows players to force touch controls on or off as desired.
+- **Natural Two-Hand Arrangement (Left Hand = Movement, Right Hand = Fire):**
+  - **Left Player (Red, `#pane0`):**
+    - Movement controls (virtual joystick + `[STOP]`) placed on the left for the player's left hand.
+    - Fire/weapons controls placed on the right of the movement cluster for the player's right hand.
+    - Non-interactive Cockpit Inventory HUD (`#inv0`) shifted to the right edge of `#pane0` (near the center seam).
+  - **Right Player (Blue, `#pane1`):**
+    - Movement controls (virtual joystick + `[STOP]`) placed on the left of the player's cluster for the player's left hand.
+    - Fire/weapons controls placed on the right for the player's right hand.
+    - Non-interactive Cockpit Inventory HUD (`#inv1`) shifted to the left edge of `#pane1` (near the center seam).
+  - **Center Seam Clearance:** Both players' non-interactive inventory HUDs rest around the center dividing line, completely out of the way of both players' active thumbs.
+- **Option A Drone-Sim Style 2-Axis Analog Virtual Joystick:**
+  - **Horizontal Axis (Steering / Angular Velocity):** Proportional deflection calculates continuous turning rate:
+    - Slight deflection: subtle course correction (e.g. 15°/s).
+    - Half deflection: medium turn (30°/s – 45°/s).
+    - Full deflection: maximum combat turn rate (60°/s moving, 75°/s pivot at 0 km/h).
+    - When released, spring-centers to 0°/s (straight line holding current cruise speed).
+    - In Hangar Slit window view, smoothly rotates window slit yaw at continuous angular speed.
+  - **Vertical Axis (Throttle / Acceleration):**
+    - Pushing UP past deadzone steps speed forward (and repeats every `KEY_REPEAT_MS`, matching `W` / `↑`).
+    - If a reserve tank in the hangar is selected, pushing UP deploys the tank into the field.
+    - Pulling DOWN past deadzone steps speed backward / reverse (matching `S` / `↓`).
+- **Quick Brake / Stop Button (`[STOP]`):** Fully opaque dark red button, 25% wider (`58px` wide), instantly zeroes commanded speed (`0 km/h`) and commanded turn (`0°/s`).
+- **Ergonomic Tactical Weapons Cluster:**
+  - Top row: Secondary tactical **`[MINE]`** and **`[SMOKE]`** buttons.
+  - Bottom row: Primary **`[FIRE]`** (ammo shell) button positioned below secondary weapons, closest to the player's thumb coming up from the bottom of the device for effortless rapid firing.
+- **Unified Unit Selection & Hangar Slit Ribbon:**
+  - Tank buttons `[1]` through `[5]` feature fully opaque backgrounds (`#141a17`) with crisp, bold digits and active team glow without visual clutter.
+  - Slit buttons are 25% longer (`40px × 32px`), fully opaque, and cleanly labeled simply as **`L`** and **`R`**.
+  - Slit buttons highlight in amber gold (`#ffd54a`) when active in slit observation view.
+- **Cockpit Inventory HUD:** For both players in mobile mode, ammo shells and secondary counts are left-aligned within the inventory HUD frame.
+- **Top System Bar:** Includes quick `[⏸ MENU]` button and `[⛶ FULLSCREEN]` toggle.
+
 ---
 
 ## 6. Tank Movement
@@ -349,6 +387,7 @@ Tanks are oriented rectangles (OBB). Collision is checked every tick.
 - If no unnumbered spare exists, number `n` becomes unavailable (selection key does nothing).
 - If the destroyed tank was selected, the player's 3D view shows a "destroyed" screen with the
   message `TANK n DESTROYED` (or `TANK n DESTROYED — NO SPARES` if no spare can take its number).
+- While no tank is selected, the viewport banner prompts **`SELECT TANK`** (or **`COMPUTER`** if controlled by AI).
 
 ### 10.3 Deploying from the hangar
 - Selecting a numbered tank that is in the hangar selects the unit for surveillance and standby without automatically deploying it.
@@ -425,8 +464,9 @@ The game launches into the **Tank.exe Title Menu**:
   1. **Sound: ON | OFF** (toggles Web Audio master output)
   2. **Obstacles: ON | OFF** (toggles building obstacles generator; initial default: `OFF`)
   3. **Pits: ON | OFF** (toggles water pit / trench hazard generator; initial default: `OFF`)
-  4. **Keyboard layout** (opens the interactive desktop keyboard layout configuration screen)
-  5. **Back** (returns to previous menu)
+  4. **Touch controls: AUTO | ON | OFF** (toggles mobile on-screen virtual joystick and tactical combat overlays)
+  5. **Keyboard layout** (opens the interactive desktop keyboard layout configuration screen; dynamically hidden on mobile touch devices when no hardware keyboard is plugged in)
+  6. **Back** (returns to previous menu)
 
 **Menu Navigation & Layout Behavior:**
 - **Click-Only Selection:** Menu selection highlight is controlled strictly by mouse clicks or keyboard arrow keys; moving the mouse cursor over items does not shift the active selection.
@@ -441,9 +481,10 @@ The application supports URL query string parameters on startup to configure set
 - **`obstacles`:** Toggles building obstacles (`Y` / `N`).
 - **`pits`:** Toggles water pit / moat hazard trenches (`Y` / `N`).
 - **`lang`:** Pre-selects history language (`EN`, `ES`, `RU`).
+- **`mobile`:** When set to `Y`, forces mobile mode on even on desktop (activates on-screen touch controls, analog joystick, and mouse click/drag interaction while omitting the keyboard layout menu).
 - **`start`:** When set to `Y`, immediately starts a new game with the configured options, bypassing the title menu.
 
-*Example:* `http://localhost:5174/?mode=CvC&start=Y&level=HARD&obstacles=Y&pits=Y&sound=N` launches directly into a Computer vs Computer match on Hard difficulty with hazards enabled and audio muted.
+*Example:* `http://localhost:5174/?mode=HvC&mobile=Y&start=Y` launches directly into a mobile touch match on desktop with full mouse-controlled touch HUD.
 
 ### 11.5 Keyboard Layout Configuration (`Options` → `Keyboard layout`)
 

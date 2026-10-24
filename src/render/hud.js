@@ -96,7 +96,7 @@ export function createHud() {
     if (pl.view === 'window') return '';
     if (!t) {
       if (world.isAiPlayer && world.isAiPlayer(p)) return 'COMPUTER';
-      return p === 0 ? 'PRESS 1-5 TO SELECT TANK' : 'PRESS 6-0 TO SELECT TANK';
+      return 'SELECT TANK';
     }
     if (t.status === 'hangar') return pl.blocked ? 'GATE BLOCKED' : 'DEPLOYING…';
     return '';

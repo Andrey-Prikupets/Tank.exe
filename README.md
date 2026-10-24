@@ -54,7 +54,7 @@ Two players share one keyboard. Controls are optimized for anti-ghosting layout 
 | **Steer Left** | `A` | `←` (Arrow Left) |
 | **Steer Right** | `D` | `→` (Arrow Right) |
 | **Slit Window Left** | `Q` | `[` (Left Bracket) |
-| **Slit Window Right** | `R` | `]` (Right Bracket) |
+| **Slit Window Right** | `E` | `]` (Right Bracket) |
 | **Fire Cannon** | `Tab` | `Enter` / `Numpad Enter` |
 | **Deploy Mine** | `Z` | `,` (Comma / `<`) |
 | **Smoke Screen** | `X` | `.` (Period / `>`) |
@@ -74,9 +74,12 @@ You can launch the game with pre-configured settings or start directly into batt
 | **`obstacles`** | Boolean | `Y` / `N` | Enable (`Y`) or disable (`N`) building obstacles on the field |
 | **`pits`** | Boolean | `Y` / `N` | Enable (`Y`) or disable (`N`) water hazard trenches / moats |
 | **`lang`** | String | `EN`, `ES`, `RU` | Pre-select language for the History dialog |
+| **`mobile`** | Boolean | `Y` / `N` | When `Y`, forces mobile mode on even on desktop (activates on-screen touch controls, analog joystick, and mouse click/drag interaction while omitting the keyboard layout menu) |
 | **`start`** | Boolean | `Y` / `N` | When `Y`, immediately starts a new game, bypassing the title menu |
 
 ### Quick Launch Examples:
+* **Mobile Touch Mode on Desktop with Mouse Controls:**  
+  [`https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&mobile=Y&start=Y`](https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&mobile=Y&start=Y)
 * **Computer vs Computer Spectator Mode:**  
   [`https://andrey-prikupets.github.io/Tank.exe/?mode=CvC&start=Y`](https://andrey-prikupets.github.io/Tank.exe/?mode=CvC&start=Y)
 * **AI Duel with Hazards & Hard Difficulty:**  

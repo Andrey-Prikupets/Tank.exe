@@ -1057,3 +1057,385 @@ html, body {
   color: #111;
   box-shadow: 0 0 12px rgba(255, 213, 74, 0.5);
 }
+
+/* =============================================================================
+   MOBILE TOUCH SCREEN CONTROLS & ERGONOMIC SIDE-BY-SIDE LAYOUT
+   ============================================================================= */
+
+/* When touch controls are active, reposition non-interactive cockpit inventory
+   HUDs inward toward the center seam so players' hands at the outer corners
+   do not obstruct HUD or crosshair. */
+.touch-active #pane0 .inv-overlay {
+  left: auto;
+  right: 10px;
+  align-items: flex-start;
+}
+.touch-active #pane0 .inv-overlay .inv-row {
+  justify-content: flex-start;
+}
+
+.touch-active #pane1 .inv-overlay {
+  right: auto;
+  left: 10px;
+  align-items: flex-start;
+}
+.touch-active #pane1 .inv-overlay .inv-row {
+  justify-content: flex-start;
+}
+
+/* Top bar with [MENU] and [FULLSCREEN] buttons */
+.touch-top-bar {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+  z-index: 50;
+}
+.touch-top-bar.hidden {
+  display: none;
+}
+.touch-bar-btn {
+  pointer-events: auto;
+  background: rgba(12, 18, 14, 0.78);
+  border: 1px solid rgba(255, 213, 74, 0.45);
+  border-radius: 6px;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: bold;
+  padding: 5px 12px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  transition: all 0.12s;
+}
+.touch-bar-btn:active {
+  background: rgba(255, 213, 74, 0.35);
+  color: #fff;
+  transform: scale(0.96);
+}
+
+/* Per-player touch overlay containers */
+.touch-player-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8px 10px 10px;
+}
+.touch-player-overlay.hidden {
+  display: none;
+}
+
+/* Top tactical ribbon (Tank selection 1..5 and Hangar Slits) */
+.touch-top-ribbon {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  pointer-events: auto;
+}
+.touch-side-left .touch-top-ribbon {
+  justify-content: flex-start;
+}
+.touch-side-right .touch-top-ribbon {
+  justify-content: flex-end;
+}
+
+.touch-tanks-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.touch-ribbon-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.22);
+  margin: 0 3px;
+  align-self: center;
+}
+
+.touch-tank-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: #141a17; /* fully opaque */
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition: all 0.12s;
+}
+.touch-tank-btn:active {
+  transform: scale(0.92);
+}
+
+#pane0 .touch-tank-btn.selected {
+  border-color: #ff7060;
+  background: #3a1512;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(255, 112, 96, 0.65);
+}
+#pane0 .touch-tank-btn.in-field {
+  border-color: rgba(255, 112, 96, 0.7);
+}
+#pane0 .touch-tank-btn.in-hangar {
+  border-color: rgba(255, 213, 74, 0.5);
+  opacity: 0.85;
+}
+#pane0 .touch-tank-btn.destroyed {
+  opacity: 0.25;
+  border-color: #383838;
+  color: #555;
+  pointer-events: none;
+}
+
+#pane1 .touch-tank-btn.selected {
+  border-color: #6fa0ff;
+  background: #152240;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(111, 160, 255, 0.65);
+}
+#pane1 .touch-tank-btn.in-field {
+  border-color: rgba(111, 160, 255, 0.7);
+}
+#pane1 .touch-tank-btn.in-hangar {
+  border-color: rgba(255, 213, 74, 0.5);
+  opacity: 0.85;
+}
+#pane1 .touch-tank-btn.destroyed {
+  opacity: 0.25;
+  border-color: #383838;
+  color: #555;
+  pointer-events: none;
+}
+
+/* Slit buttons (25% longer: 40px x 32px, fully opaque, simple L and R) */
+.touch-slit-btn {
+  width: 40px;
+  height: 32px;
+  border-radius: 6px;
+  background: #141a17; /* fully opaque */
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition: all 0.12s;
+}
+.touch-slit-btn:active {
+  transform: scale(0.92);
+}
+.touch-slit-btn.active {
+  border-color: #ffd54a;
+  background: #3e3212;
+  color: #ffd54a;
+  box-shadow: 0 0 10px rgba(255, 213, 74, 0.6);
+}
+
+/* Ergonomic controls clusters:
+   For BOTH players: Left Hand = Movement (Stick + Stop), Right Hand = Fire Controls */
+.touch-controls-cluster {
+  display: flex;
+  align-items: flex-end;
+  pointer-events: none;
+  gap: 14px;
+  margin-bottom: 2px;
+}
+.touch-side-left .touch-controls-cluster {
+  justify-content: flex-start;
+  flex-direction: row;
+}
+.touch-side-right .touch-controls-cluster {
+  justify-content: flex-end;
+  flex-direction: row;
+}
+
+/* Option A Drone-Sim 2-Axis Joystick */
+.touch-stick-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+}
+.touch-stick-base {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(16, 24, 20, 0.88) 0%, rgba(8, 12, 10, 0.96) 100%);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.7), inset 0 0 12px rgba(0, 0, 0, 0.6);
+  position: relative;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.touch-stick-base:active {
+  cursor: grabbing;
+}
+#pane0 .touch-stick-base {
+  border-color: rgba(255, 112, 96, 0.55);
+}
+#pane1 .touch-stick-base {
+  border-color: rgba(111, 160, 255, 0.55);
+}
+
+.stick-crosshair-h {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.16);
+  pointer-events: none;
+}
+.stick-crosshair-v {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 50%;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.16);
+  pointer-events: none;
+}
+
+.touch-stick-knob {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #444c44 0%, #202622 100%);
+  border: 2px solid #ffd54a;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.8), inset 0 1px 2px rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+  transform: translate(0px, 0px);
+  transition: transform 0.12s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+.touch-stick-knob.dragging {
+  transition: none;
+  border-color: #fff;
+  box-shadow: 0 0 14px rgba(255, 213, 74, 0.85);
+}
+
+/* Quick Brake / Stop button (opaque, 25% wider) */
+.touch-btn-stop {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  min-width: 58px;
+  height: 26px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  background: #4a1512; /* fully opaque */
+  border: 1.5px solid #d94236;
+  color: #ff9d94;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  transition: all 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.touch-btn-stop:active {
+  background: #d94236;
+  color: #fff;
+  transform: scale(0.94);
+}
+
+/* Weapons Action Buttons */
+.touch-weapons-cluster {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+.touch-action-btn {
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  border-radius: 50%;
+  transition: transform 0.08s, background 0.08s;
+}
+.touch-action-btn:active {
+  transform: scale(0.92);
+}
+
+.touch-btn-fire {
+  width: 58px;
+  height: 58px;
+  background: radial-gradient(circle, rgba(255, 213, 74, 0.28) 0%, rgba(30, 24, 10, 0.9) 100%);
+  border: 2px solid #ffd54a;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 12px rgba(255, 213, 74, 0.35);
+}
+.touch-btn-fire:active {
+  background: rgba(255, 213, 74, 0.55);
+  box-shadow: 0 0 18px rgba(255, 213, 74, 0.9);
+}
+
+.touch-secondary-row {
+  display: flex;
+  gap: 8px;
+}
+.touch-btn-mine,
+.touch-btn-smoke {
+  width: 42px;
+  height: 42px;
+  background: rgba(16, 22, 18, 0.85);
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
+}
+.touch-btn-mine:active {
+  border-color: #ffd54a;
+  background: rgba(138, 138, 58, 0.4);
+}
+.touch-btn-smoke:active {
+  border-color: #fff;
+  background: rgba(184, 184, 184, 0.4);
+}
+
+.action-label {
+  font-size: 8px;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+  color: var(--text);
+  margin-top: 1px;
+}
+
