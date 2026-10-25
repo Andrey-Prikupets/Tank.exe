@@ -103,6 +103,21 @@ export const AI_WEDGE_ECHELON_LAG_M = 12.0;
 export const AI_BASE_DEFENSE_ARC_RADIUS_M = 26.0;
 export const AI_COURSE_PROJECT_TIME_S = 3.0;
 
+// Smoke Line of Sight & Blind Fire Prediction
+export const AI_SMOKE_MAX_TRACK_AGE_S = 10.0;
+export const AI_SMOKE_PREDICT_DECAY_PER_S = 0.22;
+export const AI_SMOKE_STATIONARY_DECAY_PER_S = 0.04;
+export const AI_SMOKE_BLIND_FIRE_MIN_PROB_EASY = 0.65;
+export const AI_SMOKE_BLIND_FIRE_MIN_PROB_MEDIUM = 0.45;
+export const AI_SMOKE_BLIND_FIRE_MIN_PROB_HARD = 0.30;
+export const AI_SMOKE_INITIAL_CONFIDENCE_MOVING = 0.85;
+export const AI_SMOKE_INITIAL_CONFIDENCE_STATIONARY = 0.95;
+
+// Mine Maneuvering Avoidance
+export const AI_MINE_LOOKAHEAD_MIN_M = 16.0;
+export const AI_MINE_CLEARANCE_PASS_M = 5.8;
+export const AI_MINE_EMERGENCY_BRAKE_DIST_M = 5.0;
+
 // ---- Field ------------------------------------------------------------------
 export const FIELD_LENGTH_M = 250;
 export const FIELD_WIDTH_M = 100;

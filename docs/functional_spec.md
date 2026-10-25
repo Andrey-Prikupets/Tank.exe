@@ -637,19 +637,46 @@ Because unselected tanks preserve their last commanded linear speed and turn rat
     - Blue player: `#4488ff`
   - Rendered from the active selected tank or from the active hangar slit window. Maximum of 2 target arrows on the map at any time.
 
-### 12.6 Hangar Slit Window Tactical Defense
+### 12.6 Active Mine Maneuvering Avoidance
+
+- **Forward Hazard Lookahead:** Tanks project a continuous $16\text{ m}\dots 25\text{ m}$ forward path (`AI_MINE_LOOKAHEAD_MIN_M = 16.0m`).
+- **Lateral Detour Arc:** When an armed mine is detected within the forward or planned heading path, the AI determines whether passing left or right provides the safest clearance, ensuring a lateral margin of $\ge 5.8\text{ m}$ (`AI_MINE_CLEARANCE_PASS_M`).
+- **Maneuvering Cruise Speed:** Rather than stopping or slamming into reverse, the tank maintains controlled forward cruising speed ($18\text{ km/h}$), banking along the calculated detour arc to actively maneuver smoothly around the mine.
+- **Point-Blank Pivot Clearance:** If a mine is directly ahead at point-blank range ($< 5.0\text{ m}$, `AI_MINE_EMERGENCY_BRAKE_DIST_M`), the tank temporarily brakes to $0\text{ km/h}$ to pivot its hull until pointing safely past the mine trigger perimeter, then accelerates forward to complete the bypass.
+- **Reverse Mine Check:** When reversing during stuck recovery or combat standoff adjustment, the AI verifies that no mine is situated behind the hull ($mlx \in [-8.0, 0.5]$ and $|mly| < 3.8\text{ m}$), preventing reversing into mines.
+
+### 12.7 Smoke Cloud Line of Sight & Blind Fire Prediction
+
+- **Smoke Obscuration:** Active smoke clouds (`world.smokes`, radius $10\text{ m}$) completely obstruct direct line-of-sight for both tank crews and hangar slit window sentries. Any target inside or behind a smoke cloud cannot be seen directly if the observer is $> 2.0\text{ m}$ away (`SMOKE_VISIBLE_DISTANCE_M`).
+- **Visual Intelligence & Memory Tracker:** AI controllers maintain memory (`enemyTracker`) recording each enemy's last-known coordinates, heading, linear speed, and stationary state when visible.
+- **Stationary Target Blind Fire:**
+  - If the enemy was stationary (`speed < 0.35 m/s`) when entering/obscured by smoke, its position is known to remain fixed.
+  - Initial hit probability remains high ($\ge 0.95$, decaying slowly at only $0.04/\text{s}$).
+  - AI tanks actively fire blindly into the smoke at the known coordinates.
+- **Moving Target Dead-Reckoning & Uncertainty Decay:**
+  - If the enemy was moving, the AI extrapolates its position using dead-reckoning vector projection:
+    $$\text{predPos} = \text{lastPos} + \vec{v} \cdot \Delta t$$
+  - With each passing second in smoke, uncertainty accumulates and hit probability decays rapidly ($0.22/\text{s}$, `AI_SMOKE_PREDICT_DECAY_PER_S`):
+    - $t = 0\text{s}$: $P_{\text{hit}} \approx 0.85$ (high blind-fire probability)
+    - $t = 1\text{s}$: $P_{\text{hit}} \approx 0.63$ (medium blind-fire probability)
+    - $t = 2\text{s}$: $P_{\text{hit}} \approx 0.41$ (low blind-fire probability)
+    - $t \ge 3\text{s}$: $P_{\text{hit}} \le 0.19$ (estimate quality too degraded)
+  - When hit probability drops below the difficulty profile threshold (`EASY: 0.65`, `MEDIUM: 0.45`, `HARD: 0.30`), the AI decides **not to fire blindly**, conserving munitions and redirecting focus to visible targets or tactical lane maneuvering.
+
+### 12.8 Hangar Slit Window Tactical Defense
 
 - **Autonomous Sentry Mode:** When in slit view, scans field for enemies within $\pm 45^\circ$ FOV and up to $60\text{ m}$.
+- **Smoke Respect:** Obey smoke line-of-sight obscuration; sentries evaluate smoke prediction before taking blind shots.
 - **Aiming & Unlimited Fire:** Tracks targets smoothly at $15\text{--}30^\circ/\text{s}$ using slit yaw steps and fires infinite defensive shells.
 - **Window Cycling & Auto-Exit:** Switches between Left and Right slit windows if threats flank the hangar, and returns to field tanks once the gate approach is secure.
 
-### 12.7 Difficulty Profiles
+### 12.9 Difficulty Profiles
 - **EASY:**
-  - Decision interval: ~0.16s; aim tolerance: ~7° without lead (`leadFactor: 0.0`); fire distance: 30m; max speed: 18 km/h; standoff: 22m; countermeasure use: 0.2.
+  - Decision interval: ~0.16s; aim tolerance: ~7° without lead (`leadFactor: 0.0`); fire distance: 30m; max speed: 18 km/h; standoff: 22m; countermeasure use: 0.2; blind fire threshold: $P_{\text{hit}} \ge 0.65$.
 - **MEDIUM:**
-  - Decision interval: ~0.10s; aim tolerance: ~4.5° with partial lead (`leadFactor: 0.5`); fire distance: 40m; max speed: 36 km/h; standoff: 26m; countermeasure use: 0.6.
+  - Decision interval: ~0.10s; aim tolerance: ~4.5° with partial lead (`leadFactor: 0.5`); fire distance: 40m; max speed: 36 km/h; standoff: 26m; countermeasure use: 0.6; blind fire threshold: $P_{\text{hit}} \ge 0.45$.
 - **HARD:**
-  - Decision interval: ~0.05s; aim tolerance: ~3° with full predictive lead (`leadFactor: 1.0`); fire distance: 50m; max speed: 36 km/h; standoff: 30m; countermeasure use: 0.9; aggressive pursuit and evasive maneuvers.
+  - Decision interval: ~0.05s; aim tolerance: ~3° with full predictive lead (`leadFactor: 1.0`); fire distance: 50m; max speed: 36 km/h; standoff: 30m; countermeasure use: 0.9; blind fire threshold: $P_{\text{hit}} \ge 0.30$; aggressive pursuit and evasive maneuvers.
 
 ---
 
