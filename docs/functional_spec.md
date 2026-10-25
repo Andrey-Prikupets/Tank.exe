@@ -142,7 +142,8 @@
   (bright small spheres), mines (flat discs), smoke (opaque gray blobs that block line of sight),
   explosions (expanding orange/yellow spheres + debris boxes).
 - **Smoke Cloud Visibility:** When inside a smoke cloud, visible distance is restricted to ~2m; visibility gradually decreases to zero at 2m via dense distance fog.
-- The view may show own-tank barrel tip at the bottom-center for orientation.
+- **The view may show own-tank barrel tip at the bottom-center for orientation.**
+- **Faceted 3D Shading & Optimized Directional Lighting:** All tanks, turrets, barrels, obstacles, roofs, and mines use flat-shaded materials (`MeshPhongMaterial` with `flatShading: true`, `shininess: 12`, `specular: 0x222222`), producing distinct, readable shading on all 8 hull corners and octagonal turret facets. The primary directional sun light is positioned at an elevated lateral diagonal angle (`x: 0.25, y: 0.9, z: 0.75`), illuminating the top and side of both east- and west-bound tanks equally without blinding either player. A balanced cool ambient fill (`0.65`) and secondary soft fill light (`0.3` at `(-0.25, 0.6, -0.6)`) ensure shadowed facets remain legible and defined.
 - **Slit Window Depth Stability:** Ground plane rendering uses high WebGL depth precision (`highp`), polygon offset on the combat arena floor, and a recessed outside terrain elevation (`y = -1.0m`) to prevent z-fighting flicker when viewing grazing angles through hangar slit apertures.
 
 ### 4.3 In-Viewport Rounded Inventory Overlay

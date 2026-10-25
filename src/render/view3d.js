@@ -2,7 +2,14 @@ import * as THREE from 'three';
 import * as C from '../constants.js';
 import { viewPose, windowY, gateX } from '../sim/world.js';
 
-const mat = (color) => new THREE.MeshLambertMaterial({ color, flatShading: true });
+const mat = (color, extra = {}) =>
+  new THREE.MeshPhongMaterial({
+    color,
+    flatShading: true,
+    shininess: 12,
+    specular: 0x222222,
+    ...extra,
+  });
 const basic = (color, extra = {}) => new THREE.MeshBasicMaterial({ color, ...extra });
 
 export function createView3D(canvas) {
@@ -17,10 +24,21 @@ export function createView3D(canvas) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, C.MAX_PIXEL_RATIO));
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(C.COLOR_SKY);
-  scene.add(new THREE.AmbientLight(0xffffff, 1.3));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.6);
-  sun.position.set(0.4, 1, 0.3);
+
+  // Balanced ambient light: soft natural fill that ensures shadows remain legible without washing out contrast
+  scene.add(new THREE.AmbientLight(0xd4e2ec, 0.65));
+
+  // Primary Key Sun: chosen at an elevated lateral diagonal angle (X: 0.25, Y: 0.9, Z: 0.75).
+  // Because the arena spans east-west (X), a strong lateral (Z) sun angle illuminates one side and top
+  // for BOTH players equally, giving distinct contrast on 8-sided hulls, octagonal turrets, roofs, and obstacles.
+  const sun = new THREE.DirectionalLight(0xfffaed, 1.05);
+  sun.position.set(0.25, 0.9, 0.75).normalize();
   scene.add(sun);
+
+  // Secondary Fill Light from the opposite quadrant: prevents shadowed facets from losing definition
+  const fillLight = new THREE.DirectionalLight(0x9cb4c8, 0.3);
+  fillLight.position.set(-0.25, 0.6, -0.6).normalize();
+  scene.add(fillLight);
 
   const addBox = (sx, sy, sz, x, y, z, material) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), material);
@@ -32,7 +50,7 @@ export function createView3D(canvas) {
   // ---- static world ----
   const L = C.FIELD_LENGTH_M;
   const W = C.FIELD_WIDTH_M;
-  const fieldMat = mat(C.COLOR_FIELD);
+  const fieldMat = mat(C.COLOR_FIELD, { shininess: 0, specular: 0x000000 });
   fieldMat.polygonOffset = true;
   fieldMat.polygonOffsetFactor = -2;
   fieldMat.polygonOffsetUnits = -4;
@@ -40,7 +58,10 @@ export function createView3D(canvas) {
   field.rotation.x = -Math.PI / 2;
   field.position.set(L / 2, 0, W / 2);
   scene.add(field);
-  const outside = new THREE.Mesh(new THREE.PlaneGeometry(L * 4, W * 8), mat(C.COLOR_OUTSIDE));
+  const outside = new THREE.Mesh(
+    new THREE.PlaneGeometry(L * 4, W * 8),
+    mat(C.COLOR_OUTSIDE, { shininess: 0, specular: 0x000000 })
+  );
   outside.rotation.x = -Math.PI / 2;
   outside.position.set(L / 2, -1.0, W / 2);
   scene.add(outside);
@@ -167,7 +188,14 @@ export function createView3D(canvas) {
   const obstacleMats = C.OBSTACLE_WALL_COLORS.map((c) => mat(c));
   const roofMat = mat(C.COLOR_OBSTACLE_ROOF);
   const windowMat = basic(C.COLOR_OBSTACLE_WINDOW);
-  const pitWaterMat = new THREE.MeshLambertMaterial({ color: C.COLOR_PIT_WATER, transparent: true, opacity: 0.88, flatShading: true });
+  const pitWaterMat = new THREE.MeshPhongMaterial({
+    color: C.COLOR_PIT_WATER,
+    transparent: true,
+    opacity: 0.88,
+    flatShading: true,
+    shininess: 45,
+    specular: 0x557799,
+  });
   const pitRimMat = mat(C.COLOR_PIT_RIM);
 
   const roofGeoCache = new Map();
