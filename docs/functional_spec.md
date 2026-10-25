@@ -235,7 +235,7 @@ Uses `KeyboardEvent.code` (layout-independent). All game keys call `preventDefau
   - Top row: Secondary tactical **`[MINE]`** and **`[SMOKE]`** buttons.
   - Bottom row: Primary **`[FIRE]`** (ammo shell) button positioned below secondary weapons, closest to the player's thumb coming up from the bottom of the device for effortless rapid firing.
 - **Unified Unit Selection & Hangar Slit Ribbon:**
-  - Tank buttons `[1]` through `[5]` feature fully opaque backgrounds (`#141a17`) with crisp, bold digits and active team glow without visual clutter.
+  - Tank buttons `[1]` through `[5]` feature fully opaque backgrounds (`#141a17`) with crisp, bold digits. When selected, the active tank button highlights in amber gold (`border-color: #ffd54a`, `background: #3e3212`, `color: #ffd54a`, `box-shadow: 0 0 10px rgba(255, 213, 74, 0.6)`), matching the slit button active highlight color.
   - Slit buttons are 25% longer (`40px × 32px`), fully opaque, and cleanly labeled simply as **`L`** and **`R`**.
   - Slit buttons highlight in amber gold (`#ffd54a`) when active in slit observation view.
 - **Cockpit Inventory HUD:** For both players in mobile mode, ammo shells and secondary counts are left-aligned within the inventory HUD frame.

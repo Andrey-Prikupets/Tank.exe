@@ -1190,11 +1190,12 @@ html, body {
   transform: scale(0.92);
 }
 
-#pane0 .touch-tank-btn.selected {
-  border-color: #ff7060;
-  background: #3a1512;
-  color: #fff;
-  box-shadow: 0 0 10px rgba(255, 112, 96, 0.65);
+#pane0 .touch-tank-btn.selected,
+#pane1 .touch-tank-btn.selected {
+  border-color: #ffd54a;
+  background: #3e3212;
+  color: #ffd54a;
+  box-shadow: 0 0 10px rgba(255, 213, 74, 0.6);
 }
 #pane0 .touch-tank-btn.in-field {
   border-color: rgba(255, 112, 96, 0.7);
@@ -1210,12 +1211,6 @@ html, body {
   pointer-events: none;
 }
 
-#pane1 .touch-tank-btn.selected {
-  border-color: #6fa0ff;
-  background: #152240;
-  color: #fff;
-  box-shadow: 0 0 10px rgba(111, 160, 255, 0.65);
-}
 #pane1 .touch-tank-btn.in-field {
   border-color: rgba(111, 160, 255, 0.7);
 }
