@@ -1062,12 +1062,14 @@ html, body {
    MOBILE TOUCH SCREEN CONTROLS & ERGONOMIC SIDE-BY-SIDE LAYOUT
    ============================================================================= */
 
-/* When touch controls are active, reposition non-interactive cockpit inventory
-   HUDs inward toward the center seam so players' hands at the outer corners
-   do not obstruct HUD or crosshair. */
+/* When touch controls are active:
+   - HvH (Human vs Human): reposition non-interactive cockpit inventory HUDs inward toward the center seam.
+   - HvC (Left Human vs Comp): center inventory HUD horizontally in pane0.
+   - CvH (Right Human vs Comp): center inventory HUD horizontally in pane1. */
 .touch-active #pane0 .inv-overlay {
   left: auto;
   right: 10px;
+  transform: none;
   align-items: flex-start;
 }
 .touch-active #pane0 .inv-overlay .inv-row {
@@ -1077,10 +1079,33 @@ html, body {
 .touch-active #pane1 .inv-overlay {
   right: auto;
   left: 10px;
+  transform: none;
   align-items: flex-start;
 }
 .touch-active #pane1 .inv-overlay .inv-row {
   justify-content: flex-start;
+}
+
+/* Left Human vs Comp: inventory centered */
+.touch-active.touch-mode-hvc #pane0 .inv-overlay {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  align-items: center;
+}
+.touch-active.touch-mode-hvc #pane0 .inv-overlay .inv-row {
+  justify-content: center;
+}
+
+/* Right Human vs Comp: inventory centered */
+.touch-active.touch-mode-cvh #pane1 .inv-overlay {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  align-items: center;
+}
+.touch-active.touch-mode-cvh #pane1 .inv-overlay .inv-row {
+  justify-content: center;
 }
 
 /* Top bar with [MENU] and [FULLSCREEN] buttons */
@@ -1270,6 +1295,12 @@ html, body {
 .touch-side-right .touch-controls-cluster {
   justify-content: flex-end;
   flex-direction: row;
+}
+
+/* Single human player vs comp split layout: navigation on the left, weapons on the right */
+.touch-split-layout .touch-controls-cluster {
+  width: 100%;
+  justify-content: space-between;
 }
 
 /* Option A Drone-Sim 2-Axis Joystick */

@@ -208,16 +208,19 @@ Uses `KeyboardEvent.code` (layout-independent). All game keys call `preventDefau
   - On touch-only devices without a physical keyboard, the **Keyboard layout** option is omitted from the Options menu.
   - A global physical `keydown` listener dynamically detects connected hardware keyboards (e.g. iPad Magic Keyboard or external USB/Bluetooth keyboards), immediately revealing the Keyboard layout menu upon first hardware keypress.
   - An explicit toggle (**Options → Touch controls: AUTO | ON | OFF**) allows players to force touch controls on or off as desired.
-- **Natural Two-Hand Arrangement (Left Hand = Movement, Right Hand = Fire):**
-  - **Left Player (Red, `#pane0`):**
-    - Movement controls (virtual joystick + `[STOP]`) placed on the left for the player's left hand.
-    - Fire/weapons controls placed on the right of the movement cluster for the player's right hand.
-    - Non-interactive Cockpit Inventory HUD (`#inv0`) shifted to the right edge of `#pane0` (near the center seam).
-  - **Right Player (Blue, `#pane1`):**
-    - Movement controls (virtual joystick + `[STOP]`) placed on the left of the player's cluster for the player's left hand.
-    - Fire/weapons controls placed on the right for the player's right hand.
-    - Non-interactive Cockpit Inventory HUD (`#inv1`) shifted to the left edge of `#pane1` (near the center seam).
-  - **Center Seam Clearance:** Both players' non-interactive inventory HUDs rest around the center dividing line, completely out of the way of both players' active thumbs.
+- **Natural Two-Hand Ergonomic Arrangement:**
+  - **Human vs Human (`HvH` - Side-by-Side Shared Screen):**
+    - **Left Player (Red, `#pane0`):** Movement controls (virtual joystick + `[STOP]`) and fire/weapons controls clustered on the left; non-interactive Cockpit Inventory HUD (`#inv0`) shifted to the right edge of `#pane0` (near the center seam).
+    - **Right Player (Blue, `#pane1`):** Movement and fire/weapons controls clustered on the right of `#pane1`; non-interactive Cockpit Inventory HUD (`#inv1`) shifted to the left edge of `#pane1` (near the center seam).
+    - **Center Seam Clearance:** Keeps both players' active thumbs at the outer corners, preventing hand collision across the central screen divider.
+  - **Left Human vs Computer (`HvC`):**
+    - Navigation controls (joystick + `[STOP]`) situated on the far left for the player's left hand.
+    - Fire/weapons controls moved to the far right for the player's right hand (`touch-split-layout`).
+    - Cockpit Inventory HUD (`#inv0`) moved to the horizontal center (`left: 50%; transform: translateX(-50%)`) between the two thumb clusters.
+  - **Right Human vs Computer (`CvH`):**
+    - Navigation controls (joystick + `[STOP]`) moved to the far left for the player's left hand (`touch-split-layout`).
+    - Fire/weapons controls situated on the far right for the player's right hand.
+    - Cockpit Inventory HUD (`#inv1`) moved to the horizontal center (`left: 50%; transform: translateX(-50%)`) between the two thumb clusters.
 - **Option A Drone-Sim Style 2-Axis Analog Virtual Joystick:**
   - **Horizontal Axis (Steering / Angular Velocity):** Proportional deflection calculates continuous turning rate:
     - Slight deflection: subtle course correction (e.g. 15°/s).

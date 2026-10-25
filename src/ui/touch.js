@@ -410,13 +410,22 @@ export function createTouchControls({ root, onAction, onContinuousTurn, isHumanP
   function update(world, appState, menuOpen) {
     const enabled = isEnabled();
     const playing = appState === 'PLAYING' && !menuOpen && !world.over;
+    const human0 = isHumanPlayer(0);
+    const human1 = isHumanPlayer(1);
 
-    // Apply touch-active class to app root so inventory HUDs reposition towards center seam
+    // Apply touch-active and mode classes to app root
     root.classList.toggle('touch-active', enabled);
+    root.classList.toggle('touch-mode-hvh', enabled && human0 && human1);
+    root.classList.toggle('touch-mode-hvc', enabled && human0 && !human1);
+    root.classList.toggle('touch-mode-cvh', enabled && !human0 && human1);
+
+    // Apply split-layout class to single human player overlays (nav left, fire right)
+    overlay0.classList.toggle('touch-split-layout', enabled && human0 && !human1);
+    overlay1.classList.toggle('touch-split-layout', enabled && !human0 && human1);
 
     topBar.classList.toggle('hidden', !enabled || appState !== 'PLAYING');
-    overlay0.classList.toggle('hidden', !enabled || !playing || !isHumanPlayer(0));
-    overlay1.classList.toggle('hidden', !enabled || !playing || !isHumanPlayer(1));
+    overlay0.classList.toggle('hidden', !enabled || !playing || !human0);
+    overlay1.classList.toggle('hidden', !enabled || !playing || !human1);
 
     if (!enabled || !playing) return;
 
