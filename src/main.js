@@ -229,12 +229,7 @@ const touch = createTouchControls({
   onAction: (player, action, arg) => {
     if (appState !== 'PLAYING' || menu.isOpen() || isAiPlayer(player)) return;
     if (action === 'STOP') {
-      const pl = world.players[player];
-      const t = world.tanks.find((tank) => tank.owner === player && tank.number === pl.selected);
-      if (t && t.status === 'field' && pl.view === 'tank') {
-        t.cmdSpeedKmh = 0;
-        t.cmdTurnDeg = 0;
-      }
+      applyAction(world, player, 'STOP');
       return;
     }
     applyAction(world, player, action, arg);
@@ -689,8 +684,8 @@ function frame(now) {
     while (acc >= C.SIM_TICK_S) {
       step(world, C.SIM_TICK_S, {
         windowTurn: [
-          isAiPlayer(0) ? 0 : (touchSteer[0] !== 0 ? touchSteer[0] : input.windowTurn(0)),
-          isAiPlayer(1) ? 0 : (touchSteer[1] !== 0 ? touchSteer[1] : input.windowTurn(1)),
+          isAiPlayer(0) ? aiControllers[0].windowTurn : (touchSteer[0] !== 0 ? touchSteer[0] : input.windowTurn(0)),
+          isAiPlayer(1) ? aiControllers[1].windowTurn : (touchSteer[1] !== 0 ? touchSteer[1] : input.windowTurn(1)),
         ],
       });
       acc -= C.SIM_TICK_S;

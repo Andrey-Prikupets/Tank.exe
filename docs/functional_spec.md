@@ -129,6 +129,11 @@
 - Smoke clouds: gray filled circles drawn **above** tanks (tanks inside are hidden on the map). **[A6]**
 - Hangar windows drawn as thin bars in the border; the window currently used by a player is highlighted.
 - Explosions: short expanding orange circle.
+- **Locked Target Arrows:** Thin directional arrows rendered on the map indicating currently locked targets (maximum 2 arrows: Red attacker to Blue target, and Blue attacker to Red target).
+  - When a player (AI or active controller) has a locked target tank, a crisp line with a directional arrowhead is drawn from the selected active unit to the target tank's hull.
+  - If the unit sits in a **hangar slit window**, the arrow originates directly from the active slit window on the outer wall (`startX = gateX`, `startY = windowY`).
+  - Colors are team-specific (`COLOR_TARGET_ARROW_LEFT = #ff5544` for Left/Red, `COLOR_TARGET_ARROW_RIGHT = #4488ff` for Right/Blue) with width `MAP_TARGET_ARROW_WIDTH_PX`.
+  - Arrow tips stop neatly at the target hull perimeter without obscuring unit numbers or turret geometry.
 
 ### 4.2 3D views
 
@@ -252,32 +257,52 @@ Uses `KeyboardEvent.code` (layout-independent). All game keys call `preventDefau
 ### 6.1 Model
 Each tank has:
 - `heading` (rad), `pos` (x, y).
-- **Commanded** linear speed `cmdSpeed` and **commanded** turn rate `cmdTurn` — set by key steps.
+- **Commanded** linear speed `cmdSpeedKmh` and **commanded** turn rate `cmdTurnDeg` — set by key steps.
 - **Actual** linear speed `speed` and **actual** turn rate `turn` — approach the commanded values
-  with limited acceleration (**inertia**).
+  with non-momentary step acceleration (**1s per step transition**).
 
 Every tick:
 ```
-speed += clamp(cmdSpeed - speed, ±TANK_LINEAR_ACCEL_MS2 * dt)
-turn  += clamp(cmdTurn  - turn,  ±TANK_TURN_ACCEL_DEG_S2 * dt)
+speed += clamp(cmdSpeed - speed, ±getLinearAccelMs2(speed) * dt)
+turn  += clamp(cmdTurn  - turn,  ±degToRad(TANK_TURN_ACCEL_DEG_S2) * dt)
 heading += turn * dt
 pos += (cos heading, sin heading) * speed * dt
 ```
 then collisions (§7) are resolved.
 
-### 6.2 Limits (initial values)
+### 6.2 Speed & Turn Steps
 
-| Constant | Value |
-|---|---|
-| `TANK_MAX_SPEED_KMH` | 36 (≈10 m/s; crosses the field in ~25 s) |
-| `TANK_MAX_REVERSE_KMH` | 12 |
-| `SPEED_STEP_KMH` | 6 (6 steps to full forward, 2 to full reverse) |
-| `TANK_LINEAR_ACCEL_MS2` | 3 |
-| `TANK_MAX_TURN_DEG_S` | 60 |
-| `TANK_MAX_PIVOT_TURN_DEG_S` | 75 (25% faster limit when rotating without movement at 0 km/h) |
-| `TURN_STEP_DEG_S` | 15 (4 steps to full moving rate, 5 steps to full pivot rate) |
-| `TANK_TURN_ACCEL_DEG_S2` | 60 |
-| `KEY_REPEAT_MS` | 150 |
+- **Linear Speed Steps:**
+  - **Forward:** 3 discrete steps: `+6 km/h`, `+18 km/h`, `+36 km/h`.
+  - **Neutral:** `0 km/h`.
+  - **Backward / Reverse:** 1 discrete step: `-6 km/h`.
+  - Commanded speed ladder: `[-6, 0, 6, 18, 36] km/h`.
+- **Rotational Speed Steps:**
+  - **While Moving (`speed ≠ 0`):** 3 steps in each direction: `15°/s`, `30°/s`, `45°/s` (ladder: `[-45, -30, -15, 0, 15, 30, 45] °/s`).
+  - **While Stationary / Pivot Turn (`speed = 0`):** 2 steps in each direction: `15°/s`, `30°/s` (ladder: `[-30, -15, 0, 15, 30] °/s`).
+- **Step Acceleration & Deceleration (1s per step transition):**
+  - Switching between any adjacent speed steps takes **1.0 second**:
+    - `0 ↔ ±6 km/h`: $6\text{ km/h/s} = 1.667\text{ m/s}^2$
+    - `6 ↔ 18 km/h`: $12\text{ km/h/s} = 3.333\text{ m/s}^2$
+    - `18 ↔ 36 km/h`: $18\text{ km/h/s} = 5.000\text{ m/s}^2$
+  - Switching between any adjacent turn steps takes **1.0 second**:
+    - `TANK_TURN_ACCEL_DEG_S2 = 15 °/s²`.
+  - **STOP Command:** Setting commanded speed and turn to 0 decelerates the tank smoothly at 1 second per step:
+    - Stopping from `36 km/h` takes 3 seconds (36 $\to$ 18 $\to$ 6 $\to$ 0).
+    - Stopping from `18 km/h` takes 2 seconds (18 $\to$ 6 $\to$ 0).
+    - Stopping from `6 km/h` or `-6 km/h` takes 1 second.
+    - Stopping turn from `45°/s` takes 3 seconds; from `30°/s` takes 2 seconds; from `15°/s` takes 1 second.
+
+| Constant | Value | Description |
+|---|---|---|
+| `TANK_MAX_SPEED_KMH` | 36 | 3 forward steps: +6, 18, 36 km/h |
+| `TANK_MAX_REVERSE_KMH` | 6 | 1 backward step: -6 km/h |
+| `TANK_SPEED_STEPS_KMH` | `[-6, 0, 6, 18, 36]` | Discrete speed step ladder |
+| `TANK_MAX_TURN_DEG_S` | 45 | 3 moving steps: 15, 30, 45 °/s |
+| `TANK_MAX_PIVOT_TURN_DEG_S` | 30 | 2 stationary steps: 15, 30 °/s |
+| `TURN_STEP_DEG_S` | 15 | Rotational step size |
+| `TANK_TURN_ACCEL_DEG_S2` | 15 | 1s per 15°/s step transition |
+| `KEY_REPEAT_MS` | 150 | ms |
 
 ### 6.3 Persistence of motion
 - Commanded speeds are kept per tank. Switching to another tank **does not** change the old tank's
@@ -347,8 +372,7 @@ Tanks are oriented rectangles (OBB). Collision is checked every tick.
 - View is rendered through a **narrow horizontal slit** mask (black above/below) to look like a
   window; crosshair in the center.
 - Default facing: perpendicular to the wall, into the field.
-- Turn keys (`A`/`D`, `←`/`→`) **rotate the view** (not a tank) by up to `WINDOW_MAX_YAW_DEG` (45,
-  i.e. 50 % of the 90° to the wall) each side, at `WINDOW_YAW_RATE_DEG_S`.
+- Turn keys (`A`/`D`, `←`/`→`) **rotate the view** (not a tank) in discrete steps: **15°/s and 30°/s** (`WINDOW_YAW_STEP_DEG_S = 15`, `WINDOW_YAW_RATE_DEG_S = 30`), up to `WINDOW_MAX_YAW_DEG` (45°, i.e. 50 % of the 90° to the wall) each side. Angular acceleration between steps is non-momentary at **1.0s per 15°/s step transition** (`WINDOW_YAW_ACCEL_DEG_S2 = 15 °/s²`). The STOP command zeroes commanded window rotation with 1.0s per step deceleration (30 $\to$ 15 $\to$ 0 in 2s).
 - Accelerate/decelerate keys have no effect in window view.
 - Fire key shoots a shell from the window along the view direction. **Unlimited ammo**, limited by
   `WINDOW_RELOAD_S` (1.5) between shots (per window). Same shell range/speed as tank shells. **[A14]**
@@ -648,8 +672,27 @@ Simulation is pure and independent from rendering, allowing deterministic save/l
 
 ---
 
-## 15. Out of Scope (v1)
-Music, sampled audio, AI opponents, online play, gamepads, mobile/touch, terrain/obstacles.
+## 15. AI Player Controller & Combat Modes
+
+The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable skill tiers (`EASY`, `MEDIUM`, `HARD`).
+
+### 15.1 Organic Decision Asymmetry & Randomness
+- **Phase Desynchronization:** AI controllers initialize with randomized phase timers and jittered decision tick intervals (`AI_TICK_JITTER_FRACTION = 0.25`) and brigade coordination intervals (`AI_COORD_JITTER_FRACTION = 0.35`). This prevents mirror symmetry and simultaneous actions in AI vs AI (`CvC`) battles.
+- **Tactical Jitter & Spreading:** Each AI unit applies organic standoff variance (`±AI_STANDOFF_JITTER_M = 3.5m`), cruising speed variance (`±AI_SPEED_JITTER_KMH = 3 km/h`), and tactical lateral spreading (`AI_LANE_OFFSET_MAX_M = 16m`) across the battlefield to fan out across multiple lanes rather than forming a single-file column.
+- **Organic Trigger Reflex:** Weapon firing tolerances incorporate jitter (`±8%`) and micro-latency variance to simulate natural reflexes.
+
+### 15.2 Target Locking & Obstacle Line-of-Sight Check
+- **LOS Verification:** Targets behind buildings/obstacles (`world.obstacles`) receive a heavy score penalty (`AI_TARGET_LOS_BLOCKED_PENALTY = 70`), preventing tanks from charging blindly into walls or trying to shoot through cover.
+- **Lock Hysteresis:** The currently locked target receives a stickiness bonus (`AI_TARGET_STICKINESS_BONUS = 20`) to eliminate rapid target fluttering/oscillation.
+- **Threat Weighting & Tie-Breaking:** Targets pointing weapons directly at the unit are prioritized (`AI_TARGET_FACING_US_BONUS = 14`), and tie-breaking noise (`AI_TARGET_NOISE_AMPLITUDE = 6`) ensures diverse target distribution across the enemy brigade.
+- **Locked Target Arrow Rendering:** The strategic map displays thin, crisp arrows (`MAP_TARGET_ARROW_WIDTH_PX = 1.5`) from active tanks (or active slit windows) to their locked targets (maximum 2 arrows: Red -> Blue, Blue -> Red).
+
+### 15.3 Slit Window Tactical Defense
+- When enemies penetrate within `AI_SLIT_DEFENSE_TRIGGER_DIST_M = 48m` of the home gate and active tanks are distant, the AI can enter a hangar slit window to deliver defensive fire with unlimited ammo.
+- The AI aims through the slit window's angular limits (`WINDOW_MAX_YAW_DEG = 45°`), fires upon alignment, switches to the opposing slit window if enemies cross the gate axis, and returns to tank command once threats subside.
+
+### 15.4 Strategic Brigade Control Architecture
+- For comprehensive multi-tank coordination, urgency-based time-slice dispatching, attack formations (Pincer Envelopment, Wedge Breach), and dynamic plan switching, refer to the full architectural specification in [`docs/ai_strategic_control_plan.md`](./ai_strategic_control_plan.md).
 
 ---
 
@@ -664,12 +707,12 @@ Music, sampled audio, AI opponents, online play, gamepads, mobile/touch, terrain
 | `TANKS_ON_FIELD_MAX` | 5 | |
 | `HANGAR_ROWS` × `HANGAR_SLOTS_PER_ROW` | 2 × 5 | |
 | `TANKS_PER_PLAYER` | 15 | |
-| `TANK_MAX_SPEED_KMH` / `TANK_MAX_REVERSE_KMH` | 36 / 12 | km/h |
-| `SPEED_STEP_KMH` | 6 | km/h |
-| `TANK_LINEAR_ACCEL_MS2` | 3 | m/s² |
-| `TANK_MAX_TURN_DEG_S` / `TANK_MAX_PIVOT_TURN_DEG_S` | 60 / 75 | °/s |
+| `TANK_MAX_SPEED_KMH` / `TANK_MAX_REVERSE_KMH` | 36 / 6 | km/h |
+| `TANK_SPEED_STEPS_KMH` | `[-6, 0, 6, 18, 36]` | km/h |
+| `TANK_LINEAR_ACCEL_MS2` | 1.67 / 3.33 / 5.0 (1s per step) | m/s² |
+| `TANK_MAX_TURN_DEG_S` / `TANK_MAX_PIVOT_TURN_DEG_S` | 45 / 30 | °/s |
 | `TURN_STEP_DEG_S` | 15 | °/s |
-| `TANK_TURN_ACCEL_DEG_S2` | 60 | °/s² |
+| `TANK_TURN_ACCEL_DEG_S2` | 15 (1s per step) | °/s² |
 | `KEY_REPEAT_MS` | 150 | ms |
 | `BORDER_DRAG_FACTOR` / `TANK_CONTACT_TURN_FACTOR` | 0.5 / 0.5 | |
 | `TANK_START_SHELLS` / `MINES` / `SMOKES` | 5 / 2 / 2 | |
@@ -678,7 +721,8 @@ Music, sampled audio, AI opponents, online play, gamepads, mobile/touch, terrain
 | `MINE_DROP_BEHIND_M` / `MINE_ARM_DELAY_S` / `MINE_TRIGGER_RADIUS_M` | 1.5 / 1.5 / 1 | m / s / m |
 | `SMOKE_RADIUS_M` / `SMOKE_LIFETIME_S` / `SMOKE_FADE_S` | 10 / 10 / 2 | m / s / s |
 | `WINDOW_OFFSET_FROM_GATE_M` / `WINDOW_LENGTH_M` | 8 / 5 | m |
-| `WINDOW_MAX_YAW_DEG` / `WINDOW_YAW_RATE_DEG_S` | 45 / 45 | ° / °/s |
+| `WINDOW_MAX_YAW_DEG` / `WINDOW_YAW_RATE_DEG_S` | 45 / 30 | ° / °/s |
+| `WINDOW_YAW_STEP_DEG_S` / `WINDOW_YAW_ACCEL_DEG_S2` | 15 / 15 (1s per step) | °/s / °/s² |
 | `DEAD_ZONE_DEPTH_M` | 6 | m |
 | `START_BORDER_GAP_M` / `START_SPACING_M` | 6 / 10 | m |
 | `CAMERA_HEIGHT_M` / `CAMERA_FOV_DEG` | 2.2 / 60 | m / ° |
@@ -690,6 +734,22 @@ Music, sampled audio, AI opponents, online play, gamepads, mobile/touch, terrain
 | `AI_SMOKE_INCOMING_SHELL_DIST_M` | 30 | m |
 | `AI_SMOKE_SHELL_DOT_THRESHOLD` | 0.8 | |
 | `AI_MINE_BEHIND_ANGLE_RAD` | 0.7 | rad |
+| `AI_TARGET_STICKINESS_BONUS` | 20 | |
+| `AI_TARGET_LOS_BLOCKED_PENALTY` | 70 | |
+| `AI_TARGET_THREAT_ANGLE_WEIGHT` | 18 | |
+| `AI_TARGET_FACING_US_BONUS` | 14 | |
+| `AI_TARGET_NOISE_AMPLITUDE` | 6 | |
+| `AI_TICK_JITTER_FRACTION` | 0.25 | |
+| `AI_COORD_JITTER_FRACTION` | 0.35 | |
+| `AI_STANDOFF_JITTER_M` | 3.5 | m |
+| `AI_SPEED_JITTER_KMH` | 3 | km/h |
+| `AI_LANE_OFFSET_MAX_M` | 16 | m |
+| `AI_SLIT_DEFENSE_TRIGGER_DIST_M` | 48 | m |
+| `AI_SLIT_AIM_TOLERANCE_RAD` / `FIRE_TOLERANCE_RAD` | 0.08 / 0.12 | rad |
+| `AI_SLIT_MAX_FIRE_DIST_M` | 60 | m |
+| `MAP_TARGET_ARROW_WIDTH_PX` | 1.5 | px |
+| `MAP_TARGET_ARROW_HEAD_LEN_M` | 3.2 | m |
+| `MAP_TARGET_ARROW_HEAD_ANGLE_RAD` | 0.42 | rad |
 | `OBSTACLE_HEIGHT_M` | 4.8 | m |
 | `OBSTACLE_ROOF_HEIGHT_M` | 1.6 | m |
 | `OBSTACLE_ROOF_EAVE_M` | 0.5 | m |

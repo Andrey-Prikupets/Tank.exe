@@ -1,5 +1,5 @@
 import * as C from '../constants.js';
-import { gateX, windowY, slotPos } from '../sim/world.js';
+import { gateX, windowY, slotPos, selectedTank } from '../sim/world.js';
 
 const TEAM = [
   { base: C.COLOR_LEFT_TEAM, sel: C.COLOR_LEFT_SELECTED },
@@ -80,6 +80,54 @@ export function createMap2D(canvas, options = {}) {
     ctx.lineWidth = th;
     ctx.strokeStyle = '#ffffff';
     ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawTargetArrow(ctx, startX, startY, endX, endY, owner, scale, px, py) {
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 1.5) return;
+
+    const ux = dx / dist;
+    const uy = dy / dist;
+    const color = owner === 0 ? C.COLOR_TARGET_ARROW_LEFT : C.COLOR_TARGET_ARROW_RIGHT;
+
+    // Stop arrow tip slightly outside target hull so it cleanly points at it
+    const tipOffset = Math.min(dist * 0.4, C.TANK_LENGTH_M * 0.48);
+    const tipX = endX - ux * tipOffset;
+    const tipY = endY - uy * tipOffset;
+
+    const headLen = Math.max(4.5, C.MAP_TARGET_ARROW_HEAD_LEN_M * scale);
+    const headAngle = C.MAP_TARGET_ARROW_HEAD_ANGLE_RAD;
+    const angle = Math.atan2(uy, ux);
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = Math.max(1.2, C.MAP_TARGET_ARROW_WIDTH_PX * scale * 0.25);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'miter';
+
+    // Thin shaft line
+    ctx.beginPath();
+    ctx.moveTo(px(startX), py(startY));
+    ctx.lineTo(px(tipX), py(tipY));
+    ctx.stroke();
+
+    // Sharp arrowhead
+    const x1 = tipX - Math.cos(angle - headAngle) * (headLen / scale);
+    const y1 = tipY - Math.sin(angle - headAngle) * (headLen / scale);
+    const x2 = tipX - Math.cos(angle + headAngle) * (headLen / scale);
+    const y2 = tipY - Math.sin(angle + headAngle) * (headLen / scale);
+
+    ctx.beginPath();
+    ctx.moveTo(px(tipX), py(tipY));
+    ctx.lineTo(px(x1), py(y1));
+    ctx.lineTo(px(x2), py(y2));
+    ctx.closePath();
+    ctx.fill();
 
     ctx.restore();
   }
@@ -286,6 +334,32 @@ export function createMap2D(canvas, options = {}) {
         ctx.fill();
 
         ctx.restore();
+      }
+    }
+
+    // Locked target arrows (max 2 arrows on the map: Red -> Blue, Blue -> Red)
+    for (const owner of [0, 1]) {
+      const pl = world.players[owner];
+      if (!pl || !pl.lockedTarget) continue;
+
+      const targetTank = world.tanks.find((t) => t.id === pl.lockedTarget.id && t.status === 'field');
+      if (!targetTank) continue;
+
+      let startX = null;
+      let startY = null;
+      if (pl.view === 'window') {
+        startX = gateX(owner);
+        startY = windowY(owner, pl.windowIdx);
+      } else if (pl.view === 'tank') {
+        const tank = selectedTank(world, owner);
+        if (tank && tank.status === 'field') {
+          startX = tank.x;
+          startY = tank.y;
+        }
+      }
+
+      if (startX != null && startY != null) {
+        drawTargetArrow(ctx, startX, startY, targetTank.x, targetTank.y, owner, scale, px, py);
       }
     }
 

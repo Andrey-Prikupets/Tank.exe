@@ -1,5 +1,5 @@
 import * as C from '../constants.js';
-import { applyAction, selectedTank, gateX, inwardDir } from './world.js';
+import { applyAction, selectedTank, gateX, inwardDir, baseHeading, windowY } from './world.js';
 import { segmentVsObb, toLocal } from './geometry.js';
 
 const PROFILES = {
@@ -24,7 +24,7 @@ const PROFILES = {
     aimTolerance: 0.08,      // ~4.5 deg
     fireTolerance: 0.14,     // ~8 deg
     leadFactor: 0.5,         // partial lead
-    maxSpeedKmh: 24,
+    maxSpeedKmh: 36,
     maxFireDist: 40,         // holds fire until within 40m
     standoffDist: 26,        // stops advancing at 26m
     minDist: 16,             // reverses if closer than 16m
@@ -112,11 +112,12 @@ function tryFireWeapon(world, owner, tank, enemyField, profile) {
     const aimAngle = Math.atan2(aimY - tank.y, aimX - tank.x);
     const aimErr = Math.abs(normalizeAngle(aimAngle - tank.heading));
 
-    // Target hull angle tolerance: must actually point at tank body plus tolerance
+    // Target hull angle tolerance: must actually point at tank body plus tolerance with organic jitter
     const targetAngularHalfWidth = Math.atan2(C.TANK_WIDTH_M / 2 + 0.3, dist);
-    const allowedTol = Math.max(targetAngularHalfWidth, Math.min(profile.fireTolerance, 0.16));
+    const jitteredTol = Math.min(profile.fireTolerance, 0.16) * (0.92 + Math.random() * 0.16);
+    const allowedTol = Math.max(targetAngularHalfWidth, jitteredTol);
 
-    if (aimErr <= allowedTol) {
+    if (aimErr <= allowedTol && Math.random() < 0.96) {
       if (!isLineOfFireBlocked(world, owner, tank.x, tank.y, aimX, aimY, tank.id)) {
         applyAction(world, owner, 'FIRE');
         return true;
@@ -129,17 +130,131 @@ function tryFireWeapon(world, owner, tank, enemyField, profile) {
 export class AiController {
   constructor(owner) {
     this.owner = owner;
-    this.timer = 0;
+    this.timer = Math.random() * 0.05;
+    this.coordTimer = Math.random() * 0.5;
+    this.nextTickInterval = 0.1;
+    this.nextCoordInterval = 2.0;
     this.stuckTimer = 0;
     this.reverseTimer = 0;
-    this.coordTimer = 0;
+    this.lockedTargetId = null;
+    this.windowTurn = 0;
+    this.slitTimer = 0;
+    this.standoffJitter = 0;
+    this.speedJitter = 0;
+    this.laneOffset = 0;
+    this.randomizeOffsets();
+  }
+
+  randomizeOffsets() {
+    this.standoffJitter = (Math.random() - 0.5) * 2 * C.AI_STANDOFF_JITTER_M;
+    this.speedJitter = (Math.random() - 0.5) * 2 * C.AI_SPEED_JITTER_KMH;
+    this.laneOffset = (Math.random() - 0.5) * 2 * C.AI_LANE_OFFSET_MAX_M;
   }
 
   reset() {
-    this.timer = 0;
+    this.timer = Math.random() * 0.05;
+    this.coordTimer = Math.random() * 0.5;
+    this.nextTickInterval = 0.1;
+    this.nextCoordInterval = 2.0;
     this.stuckTimer = 0;
     this.reverseTimer = 0;
-    this.coordTimer = 0;
+    this.lockedTargetId = null;
+    this.windowTurn = 0;
+    this.slitTimer = 0;
+    this.randomizeOffsets();
+  }
+
+  /** Tactical slit window defense: locks onto enemy targets in field of view, aims, and fires unlimited shells. */
+  updateSlit(world, dt, profile) {
+    const owner = this.owner;
+    const pl = world.players[owner];
+    const wx = gateX(owner) + inwardDir(owner) * C.WINDOW_CAMERA_INSET_M;
+    const wy = windowY(owner, pl.windowIdx);
+    const baseHead = baseHeading(owner);
+    const currentHead = baseHead + pl.windowYaw;
+    const maxYaw = C.degToRad(C.WINDOW_MAX_YAW_DEG);
+
+    const enemyField = world.tanks.filter((t) => t.owner !== owner && t.status === 'field');
+    let bestEnemy = null;
+    let bestScore = Infinity;
+
+    for (const e of enemyField) {
+      const dx = e.x - wx;
+      const dy = e.y - wy;
+      const dist = Math.hypot(dx, dy);
+      if (dist > C.AI_SLIT_MAX_FIRE_DIST_M) continue;
+
+      const angle = Math.atan2(dy, dx);
+      const relYaw = normalizeAngle(angle - baseHead);
+      if (Math.abs(relYaw) > maxYaw + 0.15) continue;
+
+      if (isLineOfFireBlocked(world, owner, wx, wy, e.x, e.y, null)) continue;
+
+      const yawDiff = Math.abs(normalizeAngle(angle - currentHead));
+      const isLocked = e.id === this.lockedTargetId;
+      const score = dist + yawDiff * 25 - (isLocked ? C.AI_TARGET_STICKINESS_BONUS : 0);
+      if (score < bestScore) {
+        bestScore = score;
+        bestEnemy = e;
+      }
+    }
+
+    if (bestEnemy) {
+      this.lockedTargetId = bestEnemy.id;
+      world.players[owner].lockedTarget = {
+        id: bestEnemy.id,
+        x: bestEnemy.x,
+        y: bestEnemy.y,
+        isWindow: true,
+        windowIdx: pl.windowIdx,
+      };
+
+      const targetAngle = Math.atan2(bestEnemy.y - wy, bestEnemy.x - wx);
+      const yawErr = normalizeAngle(targetAngle - currentHead);
+
+      if (Math.abs(yawErr) <= C.AI_SLIT_AIM_TOLERANCE_RAD) {
+        this.windowTurn = 0;
+      } else if (yawErr > 0) {
+        this.windowTurn = Math.abs(yawErr) > 0.25 ? 1 : 0.4;
+      } else {
+        this.windowTurn = Math.abs(yawErr) > 0.25 ? -1 : -0.4;
+      }
+
+      if (Math.abs(yawErr) <= C.AI_SLIT_FIRE_TOLERANCE_RAD && pl.windowReload <= 0) {
+        applyAction(world, owner, 'FIRE');
+      }
+    } else {
+      this.windowTurn = 0;
+      this.lockedTargetId = null;
+      world.players[owner].lockedTarget = null;
+
+      // Check if other slit window has a target
+      const otherIdx = pl.windowIdx === 0 ? 1 : 0;
+      const otherWy = windowY(owner, otherIdx);
+      const canSeeInOther = enemyField.some((e) => {
+        const dx = e.x - wx;
+        const dy = e.y - otherWy;
+        const dist = Math.hypot(dx, dy);
+        if (dist > C.AI_SLIT_MAX_FIRE_DIST_M) return false;
+        const relYaw = normalizeAngle(Math.atan2(dy, dx) - baseHead);
+        return Math.abs(relYaw) <= maxYaw && !isLineOfFireBlocked(world, owner, wx, otherWy, e.x, e.y, null);
+      });
+
+      if (canSeeInOther) {
+        applyAction(world, owner, otherIdx === 0 ? 'WIN_R' : 'WIN_L');
+        return;
+      }
+
+      // Exit slit if field tanks are available and no enemies threaten the base
+      this.slitTimer += dt;
+      if (this.slitTimer > 2.5) {
+        const fieldTank = world.tanks.find((t) => t.owner === owner && t.status === 'field');
+        if (fieldTank && fieldTank.number) {
+          this.slitTimer = 0;
+          applyAction(world, owner, 'SELECT', fieldTank.number);
+        }
+      }
+    }
   }
 
   update(world, dt, levelName = 'MEDIUM') {
@@ -147,6 +262,14 @@ export class AiController {
     const profile = PROFILES[levelName] || PROFILES.MEDIUM;
     const owner = this.owner;
     const pl = world.players[owner];
+
+    this.windowTurn = 0;
+
+    // Handle slit window state if player is in window view
+    if (pl.view === 'window') {
+      this.updateSlit(world, dt, profile);
+      return;
+    }
 
     // Ensure player is in tank view
     if (pl.view !== 'tank') {
@@ -179,8 +302,9 @@ export class AiController {
         applyAction(world, owner, 'SELECT', fieldTank.number);
         tank = fieldTank;
       } else {
-        const reserve = world.tanks.find((t) => t.owner === owner && t.status === 'hangar' && t.number != null);
-        if (reserve) {
+        const reserves = world.tanks.filter((t) => t.owner === owner && t.status === 'hangar' && t.number != null);
+        if (reserves.length > 0) {
+          const reserve = reserves[Math.floor(Math.random() * reserves.length)];
           applyAction(world, owner, 'SELECT', reserve.number);
           applyAction(world, owner, 'FORWARD');
         }
@@ -188,27 +312,37 @@ export class AiController {
       }
     }
 
-    // 3. Brigade coordination: check reserve deployments and cycle active tanks
-    if (this.coordTimer >= profile.coordInterval) {
+    // 3. Brigade coordination: check reserve deployments and cycle active tanks with desynchronized timing
+    const coordLimit = this.nextCoordInterval || profile.coordInterval;
+    if (this.coordTimer >= coordLimit) {
       this.coordTimer = 0;
+      this.nextCoordInterval = profile.coordInterval * (1 - C.AI_COORD_JITTER_FRACTION + Math.random() * 2 * C.AI_COORD_JITTER_FRACTION);
+      this.randomizeOffsets();
+
       const myField = world.tanks.filter((t) => t.owner === owner && t.status === 'field');
       if (myField.length < C.TANKS_ON_FIELD_MAX) {
-        const readyReserve = world.tanks.find((t) => t.owner === owner && t.status === 'hangar' && t.number != null);
-        if (readyReserve) {
+        const reserves = world.tanks.filter((t) => t.owner === owner && t.status === 'hangar' && t.number != null);
+        if (reserves.length > 0) {
+          const pickIdx = Math.floor(Math.random() * reserves.length);
+          const readyReserve = reserves[pickIdx];
           applyAction(world, owner, 'SELECT', readyReserve.number);
           applyAction(world, owner, 'FORWARD');
           return;
         }
       }
       if (profile.multiTank && myField.length > 1) {
-        // If current tank is out of shells, prioritize switching to another tank with ammunition
         let nextTank = null;
         if (tank.shells === 0) {
           nextTank = myField.find((t) => t.id !== tank.id && t.shells > 0);
         }
         if (!nextTank) {
           const currentIdx = myField.findIndex((t) => t.id === tank.id);
-          nextTank = myField[(currentIdx + 1) % myField.length];
+          if (Math.random() < 0.25) {
+            const others = myField.filter((t) => t.id !== tank.id);
+            nextTank = others[Math.floor(Math.random() * others.length)];
+          } else {
+            nextTank = myField[(currentIdx + 1) % myField.length];
+          }
         }
         if (nextTank && nextTank.id !== tank.id) {
           applyAction(world, owner, 'SELECT', nextTank.number);
@@ -222,6 +356,22 @@ export class AiController {
     // 4. Real-time weapons reflex: fire as soon as crosshairs align with enemy in reach
     const enemyField = world.tanks.filter((t) => t.owner !== owner && t.status === 'field');
     tryFireWeapon(world, owner, tank, enemyField, profile);
+
+    // Tactical slit defense: if an enemy has penetrated close to gate and our tank is distant
+    if (enemyField.length > 0 && profile.rearm) {
+      const closestEnemyDist = enemyField.reduce((min, e) => {
+        const dg = Math.abs(e.x - gateX(owner));
+        return dg < min ? dg : min;
+      }, Infinity);
+      if (closestEnemyDist < C.AI_SLIT_DEFENSE_TRIGGER_DIST_M && Math.abs(tank.x - gateX(owner)) > 60) {
+        if (Math.random() < 0.18) {
+          const threat = enemyField.find((e) => Math.abs(e.x - gateX(owner)) < C.AI_SLIT_DEFENSE_TRIGGER_DIST_M);
+          const slitAction = (threat && threat.y < C.GATE_CENTER_Y_M) ? 'WIN_L' : 'WIN_R';
+          applyAction(world, owner, slitAction);
+          return;
+        }
+      }
+    }
 
     // 5. Stuck recovery
     if (tank.contacts.length > 0 && Math.abs(tank.speed) < 0.6) {
@@ -241,7 +391,6 @@ export class AiController {
         return mlx < 0.5 && mlx > -8.0 && Math.abs(mly) < C.TANK_WIDTH_M / 2 + C.MINE_TRIGGER_RADIUS_M + 0.8;
       });
       if (mineBehind) {
-        // Abort reverse timer to avoid backing into the mine, turn away instead
         this.reverseTimer = 0;
       } else {
         this.reverseTimer -= dt;
@@ -251,11 +400,13 @@ export class AiController {
       }
     }
 
-    // 6. Tactical decision tick rate throttling
-    if (this.timer < profile.tickInterval) return;
+    // 6. Tactical decision tick rate throttling with desynchronized jitter
+    const tickLimit = this.nextTickInterval || profile.tickInterval;
+    if (this.timer < tickLimit) return;
     this.timer = 0;
+    this.nextTickInterval = profile.tickInterval * (1 - C.AI_TICK_JITTER_FRACTION + Math.random() * 2 * C.AI_TICK_JITTER_FRACTION);
 
-    // 7. Find target
+    // 7. Find target (robust scoring with LOS obstacle check, lock hysteresis, and tie-breaking noise)
     let target = null;
     let targetDist = Infinity;
 
@@ -265,14 +416,37 @@ export class AiController {
         const d = Math.hypot(e.x - tank.x, e.y - tank.y);
         const b = Math.atan2(e.y - tank.y, e.x - tank.x);
         const ang = Math.abs(normalizeAngle(b - tank.heading));
-        const score = d + ang * 25;
+        const blocked = isLineOfFireBlocked(world, owner, tank.x, tank.y, e.x, e.y, tank.id);
+        const toUs = Math.atan2(tank.y - e.y, tank.x - e.x);
+        const facingUs = Math.abs(normalizeAngle(toUs - e.heading)) < 0.35 && d < profile.maxFireDist;
+        const isLocked = (e.id === this.lockedTargetId);
+        const noise = (Math.random() - 0.5) * C.AI_TARGET_NOISE_AMPLITUDE;
+
+        const score = d + ang * C.AI_TARGET_THREAT_ANGLE_WEIGHT +
+          (blocked ? C.AI_TARGET_LOS_BLOCKED_PENALTY : 0) -
+          (facingUs ? C.AI_TARGET_FACING_US_BONUS : 0) -
+          (isLocked ? C.AI_TARGET_STICKINESS_BONUS : 0) + noise;
+
         if (score < bestScore) {
           bestScore = score;
           target = e;
           targetDist = d;
         }
       }
+
+      if (target) {
+        this.lockedTargetId = target.id;
+        world.players[owner].lockedTarget = {
+          id: target.id,
+          x: target.x,
+          y: target.y,
+          isWindow: false,
+          windowIdx: 0,
+        };
+      }
     } else {
+      this.lockedTargetId = null;
+      world.players[owner].lockedTarget = null;
       // No enemy on field: target enemy base gate
       const ex = gateX(1 - owner);
       const ey = C.GATE_CENTER_Y_M;
@@ -283,19 +457,27 @@ export class AiController {
     // 8. Tactical retreat to rearm if out of shells
     const outOfShells = tank.shells === 0;
     if (profile.rearm && outOfShells) {
+      this.lockedTargetId = null;
+      world.players[owner].lockedTarget = null;
       const gx = gateX(owner) + inwardDir(owner) * 4;
       const gy = C.GATE_CENTER_Y_M;
       target = { x: gx, y: gy, speed: 0, heading: inwardDir(owner) === 1 ? 0 : Math.PI };
       targetDist = Math.hypot(gx - tank.x, gy - tank.y);
     }
 
-    // 9. Aim calculation (predictive lead)
+    // 9. Aim calculation (predictive lead with tactical lane offset)
     const shellSpeed = C.SHELL_RANGE_M / C.SHELL_FLIGHT_TIME_S;
     const tFly = targetDist / shellSpeed;
     const tvx = Math.cos(target.heading) * target.speed;
     const tvy = Math.sin(target.heading) * target.speed;
-    let aimX = target.x + tvx * tFly * profile.leadFactor;
-    let aimY = target.y + tvy * tFly * profile.leadFactor;
+    const effectiveLead = profile.leadFactor * (0.9 + Math.random() * 0.2);
+    let aimX = target.x + tvx * tFly * effectiveLead;
+    let aimY = target.y + tvy * tFly * effectiveLead;
+
+    // Apply tactical lane spreading when maneuvering at distance to prevent single-lane conga lines
+    if (targetDist > profile.standoffDist) {
+      aimY += this.laneOffset;
+    }
 
     aimX = Math.max(4, Math.min(C.FIELD_LENGTH_M - 4, aimX));
     aimY = Math.max(4, Math.min(C.FIELD_WIDTH_M - 4, aimY));
@@ -445,21 +627,25 @@ export class AiController {
     }
 
     // 11. Throttle control and combat standoff distance (prevents ramming opponent tanks)
-    let desiredSpeed = profile.maxSpeedKmh;
+    const effectiveStandoff = Math.max(C.TANK_LENGTH_M + 4, profile.standoffDist + this.standoffJitter);
+    const effectiveMinDist = Math.max(C.TANK_LENGTH_M + 2, profile.minDist + this.standoffJitter * 0.5);
+    const effectiveMaxSpeed = profile.maxSpeedKmh;
+
+    let desiredSpeed = effectiveMaxSpeed;
     if (emergencyBrake) {
-      desiredSpeed = -C.SPEED_STEP_KMH;
+      desiredSpeed = -C.TANK_MAX_REVERSE_KMH;
     } else if (outOfShells && profile.rearm) {
-      desiredSpeed = profile.maxSpeedKmh;
-    } else if (targetDist > profile.standoffDist + 10) {
-      desiredSpeed = profile.maxSpeedKmh;
-    } else if (targetDist > profile.standoffDist) {
-      desiredSpeed = Math.min(12, profile.maxSpeedKmh);
-    } else if (targetDist >= profile.minDist) {
+      desiredSpeed = effectiveMaxSpeed;
+    } else if (targetDist > effectiveStandoff + 10) {
+      desiredSpeed = effectiveMaxSpeed;
+    } else if (targetDist > effectiveStandoff) {
+      desiredSpeed = Math.min(18, effectiveMaxSpeed);
+    } else if (targetDist >= effectiveMinDist) {
       // Prime combat standoff zone: stop advancing to maintain position and fire
       desiredSpeed = 0;
     } else {
       // Too close to opponent: reverse to back off and avoid collision!
-      desiredSpeed = -C.SPEED_STEP_KMH;
+      desiredSpeed = -C.TANK_MAX_REVERSE_KMH;
     }
 
     // Avoid reversing if a mine is behind the tank

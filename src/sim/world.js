@@ -228,10 +228,12 @@ export function applyAction(world, p, action, arg) {
     }
     case 'FORWARD':
       if (live) {
-        tank.cmdSpeedKmh = clamp(tank.cmdSpeedKmh + C.SPEED_STEP_KMH, -C.TANK_MAX_REVERSE_KMH, C.TANK_MAX_SPEED_KMH);
-        if (tank.cmdSpeedKmh !== 0) {
-          tank.cmdTurnDeg = clamp(tank.cmdTurnDeg, -C.TANK_MAX_TURN_DEG_S, C.TANK_MAX_TURN_DEG_S);
+        const nextStep = C.TANK_SPEED_STEPS_KMH.find((s) => s > tank.cmdSpeedKmh);
+        if (nextStep != null) {
+          tank.cmdSpeedKmh = nextStep;
         }
+        const maxTurn = tank.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
+        tank.cmdTurnDeg = clamp(tank.cmdTurnDeg, -maxTurn, maxTurn);
       } else if (tank && tank.status === 'hangar' && pl.view === 'tank') {
         tank.deployRequested = true;
         setMsg(world, p, `EXITING GATE WITH TANK ${tank.number}...`);
@@ -239,22 +241,42 @@ export function applyAction(world, p, action, arg) {
       break;
     case 'BACK':
       if (live) {
-        tank.cmdSpeedKmh = clamp(tank.cmdSpeedKmh - C.SPEED_STEP_KMH, -C.TANK_MAX_REVERSE_KMH, C.TANK_MAX_SPEED_KMH);
-        if (tank.cmdSpeedKmh !== 0) {
-          tank.cmdTurnDeg = clamp(tank.cmdTurnDeg, -C.TANK_MAX_TURN_DEG_S, C.TANK_MAX_TURN_DEG_S);
+        let prevStep = null;
+        for (let i = C.TANK_SPEED_STEPS_KMH.length - 1; i >= 0; i--) {
+          if (C.TANK_SPEED_STEPS_KMH[i] < tank.cmdSpeedKmh) {
+            prevStep = C.TANK_SPEED_STEPS_KMH[i];
+            break;
+          }
         }
+        if (prevStep != null) {
+          tank.cmdSpeedKmh = prevStep;
+        }
+        const maxTurn = tank.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
+        tank.cmdTurnDeg = clamp(tank.cmdTurnDeg, -maxTurn, maxTurn);
+      }
+      break;
+    case 'STOP':
+      if (live) {
+        tank.cmdSpeedKmh = 0;
+        tank.cmdTurnDeg = 0;
+      } else if (pl.view === 'window') {
+        pl.cmdWindowTurnDeg = 0;
       }
       break;
     case 'TURN_L':
       if (live) {
         const maxLimit = tank.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
         tank.cmdTurnDeg = clamp(tank.cmdTurnDeg - C.TURN_STEP_DEG_S, -maxLimit, maxLimit);
+      } else if (pl.view === 'window') {
+        pl.cmdWindowTurnDeg = clamp((pl.cmdWindowTurnDeg || 0) - C.WINDOW_YAW_STEP_DEG_S, -C.WINDOW_YAW_RATE_DEG_S, C.WINDOW_YAW_RATE_DEG_S);
       }
       break;
     case 'TURN_R':
       if (live) {
         const maxLimit = tank.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
         tank.cmdTurnDeg = clamp(tank.cmdTurnDeg + C.TURN_STEP_DEG_S, -maxLimit, maxLimit);
+      } else if (pl.view === 'window') {
+        pl.cmdWindowTurnDeg = clamp((pl.cmdWindowTurnDeg || 0) + C.WINDOW_YAW_STEP_DEG_S, -C.WINDOW_YAW_RATE_DEG_S, C.WINDOW_YAW_RATE_DEG_S);
       }
       break;
     case 'WIN_L':
@@ -262,10 +284,14 @@ export function applyAction(world, p, action, arg) {
       const idx = action === 'WIN_L' ? 0 : 1;
       if (pl.view === 'window' && pl.windowIdx === idx) {
         pl.view = 'tank';
+        pl.cmdWindowTurnDeg = 0;
+        pl.windowTurnRate = 0;
       } else {
         pl.view = 'window';
         pl.windowIdx = idx;
         pl.windowYaw = 0;
+        pl.cmdWindowTurnDeg = 0;
+        pl.windowTurnRate = 0;
       }
       break;
     }
@@ -363,14 +389,24 @@ function kill(world, t, killerOwner, big, reason) {
   }
 }
 
+export function getLinearAccelMs2(currentSpeedMs) {
+  const currentKmh = Math.abs(currentSpeedMs * 3.6);
+  if (currentKmh > 18) return 18 / 3.6; // 5.0 m/s^2 (18 km/h per second for the 18..36 step)
+  if (currentKmh > 6) return 12 / 3.6;  // 3.3333 m/s^2 (12 km/h per second for the 6..18 step)
+  return 6 / 3.6;                       // 1.6667 m/s^2 (6 km/h per second for the 0..6 or 0..-6 step)
+}
+
 // ---------------------------------------------------------------------------
 // Simulation step
 // ---------------------------------------------------------------------------
 function moveTank(t, dt) {
-  t.speed = approach(t.speed, C.kmhToMs(t.cmdSpeedKmh), C.TANK_LINEAR_ACCEL_MS2 * dt);
-  if (t.cmdSpeedKmh !== 0) {
-    t.cmdTurnDeg = clamp(t.cmdTurnDeg, -C.TANK_MAX_TURN_DEG_S, C.TANK_MAX_TURN_DEG_S);
-  }
+  const targetSpeedMs = C.kmhToMs(t.cmdSpeedKmh);
+  const accel = getLinearAccelMs2(t.speed);
+  t.speed = approach(t.speed, targetSpeedMs, accel * dt);
+
+  const maxTurn = t.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
+  t.cmdTurnDeg = clamp(t.cmdTurnDeg, -maxTurn, maxTurn);
+
   const targetTurn = C.degToRad(t.cmdTurnDeg);
   t.turn = approach(t.turn, targetTurn, C.degToRad(C.TANK_TURN_ACCEL_DEG_S2) * dt);
 
@@ -698,7 +734,17 @@ export function step(world, dt, held) {
     pl.msgT = Math.max(0, pl.msgT - dt);
     if (pl.view === 'window') {
       const lim = C.degToRad(C.WINDOW_MAX_YAW_DEG);
-      pl.windowYaw = clamp(pl.windowYaw + (held.windowTurn[pl.id] || 0) * C.degToRad(C.WINDOW_YAW_RATE_DEG_S) * dt, -lim, lim);
+      let targetDeg = pl.cmdWindowTurnDeg || 0;
+      if (held && held.windowTurn && held.windowTurn[pl.id] != null && held.windowTurn[pl.id] !== 0) {
+        const factor = held.windowTurn[pl.id];
+        targetDeg = factor > 0.5 ? C.WINDOW_YAW_RATE_DEG_S : (factor > 0 ? C.WINDOW_YAW_STEP_DEG_S : (factor < -0.5 ? -C.WINDOW_YAW_RATE_DEG_S : -C.WINDOW_YAW_STEP_DEG_S));
+      }
+      const targetRate = C.degToRad(targetDeg);
+      pl.windowTurnRate = approach(pl.windowTurnRate || 0, targetRate, C.degToRad(C.WINDOW_YAW_ACCEL_DEG_S2) * dt);
+      pl.windowYaw = clamp(pl.windowYaw + pl.windowTurnRate * dt, -lim, lim);
+    } else {
+      pl.cmdWindowTurnDeg = 0;
+      pl.windowTurnRate = 0;
     }
   }
 

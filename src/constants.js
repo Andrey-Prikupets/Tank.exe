@@ -47,6 +47,22 @@ export const AI_SMOKE_INCOMING_SHELL_DIST_M = 30;
 export const AI_SMOKE_SHELL_DOT_THRESHOLD = 0.8;
 export const AI_MINE_BEHIND_ANGLE_RAD = 0.7;
 
+// ---- AI Decision Randomness & Target Selection -------------------------------
+export const AI_TARGET_STICKINESS_BONUS = 20;
+export const AI_TARGET_LOS_BLOCKED_PENALTY = 70;
+export const AI_TARGET_THREAT_ANGLE_WEIGHT = 18;
+export const AI_TARGET_FACING_US_BONUS = 14;
+export const AI_TARGET_NOISE_AMPLITUDE = 6;
+export const AI_TICK_JITTER_FRACTION = 0.25;
+export const AI_COORD_JITTER_FRACTION = 0.35;
+export const AI_STANDOFF_JITTER_M = 3.5;
+export const AI_SPEED_JITTER_KMH = 3;
+export const AI_LANE_OFFSET_MAX_M = 16;
+export const AI_SLIT_DEFENSE_TRIGGER_DIST_M = 48;
+export const AI_SLIT_AIM_TOLERANCE_RAD = 0.08;
+export const AI_SLIT_FIRE_TOLERANCE_RAD = 0.12;
+export const AI_SLIT_MAX_FIRE_DIST_M = 60;
+
 // ---- Field ------------------------------------------------------------------
 export const FIELD_LENGTH_M = 250;
 export const FIELD_WIDTH_M = 100;
@@ -74,15 +90,17 @@ export const PLAYER_KEY_LABELS = [
   ['1', '2', '3', '4', '5'],
   ['6', '7', '8', '9', '0'],
 ];
+export const TANK_FORWARD_SPEED_STEPS_KMH = [6, 18, 36];
+export const TANK_BACKWARD_SPEED_STEPS_KMH = [-6];
+export const TANK_SPEED_STEPS_KMH = [-6, 0, 6, 18, 36];
 export const TANK_MAX_SPEED_KMH = 36;
-export const TANK_MAX_REVERSE_KMH = 12;
+export const TANK_MAX_REVERSE_KMH = 6;
 export const SPEED_STEP_KMH = 6;
 export const TANK_LINEAR_ACCEL_MS2 = 3;
-export const TANK_MAX_TURN_DEG_S = 60;
-export const TANK_PIVOT_TURN_FACTOR = 1.25;
-export const TANK_MAX_PIVOT_TURN_DEG_S = TANK_MAX_TURN_DEG_S * TANK_PIVOT_TURN_FACTOR;
+export const TANK_MAX_TURN_DEG_S = 45; // 3 steps while moving: 15, 30, 45 deg/s
+export const TANK_MAX_PIVOT_TURN_DEG_S = 30; // 2 steps while stationary: 15, 30 deg/s
 export const TURN_STEP_DEG_S = 15;
-export const TANK_TURN_ACCEL_DEG_S2 = 60;
+export const TANK_TURN_ACCEL_DEG_S2 = 15; // 1s per 15 deg/s step
 export const BORDER_DRAG_FACTOR = 0.5;
 export const TANK_CONTACT_TURN_FACTOR = 0.5;
 
@@ -145,7 +163,10 @@ export const MINE_EXPLOSION_RADIUS_M = 7;
 export const WINDOW_OFFSET_FROM_GATE_M = 8;
 export const WINDOW_LENGTH_M = 5;
 export const WINDOW_MAX_YAW_DEG = 45;
-export const WINDOW_YAW_RATE_DEG_S = 45;
+export const WINDOW_YAW_RATE_DEG_S = 30; // 2 steps: 15, 30 deg/s
+export const WINDOW_YAW_STEP_DEG_S = 15;
+export const WINDOW_YAW_ACCEL_DEG_S2 = 15; // 1s per 15 deg/s step
+export const WINDOW_YAW_STEPS_DEG_S = [-30, -15, 0, 15, 30];
 export const WINDOW_CAMERA_INSET_M = 0.4;
 export const DEAD_ZONE_DEPTH_M = TANK_LENGTH_M;
 export const DEAD_ZONE_SIDE_MARGIN_M = TANK_LENGTH_M / 2;
@@ -251,6 +272,11 @@ export const MAP_SHELL_MIN_RADIUS_PX = 2;
 export const MAP_BORDER_LINE_PX = 2;
 export const MAP_WINDOW_LINE_PX = 3;
 export const MAP_SMOKE_MAX_ALPHA = 1;
+export const MAP_TARGET_ARROW_WIDTH_PX = 1.5;
+export const MAP_TARGET_ARROW_HEAD_LEN_M = 3.2;
+export const MAP_TARGET_ARROW_HEAD_ANGLE_RAD = 0.42;
+export const COLOR_TARGET_ARROW_LEFT = '#ff5544';
+export const COLOR_TARGET_ARROW_RIGHT = '#4488ff';
 
 // ---- Audio ------------------------------------------------------------------
 export const AUDIO_MASTER_VOLUME = 0.35;
