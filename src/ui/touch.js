@@ -14,6 +14,34 @@ import * as C from '../constants.js';
  * - Hangar slit buttons [SLIT L] and [SLIT R].
  * - Top bar with [⏸ MENU] and [⛶ FULLSCREEN] buttons.
  */
+export function lockLandscape() {
+  try {
+    if (screen.orientation && typeof screen.orientation.lock === 'function') {
+      screen.orientation.lock('landscape').catch(() => {});
+    } else if (screen.lockOrientation) {
+      screen.lockOrientation('landscape');
+    } else if (screen.mozLockOrientation) {
+      screen.mozLockOrientation('landscape');
+    } else if (screen.msLockOrientation) {
+      screen.msLockOrientation('landscape');
+    }
+  } catch {}
+}
+
+export function unlockOrientation() {
+  try {
+    if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+      screen.orientation.unlock();
+    } else if (screen.unlockOrientation) {
+      screen.unlockOrientation();
+    } else if (screen.mozUnlockOrientation) {
+      screen.mozUnlockOrientation();
+    } else if (screen.msUnlockOrientation) {
+      screen.msUnlockOrientation();
+    }
+  } catch {}
+}
+
 export function enterFullscreen() {
   const el = document.documentElement;
   if (!document.fullscreenElement && !document.webkitFullscreenElement) {
@@ -24,13 +52,23 @@ export function enterFullscreen() {
       el.mozRequestFullScreen ||
       el.msRequestFullscreen;
     if (rfs) {
-      rfs.call(el).catch(() => {});
+      const res = rfs.call(el);
+      if (res && typeof res.then === 'function') {
+        res.then(() => lockLandscape()).catch(() => {});
+      } else {
+        lockLandscape();
+      }
+    } else {
+      lockLandscape();
     }
+  } else {
+    lockLandscape();
   }
   window.scrollTo(0, 1);
 }
 
 export function exitFullscreen() {
+  unlockOrientation();
   if (document.fullscreenElement || document.webkitFullscreenElement) {
     const efs =
       document.exitFullscreen ||
