@@ -63,6 +63,46 @@ export const AI_SLIT_AIM_TOLERANCE_RAD = 0.08;
 export const AI_SLIT_FIRE_TOLERANCE_RAD = 0.12;
 export const AI_SLIT_MAX_FIRE_DIST_M = 60;
 
+// ---- AI Strategic Brigade Control & Formations -------------------------------
+export const AI_STRATEGY_PLANS = {
+  ALPHA: 'PINCER',
+  BRAVO: 'WEDGE',
+  CHARLIE: 'BASE_DEFENSE',
+  DELTA: 'PURSUIT',
+};
+export const AI_PLAN_DEFENSE_TRIGGER_DIST_M = 45;
+export const AI_PLAN_DEFENSE_CLEAR_DIST_M = 60;
+export const AI_CASUALTY_WINDOW_S = 8.0;
+export const AI_CASUALTY_RETREAT_COUNT = 2;
+export const AI_PURSUIT_AMMO_THRESHOLD = 0.5;
+export const AI_PURSUIT_OUTNUMBERED_RATIO = 3.0;
+export const AI_COMMANDER_EVAL_INTERVAL_S = 0.8;
+
+// Dispatcher & Urgency
+export const AI_MIN_SLICE_S = 0.22;
+export const AI_MAX_SLICE_S = 0.85;
+export const AI_DISPATCH_THRESHOLD_DELTA = 15;
+export const AI_URGENCY_HAZARD_PIT = 95;
+export const AI_URGENCY_HAZARD_MINE = 90;
+export const AI_URGENCY_HAZARD_OBSTACLE = 80;
+export const AI_URGENCY_COMBAT_AIMED = 85;
+export const AI_URGENCY_COMBAT_SHELL_INCOMING = 75;
+export const AI_URGENCY_COMBAT_ENGAGING = 65;
+export const AI_URGENCY_REARM = 50;
+export const AI_URGENCY_DEPLOY_RESERVE = 55;
+export const AI_STARVATION_RATE_PER_S = 5.0;
+export const AI_STARVATION_MAX = 40.0;
+
+// Formations & Lanes
+export const AI_LANE_NORTH_Y = 22;
+export const AI_LANE_CENTER_Y = 50;
+export const AI_LANE_SOUTH_Y = 78;
+export const AI_LANE_TOLERANCE_M = 4.0;
+export const AI_WEDGE_SPACING_Y = 4.0;
+export const AI_WEDGE_ECHELON_LAG_M = 12.0;
+export const AI_BASE_DEFENSE_ARC_RADIUS_M = 26.0;
+export const AI_COURSE_PROJECT_TIME_S = 3.0;
+
 // ---- Field ------------------------------------------------------------------
 export const FIELD_LENGTH_M = 250;
 export const FIELD_WIDTH_M = 100;
@@ -94,6 +134,7 @@ export const TANK_FORWARD_SPEED_STEPS_KMH = [6, 18, 36];
 export const TANK_BACKWARD_SPEED_STEPS_KMH = [-6];
 export const TANK_SPEED_STEPS_KMH = [-6, 0, 6, 18, 36];
 export const TANK_MAX_SPEED_KMH = 36;
+export const TANK_MAX_FORWARD_KMH = 36;
 export const TANK_MAX_REVERSE_KMH = 6;
 export const SPEED_STEP_KMH = 6;
 export const TANK_LINEAR_ACCEL_MS2 = 3;

@@ -552,40 +552,104 @@ The game provides a full visual desktop keyboard layout configuration tool:
 
 When a player side is designated as **Computer** (`Human vs Computer` → Right player AI; `Computer vs Human` → Left player AI; `Computer vs Computer` → Both players AI), an autonomous AI controller operates that player's battalion:
 
-### 12.1 Core AI Capabilities
-- **Real-Time Firing Reflex:** Evaluates gun alignment and ballistic reach on every simulation step; discharges the cannon instantly when the crosshairs sweep across an enemy tank within physical reach (`dist <= SHELL_RANGE_M - 1.5m`), avoiding missed firing windows caused by coarse decision tick rates.
-- **Combat Standoff & Collision Prevention:** Enforces standoff engagement distances (26m–34m based on difficulty). Tanks actively brake and stop advancing when entering effective firing range, and reverse if closer than 16m–20m, preventing collisions or ramming into opponent tanks.
-- **Autonomous Reserve Deployment & Multi-Tank Coordination:** Detects casualties and deploys numbered spares from the hangar. Periodically cycles through all living field tanks to issue movement, aiming, and firing commands across the entire battalion.
-- **Target Selection & Ballistics:** Evaluates all active enemy tanks on the field based on distance and angular deviation to designate priority targets.
-- **Friendly Fire Prevention:** Performs line-of-fire raycast checks against friendly tanks before discharging shells to eliminate team-kills.
-- **Terrain & Hazard Avoidance:** Proactively steers around building obstacles and detects forward water pits, turning away and executing emergency braking when near pit boundaries.
-- **Obstacle Awareness:** Shell line-of-fire raycasting verifies that buildings do not obstruct the trajectory before firing, avoiding wasted munitions.
-- **Defensive Smoke & Mines:** Deploys smoke screens when ammo is low or incoming high-velocity shells are detected; places anti-tank mines when closely pursued.
-- **Tactical Rearming:** When out of shells (`shells === 0`), tanks retreat to their home gate to rearm and replenish 5 shells, 2 mines, and 2 smokes before redeploying. Meanwhile, brigade coordination switches active focus to a field tank that has ammunition.
+### 12.1 Strategic Brigade Control Architecture
 
-### 12.2 Difficulty Profiles
+The AI controller operates a three-tier command hierarchy:
+
+```
++-------------------------------------------------------------+
+|             TIER 1: BRIGADE COMMANDER                      |
+|  - Assesses global battlefield state every 0.8s             |
+|  - Selects active Brigade Strategic Plan                    |
+|  - Assigns tactical roles to all 5 brigade tanks            |
++-------------------------------------------------------------+
+                              |
+                              v
++-------------------------------------------------------------+
+|             TIER 2: TIME-SLICE DISPATCHER                   |
+|  - Urgency-Weighted Priority Dispatcher (220ms - 850ms)     |
+|  - Evaluates immediate micro-needs across all 5 tanks       |
+|  - Instantly switches selection to the most critical unit   |
++-------------------------------------------------------------+
+                              |
+                              v
++-------------------------------------------------------------+
+|             TIER 3: TACTICAL UNIT EXECUTOR                  |
+|  - Executes role-specific waypoints (Vanguard, Flanker)     |
+|  - Pre-switch Safe Cruising Course Projection (3.0s lookahead)
+|  - Aim alignment, predictive lead, reflex fire, and evasion |
++-------------------------------------------------------------+
+```
+
+### 12.2 Brigade Strategic Plans & Formations (Tier 1)
+
+The Brigade Commander dynamically switches between 4 tactical doctrines:
+- **Plan Alpha ("Pincer Envelopment", Default Offensive):**
+  - **Objective:** Flank the opponent from opposing outer corridors while pinning the center.
+  - **Tank 1 (Vanguard):** Advances along centerline ($Y \approx 50$), maintaining a conservative standoff distance ($30\text{ m}$) to pin enemy forces and attract fire.
+  - **Tanks 2 & 3 (North Flankers):** Move along upper boundary ($Y \approx 22\text{--}26$), outflanking buildings and attacking from the enemy's northern flank.
+  - **Tanks 4 & 5 (South Flankers):** Move along lower boundary ($Y \approx 74\text{--}78$), coordinating convergence upon the enemy gate.
+- **Plan Bravo ("Wedge Breach", Concentrated Assault):**
+  - **Objective:** Punch through a single sector with high-speed spearhead when enemy forces are scattered.
+  - **Spearheads (Tanks 1 & 2):** Abreast along center corridor ($Y \approx 46, 54$) cruising aggressively at top speed ($36\text{ km/h}$).
+  - **Trailing Echelons (Tanks 3 & 4):** Trailing $12\text{ m}$ behind spearhead ($Y \approx 42, 58$), providing supporting fire.
+  - **Rearguard (Tank 5):** Holding rear approach ($Y \approx 50$) to intercept counter-flanks.
+- **Plan Charlie ("Base Defense & Slit Crossfire", Defensive Retraction):**
+  - **Objective:** Defend home gate when opponent penetrates within $45\text{ m}$ of the gate (`AI_PLAN_DEFENSE_TRIGGER_DIST_M`).
+  - **Hangar Slit Sentry:** Commander switches view to active slit window, exploiting infinite munitions to suppress attackers.
+  - **Defensive Arc (Tanks 1--3):** Positioned $26\text{ m}$ out from the gateway ($Y \approx 35, 50, 65$), dropping mines in approach corridors.
+  - **Rearm Cycling (Tanks 4 & 5):** Empty tanks retreat into hangar to replenish ammunition.
+  - **Disengage:** Returns to Plan Alpha once threats are repelled past $60\text{ m}$ (`AI_PLAN_DEFENSE_CLEAR_DIST_M`).
+- **Plan Delta ("All-Out Pursuit", Exploitation):**
+  - **Objective:** Triggered when enemy tanks are out of ammunition ($\le 0.5$ average shells remaining) or heavily outnumbered ($\ge 3:1$).
+  - **Pursuit Charge:** All available units charge at full speed ($36\text{ km/h}$), cutting off escape routes to the enemy hangar.
+
+### 12.3 Urgency-Weighted Time-Slice Dispatcher (Tier 2)
+
+Replaces fixed round-robin cycling with continuous priority evaluation across all 5 brigade tanks:
+- **Urgency Score ($U_i$):**
+  $$U_i = \max(H_i, C_i, R_i) + 0.4 \cdot S_i$$
+  - **Hazards ($H_i$):** Water pit collision in $1.8\text{ s}$ path = 95; mine in path = 90; obstacle/boundary collision = 80.
+  - **Combat Opportunities ($C_i$):** Gun aimed within $8.5^\circ$ with clear LOS = 85; incoming hostile shell requiring evasion/smoke = 75; engaging enemy in range = 65.
+  - **Rearm ($R_i$):** 0 shells remaining = 50.
+  - **Starvation ($S_i$):** $+5\text{ points/second}$ since unit was last commanded (capped at 40), ensuring no tank is neglected.
+- **Micro-Slice Scheduling:**
+  - Minimum slice duration: $220\text{ ms}$ (`AI_MIN_SLICE_S`) to prevent thrashing.
+  - Maximum slice duration: $850\text{ ms}$ (`AI_MAX_SLICE_S`) to force re-evaluation.
+  - Switch threshold: switches to tank $t^*$ if $\max(U_i) - U_{\text{curr}} \ge 15$ (`AI_DISPATCH_THRESHOLD_DELTA`), or if $t^*$ faces an acute hazard ($H \ge 90$).
+
+### 12.4 Safe Cruising Course Projection (Tier 3)
+
+Because unselected tanks preserve their last commanded linear speed and turn rate indefinitely:
+- **Zero-Turn Trim:** Before deselecting a tank, the AI zeroes its turn rate (`cmdTurnDeg = 0`) to prevent unselected units from spiraling or turning erratically.
+- **3.0-Second Lookahead Trajectory:** The AI projects the tank's forward path for $3.0\text{ s}$ (`AI_COURSE_PROJECT_TIME_S`).
+  - If clear: locks stable forward cruising speed ($18$ or $36\text{ km/h}$) along its tactical lane.
+  - If a boundary, pit, building, or mine is ahead: issues an emergency stop (`STOP`, $0\text{ km/h}$) so the unattended tank waits safely until re-selected.
+
+### 12.5 Tactical Target Selection & 2D Map UI
+
+- **LOS Obstacle & Friendly Checking:** Raycasts verify that shells will not hit buildings (`segmentVsObb`) or friendly tanks before firing.
+- **Threat Weighting & Lock Hysteresis:** Target scoring evaluates distance, gun deflection angle, incoming facing threat, and applies a $+20$ stickiness bonus (`AI_TARGET_STICKINESS_BONUS`) to prevent rapid target oscillation.
+- **Organic Asymmetry & Personality Jitter:** Random phase desynchronization, decision interval jitter ($\pm 25\%$), standoff jitter ($\pm 3.5\text{ m}$), and tie-breaking noise ensure left and right AI forces behave organically without symmetric mirroring.
+- **Strategic Map Directional Target Arrows:**
+  - Thin colored arrows (`1.5px` width) drawn on the 2D map from each active unit to its locked target:
+    - Red player: `#ff5544`
+    - Blue player: `#4488ff`
+  - Rendered from the active selected tank or from the active hangar slit window. Maximum of 2 target arrows on the map at any time.
+
+### 12.6 Hangar Slit Window Tactical Defense
+
+- **Autonomous Sentry Mode:** When in slit view, scans field for enemies within $\pm 45^\circ$ FOV and up to $60\text{ m}$.
+- **Aiming & Unlimited Fire:** Tracks targets smoothly at $15\text{--}30^\circ/\text{s}$ using slit yaw steps and fires infinite defensive shells.
+- **Window Cycling & Auto-Exit:** Switches between Left and Right slit windows if threats flank the hangar, and returns to field tanks once the gate approach is secure.
+
+### 12.7 Difficulty Profiles
 - **EASY:**
-  - Reaction / decision interval: ~0.16s; brigade cycle interval: ~3.5s.
-  - Aim tolerance: ~7° direct line-of-sight aiming without predictive lead (`leadFactor: 0.0`).
-  - Fire tolerance: ~10° trigger window; only fires within `maxFireDist: 30m` (well within 62.5m shell flight range) to ensure every shot easily reaches and hits the target.
-  - Max forward speed: 18 km/h.
-  - Combat standoff: stops advancing at 22m, reverses if closer than 14m.
-  - Rearming enabled: returns to hangar when shells are depleted (`rearm: true`).
-  - Conservative countermeasure usage (`useSmoke: 0.2`, `useMines: 0.2`).
+  - Decision interval: ~0.16s; aim tolerance: ~7° without lead (`leadFactor: 0.0`); fire distance: 30m; max speed: 18 km/h; standoff: 22m; countermeasure use: 0.2.
 - **MEDIUM:**
-  - Reaction / decision interval: ~0.10s; brigade cycle interval: ~2.0s.
-  - Aim tolerance: ~4.5° with partial predictive lead calculation (`leadFactor: 0.5`).
-  - Fire tolerance: ~8° trigger window; fires within `maxFireDist: 40m`.
-  - Max forward speed: 24 km/h.
-  - Combat standoff: stops advancing at 26m, reverses if closer than 16m.
-  - Coordinates idle field tanks into battle; deploys smoke and mines tactically (`useSmoke: 0.6`, `useMines: 0.6`, `rearm: true`).
+  - Decision interval: ~0.10s; aim tolerance: ~4.5° with partial lead (`leadFactor: 0.5`); fire distance: 40m; max speed: 36 km/h; standoff: 26m; countermeasure use: 0.6.
 - **HARD:**
-  - Reaction / decision interval: ~0.05s; brigade cycle interval: ~1.2s.
-  - High precision aiming: ~3° tolerance with full predictive target velocity lead (`leadFactor: 1.0`).
-  - Fire tolerance: ~5.7° trigger window; fires within `maxFireDist: 50m`.
-  - Full top speed: 36 km/h.
-  - Combat standoff: stops advancing at 30m, reverses if closer than 18m.
-  - Aggressive multi-tank brigade maneuvers, active shell avoidance, smoke countermeasures, and relentless pursuit.
+  - Decision interval: ~0.05s; aim tolerance: ~3° with full predictive lead (`leadFactor: 1.0`); fire distance: 50m; max speed: 36 km/h; standoff: 30m; countermeasure use: 0.9; aggressive pursuit and evasive maneuvers.
 
 ---
 

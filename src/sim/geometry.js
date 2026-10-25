@@ -56,8 +56,9 @@ export function satOverlap(a, b) {
 }
 
 export function toLocal(b, px, py) {
-  const c = Math.cos(b.h);
-  const s = Math.sin(b.h);
+  const h = b.h != null ? b.h : (b.heading || 0);
+  const c = Math.cos(h);
+  const s = Math.sin(h);
   const dx = px - b.x;
   const dy = py - b.y;
   return [dx * c + dy * s, -dx * s + dy * c];
