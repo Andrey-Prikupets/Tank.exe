@@ -676,7 +676,7 @@ Because unselected tanks preserve their last commanded linear speed and turn rat
 - **MEDIUM:**
   - Decision interval: ~0.10s; aim tolerance: ~4.5° with partial lead (`leadFactor: 0.5`); fire distance: 40m; max speed: 36 km/h; standoff: 26m; countermeasure use: 0.6; blind fire threshold: $P_{\text{hit}} \ge 0.45$.
 - **HARD:**
-  - Decision interval: ~0.05s; aim tolerance: ~3° with full predictive lead (`leadFactor: 1.0`); fire distance: 50m; max speed: 36 km/h; standoff: 30m; countermeasure use: 0.9; blind fire threshold: $P_{\text{hit}} \ge 0.30$; aggressive pursuit and evasive maneuvers.
+  - Decision interval: ~0.05s; aim tolerance: ~3° with full predictive lead (`leadFactor: 1.0`); fire distance: 62.5m (maximum physical shell range); max speed: 36 km/h; standoff: 30m; countermeasure use: 0.9; blind fire threshold: $P_{\text{hit}} \ge 0.30$; aggressive pursuit and evasive maneuvers.
 
 ---
 

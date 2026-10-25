@@ -40,7 +40,7 @@ const PROFILES = {
     fireTolerance: 0.10,     // ~5.7 deg
     leadFactor: 1.0,         // full predictive lead
     maxSpeedKmh: 36,
-    maxFireDist: 50,         // fires up to 50m with predictive lead
+    maxFireDist: C.SHELL_RANGE_M, // 62.5m maximum physical shell reach
     standoffDist: 30,        // stops advancing at 30m
     minDist: 18,             // reverses if closer than 18m
     useSmoke: 0.9,
@@ -189,7 +189,7 @@ function isLineOfFireBlocked(world, owner, startX, startY, targetX, targetY, myT
 function tryFireWeapon(world, owner, tank, enemyField, profile, enemyTracker, simTime, levelName) {
   if (tank.shells <= 0 || tank.reload > 0 || enemyField.length === 0) return false;
 
-  const maxDist = Math.min(profile.maxFireDist || 30, C.SHELL_RANGE_M - 4.0);
+  const maxDist = profile.maxFireDist || C.SHELL_RANGE_M;
 
   for (const e of enemyField) {
     const smokeBlocked = isLineOfSightBlockedBySmoke(world, tank.x, tank.y, e.x, e.y);
@@ -431,7 +431,7 @@ function evaluateTankUrgency(world, owner, tank, enemyField, profile, timeSinceC
   }
 
   if (tank.shells > 0 && tank.reload <= 0 && enemyField.length > 0) {
-    const maxDist = Math.min(profile.maxFireDist || 30, C.SHELL_RANGE_M - 4.0);
+    const maxDist = profile.maxFireDist || C.SHELL_RANGE_M;
     for (const e of enemyField) {
       const smokeBlocked = isLineOfSightBlockedBySmoke(world, tank.x, tank.y, e.x, e.y);
       let targetX = e.x;
