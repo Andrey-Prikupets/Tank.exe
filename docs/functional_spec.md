@@ -237,8 +237,7 @@ Uses `KeyboardEvent.code` (layout-independent). All game keys call `preventDefau
   - Slit buttons are 25% longer (`40px × 32px`), 50% transparent, and cleanly labeled simply as **`L`** and **`R`**.
   - Slit buttons highlight in amber gold (`#ffd54a`) when active in slit observation view.
 - **50% Translucent Control Overlays:** All mobile touch control elements (unit selection ribbon, slit buttons, joystick base/knob, stop button, fire/mine/smoke buttons, top bar, and cockpit inventory frames) use 50% semi-transparent backgrounds so players maintain sight of the battlefield under control surfaces.
-- **Non-Overlapping Viewport Banners:** In-viewport system messages (`SELECT TANK`, `GAME OVER`, etc.) are lowered (`top: clamp(65px, 24%, 110px)`) to prevent overlapping the top unit selection ribbon buttons.
-- **Automatic Mobile Fullscreen:** Fullscreen presentation is automatically requested on the player's first user interaction touch gesture (`touchstart` or `pointerdown`), while also providing the manual `[⛶ FULLSCREEN]` toggle in the top bar.
+- **Automatic Mobile Fullscreen on Game Start / Resume:** In mobile mode, entering fullscreen is automatically triggered when the player presses **Start game** / **New game** or **Resume game** (trusted user gesture), delivering an immersive full-screen battlefield without browser chrome. Fullscreen automatically exits (returning to non-fullscreen) whenever the player clicks the **`[⏸ MENU]`** button or opens the pause / title menu, keeping browser controls accessible while navigating menus. The top bar also maintains a manual **`[⛶ FULLSCREEN]`** toggle.
 - **Cockpit Inventory HUD:** For both players in mobile mode, ammo shells and secondary counts are left-aligned within the inventory HUD frame.
 - **Top System Bar:** Includes quick `[⏸ MENU]` button and `[⛶ FULLSCREEN]` toggle.
 
@@ -448,7 +447,7 @@ The game launches into the **Tank.exe Title Menu**:
 **In-Game Pause Menu (`Esc`):**
 - Pauses the fixed-step simulation immediately.
 - Options:
-  1. **Resume**
+  1. **Resume game** (or **Resume**)
   2. **Save game** (choose slot 1..10)
   3. **Load game** (choose slot 1..10)
   4. **New game** (with loss confirmation)

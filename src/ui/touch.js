@@ -14,6 +14,36 @@ import * as C from '../constants.js';
  * - Hangar slit buttons [SLIT L] and [SLIT R].
  * - Top bar with [⏸ MENU] and [⛶ FULLSCREEN] buttons.
  */
+export function enterFullscreen() {
+  const el = document.documentElement;
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    const rfs =
+      el.requestFullscreen ||
+      el.webkitRequestFullscreen ||
+      el.webkitRequestFullScreen ||
+      el.mozRequestFullScreen ||
+      el.msRequestFullscreen;
+    if (rfs) {
+      rfs.call(el).catch(() => {});
+    }
+  }
+  window.scrollTo(0, 1);
+}
+
+export function exitFullscreen() {
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    const efs =
+      document.exitFullscreen ||
+      document.webkitExitFullscreen ||
+      document.webkitCancelFullScreen ||
+      document.mozCancelFullScreen ||
+      document.msExitFullscreen;
+    if (efs) {
+      efs.call(document).catch(() => {});
+    }
+  }
+}
+
 export function createTouchControls({ root, onAction, onContinuousTurn, isHumanPlayer, openMenu, sfxResume, forceMobile = false }) {
   // Check touch capability
   const isTouchCapable =
@@ -56,26 +86,18 @@ export function createTouchControls({ root, onAction, onContinuousTurn, isHumanP
     e.stopPropagation();
     e.preventDefault();
     sfxResume();
+    exitFullscreen();
     openMenu();
   });
-
-  function tryAutoFullscreen() {
-    if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-      document.documentElement.requestFullscreen().catch(() => {});
-    }
-    window.scrollTo(0, 1);
-  }
-  window.addEventListener('touchstart', tryAutoFullscreen, { once: true, passive: true });
-  window.addEventListener('pointerdown', tryAutoFullscreen, { once: true });
 
   btnFs.addEventListener('pointerdown', (e) => {
     e.stopPropagation();
     e.preventDefault();
     sfxResume();
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+      enterFullscreen();
     } else {
-      document.exitFullscreen().catch(() => {});
+      exitFullscreen();
     }
   });
 

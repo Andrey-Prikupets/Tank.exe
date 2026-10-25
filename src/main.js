@@ -8,7 +8,7 @@ import { createView3D } from './render/view3d.js';
 import { createHud } from './render/hud.js';
 import { createMenu } from './ui/menu.js';
 import { createKeyboardScreen } from './ui/keyboard_screen.js';
-import { createTouchControls } from './ui/touch.js';
+import { createTouchControls, enterFullscreen, exitFullscreen } from './ui/touch.js';
 import { Sfx } from './audio/sfx.js';
 import { AiController } from './sim/ai.js';
 import historyRu from './history/history_ru.html?raw';
@@ -252,6 +252,9 @@ const touch = createTouchControls({
   isHumanPlayer: (p) => !isAiPlayer(p),
   openMenu: () => {
     if (appState === 'PLAYING') {
+      if (touch.isEnabled()) {
+        exitFullscreen();
+      }
       input.clear();
       openPause();
     }
@@ -499,6 +502,9 @@ function confirmScreen(text, onYes) {
 }
 
 function newGame() {
+  if (touch.isEnabled()) {
+    enterFullscreen();
+  }
   world = createWorld(options);
   world.isAiPlayer = isAiPlayer;
   aiControllers.forEach((c) => c.reset());
@@ -511,6 +517,9 @@ function newGame() {
 }
 
 function openTitle() {
+  if (touch.isEnabled()) {
+    exitFullscreen();
+  }
   appState = 'TITLE';
   menu.clear();
   dirty = true;
@@ -531,18 +540,24 @@ function openTitle() {
 }
 
 function resume() {
+  if (touch.isEnabled()) {
+    enterFullscreen();
+  }
   menu.clear();
   input.clear();
   dirty = true;
 }
 
 function openPause() {
+  if (touch.isEnabled()) {
+    exitFullscreen();
+  }
   dirty = true;
   menu.push({
     title: C.GAME_NAME,
     text: '<div class="center">Game is paused</div>',
     items: () => [
-      { label: 'Resume', action: resume },
+      { label: 'Resume game', action: resume },
       { label: 'Save game', action: () => menu.push(saveScreen()) },
       { label: 'Load game', action: () => menu.push(loadScreen()) },
       {
