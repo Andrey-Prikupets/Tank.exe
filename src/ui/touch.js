@@ -59,6 +59,15 @@ export function createTouchControls({ root, onAction, onContinuousTurn, isHumanP
     openMenu();
   });
 
+  function tryAutoFullscreen() {
+    if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+    window.scrollTo(0, 1);
+  }
+  window.addEventListener('touchstart', tryAutoFullscreen, { once: true, passive: true });
+  window.addEventListener('pointerdown', tryAutoFullscreen, { once: true });
+
   btnFs.addEventListener('pointerdown', (e) => {
     e.stopPropagation();
     e.preventDefault();
@@ -73,14 +82,14 @@ export function createTouchControls({ root, onAction, onContinuousTurn, isHumanP
   // SVG Icons
   const SHELL_ICON_SVG = `
     <svg viewBox="0 0 24 32" class="touch-svg-icon" width="22" height="30">
-      <path d="M12 2 C8 7 7 12 7 24 L17 24 C17 12 16 7 12 2 Z" fill="#ffd54a" stroke="#fff" stroke-width="1.2" />
-      <rect x="6.5" y="24" width="11" height="5" rx="1" fill="#c99818" stroke="#fff" stroke-width="1.2" />
+      <path d="M12 2 C8 7 7 12 7 24 L17 24 C17 12 16 7 12 2 Z" fill="#ffd54a" stroke="#000" stroke-width="1.3" />
+      <rect x="6.5" y="24" width="11" height="5" rx="1" fill="#c99818" stroke="#000" stroke-width="1.3" />
     </svg>
   `;
 
   const MINE_ICON_SVG = `
     <svg viewBox="0 0 28 28" class="touch-svg-icon" width="22" height="22">
-      <ellipse cx="14" cy="15" rx="10" ry="7" fill="#8a8a3a" stroke="#fff" stroke-width="1.2"/>
+      <ellipse cx="14" cy="15" rx="10" ry="7" fill="#8a8a3a" stroke="#000" stroke-width="1.4"/>
       <ellipse cx="14" cy="13" rx="7" ry="4.5" fill="#ffd54a"/>
       <ellipse cx="14" cy="11.5" rx="4" ry="2.5" fill="#3a1010"/>
       <circle cx="14" cy="11.5" r="1.5" fill="#ff7060"/>
@@ -89,7 +98,7 @@ export function createTouchControls({ root, onAction, onContinuousTurn, isHumanP
 
   const SMOKE_ICON_SVG = `
     <svg viewBox="0 0 28 28" class="touch-svg-icon" width="22" height="22">
-      <path d="M14 6 C10 6 7.5 9 8 13 C5.5 13.5 4 16 5 19 C6 22 9 23 12 23 C14 23 16 22 17 21 C19 22 22 21 23 19 C24.5 16 23 13 21 12 C21.5 9.5 19 6.5 15.5 6 C15 6 14.5 6 14 6 Z" fill="#b8b8b8" stroke="#fff" stroke-width="1.2"/>
+      <path d="M14 6 C10 6 7.5 9 8 13 C5.5 13.5 4 16 5 19 C6 22 9 23 12 23 C14 23 16 22 17 21 C19 22 22 21 23 19 C24.5 16 23 13 21 12 C21.5 9.5 19 6.5 15.5 6 C15 6 14.5 6 14 6 Z" fill="#b8b8b8" stroke="#000" stroke-width="1.4"/>
     </svg>
   `;
 
@@ -168,7 +177,7 @@ export function createTouchControls({ root, onAction, onContinuousTurn, isHumanP
         e.stopPropagation();
         e.preventDefault();
         sfxResume();
-        const n = parseInt(btn.dataset.tank, 10);
+        const n = String(btn.dataset.tank);
         onAction(player, 'SELECT', n);
       });
     });

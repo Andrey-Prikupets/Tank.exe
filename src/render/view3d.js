@@ -10,7 +10,7 @@ export function createView3D(canvas) {
     canvas,
     antialias: false,
     powerPreference: 'high-performance',
-    precision: 'mediump',
+    precision: 'highp',
     depth: true,
     stencil: false,
   });
@@ -32,13 +32,17 @@ export function createView3D(canvas) {
   // ---- static world ----
   const L = C.FIELD_LENGTH_M;
   const W = C.FIELD_WIDTH_M;
-  const field = new THREE.Mesh(new THREE.PlaneGeometry(L, W), mat(C.COLOR_FIELD));
+  const fieldMat = mat(C.COLOR_FIELD);
+  fieldMat.polygonOffset = true;
+  fieldMat.polygonOffsetFactor = -2;
+  fieldMat.polygonOffsetUnits = -4;
+  const field = new THREE.Mesh(new THREE.PlaneGeometry(L, W), fieldMat);
   field.rotation.x = -Math.PI / 2;
   field.position.set(L / 2, 0, W / 2);
   scene.add(field);
   const outside = new THREE.Mesh(new THREE.PlaneGeometry(L * 4, W * 8), mat(C.COLOR_OUTSIDE));
   outside.rotation.x = -Math.PI / 2;
-  outside.position.set(L / 2, -0.05, W / 2);
+  outside.position.set(L / 2, -1.0, W / 2);
   scene.add(outside);
 
   const wallMat = mat(C.COLOR_BORDER);

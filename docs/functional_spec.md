@@ -105,12 +105,10 @@
 |            |   mines, smoke, gates, windows)           |            |
 +--------------------------------+--------------------------------+
 |                                |                                |
-|      LEFT PLAYER 3D VIEW       |      RIGHT PLAYER 3D VIEW      |   ~50%
+|      LEFT PLAYER 3D VIEW       |      RIGHT PLAYER 3D VIEW      |   ~52%
 |         (+ crosshair)          |         (+ crosshair)          |
 |  [Rounded Inventory (Left)]    |   [Rounded Inventory (Right)]  |
 +--------------------------------+--------------------------------+
-|  [Debug strip: Speed / Turn telemetry - hidden or low-contrast] |   ~2%
-+-----------------------------------------------------------------+
 ```
 
 - Map keeps the field aspect ratio 2.5:1 (plus hangar margins), letter-boxed if needed.
@@ -145,6 +143,7 @@
   explosions (expanding orange/yellow spheres + debris boxes).
 - **Smoke Cloud Visibility:** When inside a smoke cloud, visible distance is restricted to ~2m; visibility gradually decreases to zero at 2m via dense distance fog.
 - The view may show own-tank barrel tip at the bottom-center for orientation.
+- **Slit Window Depth Stability:** Ground plane rendering uses high WebGL depth precision (`highp`), polygon offset on the combat arena floor, and a recessed outside terrain elevation (`y = -1.0m`) to prevent z-fighting flicker when viewing grazing angles through hangar slit apertures.
 
 ### 4.3 In-Viewport Rounded Inventory Overlay
 
@@ -161,8 +160,7 @@ The inventory is rendered **not** as a separate text table under the viewport, b
   - **Smoke Clouds:** Non-symmetric organic billowing cloud silhouette embedded within a 1:1 square icon frame.
   - **No text labels:** Words such as `AMMO`, `MINES`, `SMOKE`, `RED`, or `BLUE` are strictly omitted.
   - **No tank numbers** in the inventory frame.
-- **Debug Indicators:**
-  - `SPEED` and `TURN` telemetry are debug indicators and are removed from the player's cockpit overlay, moved to a subtle, unobtrusive debug bar at the very bottom of the screen.
+- **Bottom Screen Telemetry Removed:** Bottom debug strip telemetry is omitted to dedicate maximum vertical viewport height to the 3D battlefield.
 
 Inventory is **per tank**.
 
@@ -230,14 +228,17 @@ Uses `KeyboardEvent.code` (layout-independent). All game keys call `preventDefau
     - Pushing UP past deadzone steps speed forward (and repeats every `KEY_REPEAT_MS`, matching `W` / `↑`).
     - If a reserve tank in the hangar is selected, pushing UP deploys the tank into the field.
     - Pulling DOWN past deadzone steps speed backward / reverse (matching `S` / `↓`).
-- **Quick Brake / Stop Button (`[STOP]`):** Fully opaque dark red button, 25% wider (`58px` wide), instantly zeroes commanded speed (`0 km/h`) and commanded turn (`0°/s`).
+- **Quick Brake / Stop Button (`[STOP]`):** Semi-transparent dark red button (50% opacity, `58px` wide), instantly zeroes commanded speed (`0 km/h`) and commanded turn (`0°/s`).
 - **Ergonomic Tactical Weapons Cluster:**
-  - Top row: Secondary tactical **`[MINE]`** and **`[SMOKE]`** buttons.
+  - Top row: Secondary tactical **`[MINE]`** and **`[SMOKE]`** buttons with 50% transparent backgrounds and sharp black icon outlines (`stroke="#000"`) for high contrast against terrain.
   - Bottom row: Primary **`[FIRE]`** (ammo shell) button positioned below secondary weapons, closest to the player's thumb coming up from the bottom of the device for effortless rapid firing.
 - **Unified Unit Selection & Hangar Slit Ribbon:**
-  - Tank buttons `[1]` through `[5]` feature fully opaque backgrounds (`#141a17`) with crisp, bold digits. When selected, the active tank button highlights in amber gold (`border-color: #ffd54a`, `background: #3e3212`, `color: #ffd54a`, `box-shadow: 0 0 10px rgba(255, 213, 74, 0.6)`), matching the slit button active highlight color.
-  - Slit buttons are 25% longer (`40px × 32px`), fully opaque, and cleanly labeled simply as **`L`** and **`R`**.
+  - Tank buttons `[1]` through `[5]` feature 50% transparent backgrounds (`rgba(20, 26, 23, 0.5)`) with crisp, bold digits. When selected, the active tank button highlights in amber gold (`border-color: #ffd54a`, `background: rgba(62, 50, 18, 0.5)`, `color: #ffd54a`, `box-shadow: 0 0 10px rgba(255, 213, 74, 0.6)`), matching the slit button active highlight color.
+  - Slit buttons are 25% longer (`40px × 32px`), 50% transparent, and cleanly labeled simply as **`L`** and **`R`**.
   - Slit buttons highlight in amber gold (`#ffd54a`) when active in slit observation view.
+- **50% Translucent Control Overlays:** All mobile touch control elements (unit selection ribbon, slit buttons, joystick base/knob, stop button, fire/mine/smoke buttons, top bar, and cockpit inventory frames) use 50% semi-transparent backgrounds so players maintain sight of the battlefield under control surfaces.
+- **Non-Overlapping Viewport Banners:** In-viewport system messages (`SELECT TANK`, `GAME OVER`, etc.) are lowered (`top: clamp(65px, 24%, 110px)`) to prevent overlapping the top unit selection ribbon buttons.
+- **Automatic Mobile Fullscreen:** Fullscreen presentation is automatically requested on the player's first user interaction touch gesture (`touchstart` or `pointerdown`), while also providing the manual `[⛶ FULLSCREEN]` toggle in the top bar.
 - **Cockpit Inventory HUD:** For both players in mobile mode, ammo shells and secondary counts are left-aligned within the inventory HUD frame.
 - **Top System Bar:** Includes quick `[⏸ MENU]` button and `[⛶ FULLSCREEN]` toggle.
 

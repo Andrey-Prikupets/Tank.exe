@@ -58,7 +58,6 @@ export function createHud() {
   const invPanels = [document.getElementById('inv0'), document.getElementById('inv1')];
   const panes = [document.getElementById('pane0'), document.getElementById('pane1')];
   const banners = [document.getElementById('banner0'), document.getElementById('banner1')];
-  const debugEls = [document.getElementById('debug0'), document.getElementById('debug1')];
   let last = 0;
 
   // Initialize inventory DOM once
@@ -68,7 +67,6 @@ export function createHud() {
   const lastCounts = [{ shells: -1, mines: -1, smokes: -1 }, { shells: -1, mines: -1, smokes: -1 }];
   const lastBanners = ['', ''];
   const lastIsWin = [false, false];
-  const lastDebug = ['', ''];
 
   for (const p of [0, 1]) {
     const shellsHtml = Array.from({ length: C.TANK_START_SHELLS }, () => shellSvg(false)).join('');
@@ -160,19 +158,6 @@ export function createHud() {
       if (force || prev.smokes !== smokeCount) {
         updateIcons(smokeSvgs[p], smokeCount, prev.smokes);
         prev.smokes = smokeCount;
-      }
-
-      if (debugEls[p]) {
-        const sp = t && t.status === 'field' ? Math.round(C.msToKmh(t.speed)) : 0;
-        const trn = t && t.status === 'field' ? Math.round(C.radToDeg(t.turn)) : 0;
-        const res = hangarCount(world, p);
-        const debugStr = p === 0
-          ? `[DEBUG] P1: ${sp} km/h · ${trn}°/s · RESERVES: ${res} · LOST: ${pl.lost}/15`
-          : `[DEBUG] P2: ${sp} km/h · ${trn}°/s · RESERVES: ${res} · LOST: ${pl.lost}/15`;
-        if (debugStr !== lastDebug[p] || force) {
-          debugEls[p].textContent = debugStr;
-          lastDebug[p] = debugStr;
-        }
       }
     }
   }

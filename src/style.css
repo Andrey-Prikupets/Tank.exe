@@ -22,7 +22,7 @@ html, body {
   position: relative;
   height: 100vh;
   display: grid;
-  grid-template-rows: minmax(0, 48fr) minmax(0, 52fr) 24px;
+  grid-template-rows: minmax(0, 48fr) minmax(0, 52fr);
 }
 #mapWrap {
   position: relative;
@@ -112,7 +112,7 @@ html, body {
   position: absolute;
   left: 0;
   right: 0;
-  top: 14%;
+  top: clamp(65px, 24%, 110px);
   text-align: center;
   font-size: clamp(14px, 1.8vw, 24px);
   color: var(--accent);
@@ -133,7 +133,7 @@ html, body {
   flex-direction: column;
   gap: 3px;
   padding: 4px 7px;
-  background: rgba(8, 13, 10, 0.82);
+  background: rgba(8, 13, 10, 0.5);
   border: 1px solid rgba(255, 213, 74, 0.32);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -1100,7 +1100,7 @@ html, body {
 }
 .touch-bar-btn {
   pointer-events: auto;
-  background: rgba(12, 18, 14, 0.78);
+  background: rgba(12, 18, 14, 0.5);
   border: 1px solid rgba(255, 213, 74, 0.45);
   border-radius: 6px;
   color: var(--accent);
@@ -1171,7 +1171,7 @@ html, body {
   width: 32px;
   height: 32px;
   border-radius: 6px;
-  background: #141a17; /* fully opaque */
+  background: rgba(20, 26, 23, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.28);
   color: var(--text);
   font-family: inherit;
@@ -1193,7 +1193,7 @@ html, body {
 #pane0 .touch-tank-btn.selected,
 #pane1 .touch-tank-btn.selected {
   border-color: #ffd54a;
-  background: #3e3212;
+  background: rgba(62, 50, 18, 0.5);
   color: #ffd54a;
   box-shadow: 0 0 10px rgba(255, 213, 74, 0.6);
 }
@@ -1225,12 +1225,12 @@ html, body {
   pointer-events: none;
 }
 
-/* Slit buttons (25% longer: 40px x 32px, fully opaque, simple L and R) */
+/* Slit buttons (25% longer: 40px x 32px, 50% transparent, simple L and R) */
 .touch-slit-btn {
   width: 40px;
   height: 32px;
   border-radius: 6px;
-  background: #141a17; /* fully opaque */
+  background: rgba(20, 26, 23, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.28);
   color: var(--text);
   font-family: inherit;
@@ -1249,7 +1249,7 @@ html, body {
 }
 .touch-slit-btn.active {
   border-color: #ffd54a;
-  background: #3e3212;
+  background: rgba(62, 50, 18, 0.5);
   color: #ffd54a;
   box-shadow: 0 0 10px rgba(255, 213, 74, 0.6);
 }
@@ -1284,7 +1284,7 @@ html, body {
   width: 92px;
   height: 92px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(16, 24, 20, 0.88) 0%, rgba(8, 12, 10, 0.96) 100%);
+  background: radial-gradient(circle, rgba(16, 24, 20, 0.5) 0%, rgba(8, 12, 10, 0.5) 100%);
   border: 2px solid rgba(255, 255, 255, 0.25);
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.7), inset 0 0 12px rgba(0, 0, 0, 0.6);
   position: relative;
@@ -1328,7 +1328,7 @@ html, body {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #444c44 0%, #202622 100%);
+  background: linear-gradient(135deg, rgba(68, 76, 68, 0.5) 0%, rgba(32, 38, 34, 0.5) 100%);
   border: 2px solid #ffd54a;
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.8), inset 0 1px 2px rgba(255, 255, 255, 0.3);
   pointer-events: none;
@@ -1341,7 +1341,7 @@ html, body {
   box-shadow: 0 0 14px rgba(255, 213, 74, 0.85);
 }
 
-/* Quick Brake / Stop button (opaque, 25% wider) */
+/* Quick Brake / Stop button (50% transparent, 25% wider) */
 .touch-btn-stop {
   font-family: inherit;
   font-size: 11px;
@@ -1351,7 +1351,7 @@ html, body {
   height: 26px;
   padding: 4px 12px;
   border-radius: 4px;
-  background: #4a1512; /* fully opaque */
+  background: rgba(74, 21, 18, 0.5);
   border: 1.5px solid #d94236;
   color: #ff9d94;
   cursor: pointer;
@@ -1396,7 +1396,7 @@ html, body {
 .touch-btn-fire {
   width: 58px;
   height: 58px;
-  background: radial-gradient(circle, rgba(255, 213, 74, 0.28) 0%, rgba(30, 24, 10, 0.9) 100%);
+  background: radial-gradient(circle, rgba(255, 213, 74, 0.25) 0%, rgba(30, 24, 10, 0.5) 100%);
   border: 2px solid #ffd54a;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 12px rgba(255, 213, 74, 0.35);
 }
@@ -1413,7 +1413,7 @@ html, body {
 .touch-btn-smoke {
   width: 42px;
   height: 42px;
-  background: rgba(16, 22, 18, 0.85);
+  background: rgba(16, 22, 18, 0.5);
   border: 1.5px solid rgba(255, 255, 255, 0.3);
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
 }

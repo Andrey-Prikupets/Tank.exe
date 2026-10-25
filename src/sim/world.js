@@ -146,7 +146,7 @@ export function createWorld(options = {}) {
 // Queries
 // ---------------------------------------------------------------------------
 export const tankByNumber = (world, owner, num) =>
-  world.tanks.find((t) => t.owner === owner && t.number === num && t.status !== 'dead') || null;
+  world.tanks.find((t) => t.owner === owner && String(t.number) === String(num) && t.status !== 'dead') || null;
 
 export const selectedTank = (world, p) => {
   const pl = world.players[p];
