@@ -1,6 +1,6 @@
 import * as C from '../constants.js';
 import { segmentVsObb, toLocal } from './geometry.js';
-import { gateX, inwardDir, applyAction } from './world.js';
+import { gateX, inwardDir, windowY, applyAction } from './world.js';
 
 // =============================================================================
 // NAVIGATION & PATHFINDING CONSTANTS
@@ -213,9 +213,95 @@ export function predictTargetCurvilinear(target, dt) {
 }
 
 /**
- * Computes optimal tactical attack standoff vantage position outside enemy's forward gun arc.
+ * Returns true if (x, y) is inside the lethal firing sector of the enemy base slit guns.
+ * For enemy base at gateX(enemyOwner):
+ * - Slit windows are at y=42 and y=58. Firing range is up to 55m into the field.
+ * - Direct frontal corridor y in [39, 61] within 45m is heavily dangerous.
+ * - 45-degree yaw cones from each window extend to [42 - dx*0.95, 42 + dx*0.95] and [58 - dx*0.95, 58 + dx*0.95].
+ * - Lateral positions hugging the wall (dx in [5, 14], y <= 35 or y >= 65) are SAFE outside the traverse arc.
+ */
+export function isInEnemySlitGunSector(x, y, enemyOwner) {
+  const gx = gateX(enemyOwner);
+  const dir = enemyOwner === 0 ? 1 : -1;
+  const dx = (x - gx) * dir; // distance into field from enemy wall
+
+  if (dx < 1.5 || dx > 55.0) return false;
+
+  // Direct frontal gate channel is deadly for any approach
+  if (dx <= 45.0 && y >= 39.0 && y <= 61.0) {
+    return true;
+  }
+
+  // 45 degree yaw cones from both slit windows (y=42, 58)
+  const inWin0Cone = y >= 42.0 - dx * 0.95 && y <= 42.0 + dx * 0.95;
+  const inWin1Cone = y >= 58.0 - dx * 0.95 && y <= 58.0 + dx * 0.95;
+
+  return inWin0Cone || inWin1Cone;
+}
+
+/**
+ * Computes safe tactical gate ambush coordinates outside the enemy slit gun sector,
+ * with gun orientation aimed directly across the gate doorway to eliminate outgoing tanks.
+ */
+export function getGateAmbushPose(tank, owner, preferredFlank = 'AUTO') {
+  const enemyOwner = 1 - owner;
+  const gx = gateX(enemyOwner);
+  const dir = enemyOwner === 0 ? 1 : -1;
+
+  let useNorth = false;
+  if (preferredFlank === 'NORTH') {
+    useNorth = true;
+  } else if (preferredFlank === 'SOUTH') {
+    useNorth = false;
+  } else {
+    useNorth = tank.y < C.GATE_CENTER_Y_M;
+  }
+
+  // Ambush post: 8.5m into field from enemy wall, y=33.0 (North) or y=67.0 (South)
+  // This is strictly outside the 45-degree traverse cone of both slit guns (y=42, 58)
+  const ambushX = gx + dir * 8.5;
+  const ambushY = useNorth ? 33.0 : 67.0;
+
+  // Outgoing enemy tanks emerge at gate threshold (gx + dir * 3.0, 50.0)
+  const doorwayAimX = gx + dir * 3.0;
+  const doorwayAimY = C.GATE_CENTER_Y_M;
+  const aimHeading = Math.atan2(doorwayAimY - ambushY, doorwayAimX - ambushX);
+
+  const distToAmbush = Math.hypot(ambushX - tank.x, ambushY - tank.y);
+  const isAtAmbush = distToAmbush < 3.5;
+
+  return {
+    targetX: ambushX,
+    targetY: ambushY,
+    doorwayAimX,
+    doorwayAimY,
+    aimHeading,
+    isAtAmbush,
+    flank: useNorth ? 'NORTH' : 'SOUTH',
+  };
+}
+
+/**
+ * Computes optimal tactical attack standoff vantage position outside enemy's forward gun arc
+ * and strictly outside enemy hangar slit gun firing cones.
  */
 export function getAttackStandoffWaypoint(tank, target, world, profile, simTime = 0) {
+  const enemyOwner = 1 - tank.owner;
+  const enemyGate = gateX(enemyOwner);
+  const distToEnemyGate = Math.abs(target.x - enemyGate);
+
+  // If target is inside enemy hangar or emerging near gate: take up gate ambush position!
+  if (distToEnemyGate <= 20.0 || target.x < 0 || target.x > C.FIELD_LENGTH_M) {
+    const ambushPose = getGateAmbushPose(tank, tank.owner);
+    return {
+      x: ambushPose.targetX,
+      y: ambushPose.targetY,
+      predTarget: target,
+      isGateAmbush: true,
+      aimHeading: ambushPose.aimHeading,
+    };
+  }
+
   const dist = Math.hypot(target.x - tank.x, target.y - tank.y);
   const mySpeed = Math.max(4, Math.abs(tank.speed));
   const tIntercept = Math.min(3.0, dist / (mySpeed + Math.max(1, Math.abs(target.speed))));
@@ -245,6 +331,11 @@ export function getAttackStandoffWaypoint(tank, target, world, profile, simTime 
 
     // Field bounds check
     if (wx < 8 || wx > C.FIELD_LENGTH_M - 8 || wy < 8 || wy > C.FIELD_WIDTH_M - 8) {
+      continue;
+    }
+
+    // Do NOT select standoff positions inside the enemy slit gun sector!
+    if (isInEnemySlitGunSector(wx, wy, enemyOwner)) {
       continue;
     }
 
@@ -441,6 +532,7 @@ export function evaluateKinematicTrajectoryArcs(
 
       let lethalCollision = false;
       let houseContactCount = 0;
+      let enemySlitSectorContact = 0;
       let minFriendlyDist = Infinity;
       let minEnemyDist = Infinity;
 
@@ -496,6 +588,11 @@ export function evaluateKinematicTrajectoryArcs(
             if (dOther < minEnemyDist) minEnemyDist = dOther;
           }
         }
+
+        // 3. Enemy Slit Gun Hit Sector Avoidance (when not entering own gate)
+        if (!isDoorwayMode && isInEnemySlitGunSector(simX, simY, 1 - tank.owner)) {
+          enemySlitSectorContact++;
+        }
       }
 
       // Hard lethal hazards: instant rejection!
@@ -511,6 +608,9 @@ export function evaluateKinematicTrajectoryArcs(
 
       // Soft house contact penalty: allowed, but penalized proportionally
       const housePenalty = houseContactCount * 18.0;
+
+      // Enemy slit gun hit sector avoidance penalty
+      const enemySlitPenalty = enemySlitSectorContact * 45.0;
 
       // Progress to target
       const endDist = Math.hypot(targetWaypoint.x - simX, targetWaypoint.y - simY);
@@ -542,6 +642,7 @@ export function evaluateKinematicTrajectoryArcs(
         noise -
         housePenalty -
         friendlyPenalty -
+        enemySlitPenalty -
         turnEffort;
 
       if (totalScore > bestScore) {

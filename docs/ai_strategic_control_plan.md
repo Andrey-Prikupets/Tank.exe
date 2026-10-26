@@ -125,12 +125,12 @@ Before the dispatcher switches selection away from Tank $A$ to Tank $B$, it must
   - Obstacle LOS checking, threat weighting, lock hysteresis, and tie-breaking noise.
   - Strategic map UI: 2 thin directional arrows from active units to locked targets.
   - Hangar slit window aiming and defensive firing.
-- [ ] **Phase 2: Urgency-Weighted Time-Slice Dispatcher:**
+- [x] **Phase 2: Urgency-Weighted Time-Slice Dispatcher (Completed):**
   - Implement urgency scoring across all 5 brigade tanks.
   - Replace static cyclic timeout with priority-based micro-switching.
-- [ ] **Phase 3: Formation & Role Assignment Engine:**
+- [x] **Phase 3: Formation & Role Assignment Engine (Completed):**
   - Implement North/South Flanker, Vanguard, and Anchor tactical roles.
   - Implement stable cruising course projection for unselected tanks.
-- [ ] **Phase 4: Commander Strategic State Machine:**
+- [x] **Phase 4: Commander Strategic State Machine (Completed):**
   - Implement real-time plan switching (Pincer, Wedge, Base Defense, Pursuit).
   - Telemetry monitoring for casualty rates, penetration threats, and ammunition levels.

@@ -7,6 +7,8 @@ import {
   COST_LETHAL,
   predictTargetCurvilinear,
   getAttackStandoffWaypoint,
+  getGateAmbushPose,
+  isInEnemySlitGunSector,
   GateReservationManager,
   getGateCorridorPose,
   evaluateKinematicTrajectoryArcs,
@@ -188,6 +190,63 @@ console.log('Testing Trajectory Evaluator: Hazard Rejection & Fleet Coordination
   assert.ok(evalWithTeammate.bestTurnDeg > 0, 'Evaluator turns South (+turn / +Y) to avoid friendly tank at North');
 
   console.log('✔ Trajectory Evaluator: Lethal pit rejected, friendly tank avoided, high-speed cruise maintained.');
+}
+
+// =============================================================================
+// TEST 5: Enemy Slit Gun Hit Sector Avoidance & Safe Gate Ambush Geometry
+// =============================================================================
+console.log('Testing Slit Gun Sector Avoidance & Tactical Gate Ambush Posture...');
+{
+  const enemyOwner = 1; // Blue base at X = 250, gate Y = 50
+
+  // 1. Frontal gate corridor inside firing sector
+  assert.strictEqual(
+    isInEnemySlitGunSector(240, 50, enemyOwner),
+    true,
+    'Frontal position (240, 50) must be inside enemy slit gun sector',
+  );
+  assert.strictEqual(
+    isInEnemySlitGunSector(220, 50, enemyOwner),
+    true,
+    'Mid-range frontal position (220, 50) must be inside enemy slit gun sector',
+  );
+
+  // 2. Tactical Gate Ambush Posts (outside 45-degree slit gun traverse cone)
+  const ambushNorth = getGateAmbushPose({ x: 200, y: 25 }, 0, 'NORTH');
+  const ambushSouth = getGateAmbushPose({ x: 200, y: 75 }, 0, 'SOUTH');
+
+  assert.strictEqual(
+    isInEnemySlitGunSector(ambushNorth.targetX, ambushNorth.targetY, enemyOwner),
+    false,
+    'North Gate Ambush post (Y=33) must be outside slit gun firing sector',
+  );
+  assert.strictEqual(
+    isInEnemySlitGunSector(ambushSouth.targetX, ambushSouth.targetY, enemyOwner),
+    false,
+    'South Gate Ambush post (Y=67) must be outside slit gun firing sector',
+  );
+
+  // 3. Ambush orientation aimed across gate doorway threshold
+  assert.strictEqual(ambushNorth.doorwayAimY, C.GATE_CENTER_Y_M, 'Ambush aims at doorway center Y=50');
+  assert.ok(
+    ambushNorth.aimHeading > 0.8 && ambushNorth.aimHeading < 1.5,
+    'North ambush heading points down-right (+Y, +heading) toward doorway entrance',
+  );
+
+  // 4. Standoff waypoint redirection: target in enemy gate redirects to safe ambush post
+  const mockTank = { id: 1, owner: 0, x: 210, y: 30, speed: 10, heading: 0 };
+  const targetInGate = { x: 248, y: 50, speed: 0, heading: Math.PI };
+  const mockWorld = { obstacles: [], pits: [] };
+  const attackWp = getAttackStandoffWaypoint(mockTank, targetInGate, mockWorld, { standoffDist: 26 });
+
+  assert.strictEqual(attackWp.isGateAmbush, true, 'Target near gate redirects to tactical gate ambush');
+  assert.strictEqual(
+    isInEnemySlitGunSector(attackWp.x, attackWp.y, enemyOwner),
+    false,
+    'Gate ambush standoff waypoint must be outside enemy slit gun sector',
+  );
+
+  console.log('✔ Slit Gun Avoidance: Lethal frontal sector rejected; safe North/South ambush posts verified.');
 }
 
 console.log('\nALL NAV UNIT TESTS PASSED SUCCESSFULLY! ✔✔✔\n');

@@ -823,12 +823,21 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 - **Friendly Safe Cruising Trim:**
   - Trajectory projection during time-slice selection switching checks for teammates ahead in the lane, issuing a stop command if a teammate is within the forward lookahead distance to prevent unselected tanks from cruising into friendlies.
 - **Organic Asymmetry & Bounded Control Iterations:**
-  - Trajectory evaluation incorporates per-tank personality bias ($\sin(\text{id} \cdot 1.7 \pm 1.35 + t \cdot 0.45)$) and stochastic tie-breaking noise, breaking CvC mirror symmetry and ensuring over 70% trajectory variance between opposing vanguards.
+  - Trajectory evaluation incorporates per-tank personality bias ($\sin(\text{id} \cdot 1.7 \pm 1.35 + t \cdot 0.45)$) and stochastic tie-breaking noise, breaking CvC mirror symmetry and ensuring over 90% trajectory variance between opposing brigades.
   - Command adjustments (`applyKinematicCommands`, `applySafeCruisingTrim`) clamp target turn rates to speed-dependent vehicle limits and bound execution to at most 6 step iterations, eliminating infinite loops or UI thread freezes.
+- **Lateral Gate Flank Approach & Vertical Map Descent:**
+  - When advancing towards the enemy base, tanks avoid the lethal central frontal corridor ($Y \in [39, 61]$ within $45\text{ m}$ of the enemy wall) covered by the base slit guns (`isInEnemySlitGunSector`).
+  - Attacking units advance along the North ($Y \approx 22\text{--}26\text{ m}$) or South ($Y \approx 74\text{--}78\text{ m}$) flank corridors until within $18\text{ m}$ of the enemy end wall, then execute a 90° vertical maneuver on the map (heading Southward along $+Y$ from North, or Northward along $-Y$ from South) to reach tactical ambush posts.
+- **Tactical Gate Ambush & Outgoing Intercept:**
+  - Ambush posts are positioned at $X = X_{\text{gate}} \mp 8.5\text{ m}$, $Y = 33.0\text{ m}$ (North post) and $Y = 67.0\text{ m}$ (South post), outside the 45° traverse limit of both hangar slit guns.
+  - Ambush tanks hold position with zero commanded speed and guns pre-aimed across the doorway threshold ($(X_{\text{gate}} \mp 3.0, 50.0)$), prioritizing outgoing enemy tanks to destroy them immediately upon exiting the hangar.
+- **Asymmetric Brigade Doctrines:**
+  - Opposing brigades randomly roll independent tactical doctrines (`NORTH_SWEEP`, `SOUTH_SWEEP`, `PINCER_AMBUSH`, `SPEARHEAD_WEDGE`, `ASYMMETRIC_SPLIT`), assigning varied roles (`NORTH_GATE_AMBUSH`, `SOUTH_GATE_AMBUSH`, `VANGUARD`, flankers, and sentries).
+  - Individual tank cruising speeds (27 to 36 km/h on HARD) and staggered mobilization delays (0.0 to 2.0s) spread out the brigade into dynamic echelons, completely eliminating mirror symmetry.
 
 ### 15.10 Test Harness (`test.cmd` & `test/run_tests.js`)
 - Fixed batch command `.\test.cmd` executing `node test/run_tests.js` without dynamic arguments.
-- Executes unit test suites (`test/test_nav.js`) covering cost grid differentiation, curvilinear prediction, gate reservation, and trajectory rollout, alongside end-to-end CvC 60Hz physics simulations (`test/test_ai_integration.js`).
+- Executes unit test suites (`test/test_nav.js`) covering cost grid differentiation, curvilinear prediction, gate reservation, trajectory rollout, and slit gun sector avoidance/ambush geometry, alongside end-to-end CvC 60Hz physics simulations (`test/test_ai_integration.js`).
 
 ---
 

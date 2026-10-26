@@ -5,6 +5,8 @@ import {
   NavigationGrid,
   getAttackStandoffWaypoint,
   getGateCorridorPose,
+  getGateAmbushPose,
+  isInEnemySlitGunSector,
   evaluateKinematicTrajectoryArcs,
   applyKinematicCommands,
   gateReservationManager,
@@ -254,45 +256,100 @@ function tryFireWeapon(world, owner, tank, enemyField, profile, enemyTracker, si
   return false;
 }
 
-/** Assigns brigade formation roles across friendly field tanks. */
-function assignBrigadeRoles(myField, plan) {
-  const sorted = [...myField].sort((a, b) => a.id - b.id);
+export const BRIGADE_DOCTRINES = [
+  'NORTH_SWEEP',     // Heavy North concentration (2-3 tanks), 1 vanguard, 1 gate lurker
+  'SOUTH_SWEEP',     // Heavy South concentration (2-3 tanks), 1 vanguard, 1 gate lurker
+  'PINCER_AMBUSH',   // Dual North + South pincer with dedicated ambush posts
+  'SPEARHEAD_WEDGE', // Staggered spearhead wedge with asymmetric flank ambushers
+  'ASYMMETRIC_SPLIT',// Asymmetric single flank thrust with stealth gate lurker
+];
+
+/** Assigns brigade formation roles across friendly field tanks with doctrine-specific tactical asymmetry. */
+function assignBrigadeRoles(myField, plan, doctrine = 'PINCER_AMBUSH', owner = 0) {
+  // Use a pseudo-random permutation seeded by tank IDs and owner so roles are organically distributed
+  const sorted = [...myField].sort((a, b) => {
+    const hashA = (a.id * 7 + (owner === 0 ? 3 : 11)) % 17;
+    const hashB = (b.id * 7 + (owner === 0 ? 3 : 11)) % 17;
+    return hashA - hashB;
+  });
   const roles = new Map();
 
-  if (plan === C.AI_STRATEGY_PLANS.ALPHA) { // PINCER
-    sorted.forEach((t, idx) => {
-      if (idx === 0) roles.set(t.id, 'VANGUARD');
-      else if (idx === 1) roles.set(t.id, 'NORTH_FLANK_LEAD');
-      else if (idx === 2) roles.set(t.id, 'NORTH_FLANK_TRAIL');
-      else if (idx === 3) roles.set(t.id, 'SOUTH_FLANK_LEAD');
-      else roles.set(t.id, 'SOUTH_FLANK_TRAIL');
-    });
-  } else if (plan === C.AI_STRATEGY_PLANS.BRAVO) { // WEDGE
-    sorted.forEach((t, idx) => {
-      if (idx === 0) roles.set(t.id, 'SPEARHEAD_N');
-      else if (idx === 1) roles.set(t.id, 'SPEARHEAD_S');
-      else if (idx === 2) roles.set(t.id, 'ECHELON_N');
-      else if (idx === 3) roles.set(t.id, 'ECHELON_S');
-      else roles.set(t.id, 'REARGUARD');
-    });
-  } else if (plan === C.AI_STRATEGY_PLANS.CHARLIE) { // BASE_DEFENSE
+  if (plan === C.AI_STRATEGY_PLANS.CHARLIE) {
     sorted.forEach((t, idx) => {
       if (t.shells === 0) roles.set(t.id, 'RELOADER');
       else if (idx === 0) roles.set(t.id, 'SENTRY');
       else if (idx % 2 === 1) roles.set(t.id, 'DEFENSE_ARC_N');
       else roles.set(t.id, 'DEFENSE_ARC_S');
     });
-  } else { // PURSUIT
-    sorted.forEach((t) => {
-      roles.set(t.id, 'PURSUER');
-    });
+    return roles;
+  }
+
+  switch (doctrine) {
+    case 'NORTH_SWEEP':
+      sorted.forEach((t, idx) => {
+        if (idx === 0) roles.set(t.id, 'NORTH_GATE_AMBUSH');
+        else if (idx === 1) roles.set(t.id, 'NORTH_FLANK_LEAD');
+        else if (idx === 2) roles.set(t.id, 'NORTH_FLANK_TRAIL');
+        else if (idx === 3) roles.set(t.id, 'VANGUARD');
+        else roles.set(t.id, 'SOUTH_FLANK_LEAD');
+      });
+      break;
+
+    case 'SOUTH_SWEEP':
+      sorted.forEach((t, idx) => {
+        if (idx === 0) roles.set(t.id, 'SOUTH_GATE_AMBUSH');
+        else if (idx === 1) roles.set(t.id, 'SOUTH_FLANK_LEAD');
+        else if (idx === 2) roles.set(t.id, 'SOUTH_FLANK_TRAIL');
+        else if (idx === 3) roles.set(t.id, 'VANGUARD');
+        else roles.set(t.id, 'NORTH_FLANK_LEAD');
+      });
+      break;
+
+    case 'PINCER_AMBUSH':
+      sorted.forEach((t, idx) => {
+        if (idx === 0) roles.set(t.id, 'NORTH_GATE_AMBUSH');
+        else if (idx === 1) roles.set(t.id, 'SOUTH_GATE_AMBUSH');
+        else if (idx === 2) roles.set(t.id, 'VANGUARD');
+        else if (idx === 3) roles.set(t.id, 'NORTH_FLANK_LEAD');
+        else roles.set(t.id, 'SOUTH_FLANK_LEAD');
+      });
+      break;
+
+    case 'SPEARHEAD_WEDGE':
+      sorted.forEach((t, idx) => {
+        if (idx === 0) roles.set(t.id, 'SPEARHEAD_N');
+        else if (idx === 1) roles.set(t.id, 'SPEARHEAD_S');
+        else if (idx === 2) roles.set(t.id, 'ECHELON_N');
+        else if (idx === 3) roles.set(t.id, 'NORTH_GATE_AMBUSH');
+        else roles.set(t.id, 'SOUTH_GATE_AMBUSH');
+      });
+      break;
+
+    case 'ASYMMETRIC_SPLIT':
+    default:
+      sorted.forEach((t, idx) => {
+        if (idx === 0) roles.set(t.id, owner === 0 ? 'NORTH_GATE_AMBUSH' : 'SOUTH_GATE_AMBUSH');
+        else if (idx === 1) roles.set(t.id, 'VANGUARD');
+        else if (idx === 2) roles.set(t.id, owner === 0 ? 'NORTH_FLANK_LEAD' : 'SOUTH_FLANK_LEAD');
+        else if (idx === 3) roles.set(t.id, owner === 0 ? 'SOUTH_GATE_AMBUSH' : 'NORTH_GATE_AMBUSH');
+        else roles.set(t.id, 'REARGUARD');
+      });
+      break;
   }
 
   return roles;
 }
 
-/** Calculates tactical waypoints based on assigned formation role with organic trajectory weaving. */
+/**
+ * Calculates tactical waypoints based on assigned formation role with organic trajectory weaving.
+ * Ensures tanks approach enemy gates laterally via flanks and vertically on the map along the wall,
+ * never directly from the front into the lethal slit gun hit sector.
+ */
 function getRoleWaypoint(tank, role, plan, owner, enemyGateX, simTime = 0) {
+  const dir = owner === 0 ? 1 : -1;
+  const enemyDir = -dir;
+  const distToEnemyGate = Math.abs(tank.x - enemyGateX);
+
   const midX = (gateX(owner) + enemyGateX) / 2;
   const beforeMid = owner === 0 ? tank.x < midX : tank.x > midX;
 
@@ -300,51 +357,120 @@ function getRoleWaypoint(tank, role, plan, owner, enemyGateX, simTime = 0) {
   const weavePhase = simTime * C.AI_TRAJECTORY_WEAVE_FREQ + (tank.id % 5) * 1.35;
   const weaveY = Math.sin(weavePhase) * C.AI_TRAJECTORY_WEAVE_AMP_M;
 
-  // Asymmetric lane offset for center vanguard to prevent head-on collisions at Y=50
-  const vanguardLaneY = owner === 0 ? C.AI_LANE_CENTER_Y - 5.0 : C.AI_LANE_CENTER_Y + 5.0;
-
   switch (role) {
-    case 'VANGUARD':
-      return { x: enemyGateX, y: vanguardLaneY + weaveY };
-
-    case 'NORTH_FLANK_LEAD':
+    case 'NORTH_GATE_AMBUSH': {
+      // 1. Advance along North flank highway
+      if (distToEnemyGate > 18.0) {
+        return {
+          x: enemyGateX + enemyDir * 10.0,
+          y: C.AI_LANE_NORTH_Y + weaveY * 0.5,
+        };
+      }
+      // 2. Pre-gate vertical approach: turn vertically South down to North Ambush Post (y=33.0)
       return {
-        x: beforeMid ? midX : enemyGateX,
+        x: enemyGateX + enemyDir * 8.5,
+        y: 33.0,
+      };
+    }
+
+    case 'SOUTH_GATE_AMBUSH': {
+      // 1. Advance along South flank highway
+      if (distToEnemyGate > 18.0) {
+        return {
+          x: enemyGateX + enemyDir * 10.0,
+          y: C.AI_LANE_SOUTH_Y + weaveY * 0.5,
+        };
+      }
+      // 2. Pre-gate vertical approach: turn vertically North up to South Ambush Post (y=67.0)
+      return {
+        x: enemyGateX + enemyDir * 8.5,
+        y: 67.0,
+      };
+    }
+
+    case 'VANGUARD': {
+      // Asymmetric lane offset for center vanguard to prevent head-on collisions at Y=50
+      const vanguardLaneY = owner === 0 ? C.AI_LANE_CENTER_Y - 6.0 : C.AI_LANE_CENTER_Y + 6.0;
+      // When approaching enemy gate: deflect laterally away from lethal central slit gun sector!
+      if (distToEnemyGate < 50.0) {
+        return {
+          x: enemyGateX + enemyDir * 20.0,
+          y: owner === 0 ? 32.0 : 68.0,
+        };
+      }
+      return { x: enemyGateX + enemyDir * 30.0, y: vanguardLaneY + weaveY };
+    }
+
+    case 'NORTH_FLANK_LEAD': {
+      if (distToEnemyGate < 22.0) {
+        return { x: enemyGateX + enemyDir * 10.0, y: 31.0 };
+      }
+      return {
+        x: beforeMid ? midX : enemyGateX + enemyDir * 14.0,
         y: (beforeMid ? C.AI_LANE_NORTH_Y : C.AI_LANE_NORTH_Y + 4) + weaveY * 0.7,
       };
+    }
 
-    case 'NORTH_FLANK_TRAIL':
+    case 'NORTH_FLANK_TRAIL': {
+      if (distToEnemyGate < 26.0) {
+        return { x: enemyGateX + enemyDir * 14.0, y: 28.0 };
+      }
       return {
-        x: beforeMid ? (gateX(owner) + midX) / 2 : enemyGateX,
+        x: beforeMid ? (gateX(owner) + midX) / 2 : enemyGateX + enemyDir * 20.0,
         y: C.AI_LANE_NORTH_Y + 2 + weaveY * 0.7,
       };
+    }
 
-    case 'SOUTH_FLANK_LEAD':
+    case 'SOUTH_FLANK_LEAD': {
+      if (distToEnemyGate < 22.0) {
+        return { x: enemyGateX + enemyDir * 10.0, y: 69.0 };
+      }
       return {
-        x: beforeMid ? midX : enemyGateX,
+        x: beforeMid ? midX : enemyGateX + enemyDir * 14.0,
         y: (beforeMid ? C.AI_LANE_SOUTH_Y : C.AI_LANE_SOUTH_Y - 4) + weaveY * 0.7,
       };
+    }
 
-    case 'SOUTH_FLANK_TRAIL':
+    case 'SOUTH_FLANK_TRAIL': {
+      if (distToEnemyGate < 26.0) {
+        return { x: enemyGateX + enemyDir * 14.0, y: 72.0 };
+      }
       return {
-        x: beforeMid ? (gateX(owner) + midX) / 2 : enemyGateX,
+        x: beforeMid ? (gateX(owner) + midX) / 2 : enemyGateX + enemyDir * 20.0,
         y: C.AI_LANE_SOUTH_Y - 2 + weaveY * 0.7,
       };
+    }
 
-    case 'SPEARHEAD_N':
-      return { x: enemyGateX, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
+    case 'SPEARHEAD_N': {
+      if (distToEnemyGate < 45.0) {
+        return { x: enemyGateX + enemyDir * 14.0, y: 33.0 };
+      }
+      return { x: enemyGateX + enemyDir * 25.0, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
+    }
 
-    case 'SPEARHEAD_S':
-      return { x: enemyGateX, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
+    case 'SPEARHEAD_S': {
+      if (distToEnemyGate < 45.0) {
+        return { x: enemyGateX + enemyDir * 14.0, y: 67.0 };
+      }
+      return { x: enemyGateX + enemyDir * 25.0, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
+    }
 
-    case 'ECHELON_N':
-      return { x: enemyGateX, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
+    case 'ECHELON_N': {
+      if (distToEnemyGate < 40.0) {
+        return { x: enemyGateX + enemyDir * 18.0, y: 30.0 };
+      }
+      return { x: enemyGateX + enemyDir * 30.0, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
+    }
 
-    case 'ECHELON_S':
-      return { x: enemyGateX, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
+    case 'ECHELON_S': {
+      if (distToEnemyGate < 40.0) {
+        return { x: enemyGateX + enemyDir * 18.0, y: 70.0 };
+      }
+      return { x: enemyGateX + enemyDir * 30.0, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
+    }
 
     case 'REARGUARD':
-      return { x: (gateX(owner) + midX) / 2, y: C.AI_LANE_CENTER_Y + weaveY * 0.5 };
+      return { x: (gateX(owner) + midX) / 2, y: C.AI_LANE_CENTER_Y + (owner === 0 ? -12 : 12) + weaveY * 0.5 };
 
     case 'SENTRY':
       return { x: gateX(owner) + inwardDir(owner) * 14, y: C.GATE_CENTER_Y_M };
@@ -366,7 +492,13 @@ function getRoleWaypoint(tank, role, plan, owner, enemyGateX, simTime = 0) {
 
     case 'PURSUER':
     default:
-      return { x: enemyGateX, y: C.GATE_CENTER_Y_M + weaveY };
+      if (distToEnemyGate < 25.0) {
+        return {
+          x: enemyGateX + enemyDir * 8.5,
+          y: tank.y < C.GATE_CENTER_Y_M ? 33.0 : 67.0,
+        };
+      }
+      return { x: enemyGateX + enemyDir * 15.0, y: (tank.y < 50 ? 30 : 70) + weaveY };
   }
 }
 
@@ -566,6 +698,11 @@ function applySafeCruisingTrim(world, owner, tank, targetSpeedKmh = 18) {
     }
   }
 
+  // Enemy slit gun hit sector ahead (never cruise blindly into enemy gate slit gun crosshairs)
+  if (!hazardAhead && isInEnemySlitGunSector(fx, fy, 1 - owner)) {
+    hazardAhead = true;
+  }
+
   if (hazardAhead) {
     applyAction(world, owner, 'STOP');
   } else {
@@ -599,7 +736,28 @@ export class AiController {
     this.enemyTracker = new Map();
     this.navGrid = new NavigationGrid();
     this.navGridTimer = 0;
+    this.initBrigadePersonality();
     this.randomizeOffsets();
+  }
+
+  initBrigadePersonality() {
+    // Select independent tactical doctrine for this brigade
+    // To ensure asymmetry between opposing AI teams, owner 0 and 1 pick varied doctrines
+    const offset = this.owner === 0 ? 0 : 2;
+    const doctrineIdx =
+      (Math.floor(Math.random() * BRIGADE_DOCTRINES.length) + offset) % BRIGADE_DOCTRINES.length;
+    this.doctrine = BRIGADE_DOCTRINES[doctrineIdx];
+
+    this.tankCruiseSpeeds = new Map();
+    this.tankDeployDelay = new Map();
+
+    const speedOptions = [36, 30, 33, 27, 36];
+    for (let id = 0; id < 25; id++) {
+      const spd = speedOptions[(id + (this.owner === 0 ? 0 : 2)) % speedOptions.length];
+      this.tankCruiseSpeeds.set(id, spd);
+      const delay = (id % 5) * 0.4 + (Math.random() - 0.5) * 0.2;
+      this.tankDeployDelay.set(id, Math.max(0, delay));
+    }
   }
 
   randomizeOffsets() {
@@ -629,6 +787,7 @@ export class AiController {
     this.navGrid = new NavigationGrid();
     this.navGridTimer = 0;
     gateReservationManager.releaseGate(this.owner, this.owner);
+    this.initBrigadePersonality();
     this.randomizeOffsets();
   }
 
@@ -804,12 +963,15 @@ export class AiController {
 
     // Initial and dynamic brigade role assignment if unassigned
     if (!this.tankRoles || this.tankRoles.size === 0) {
-      this.tankRoles = assignBrigadeRoles(myField, this.currentPlan);
+      this.tankRoles = assignBrigadeRoles(myField, this.currentPlan, this.doctrine, owner);
     }
 
-    // Mobilize whole brigade at once: ensure all friendly field tanks immediately advance into formation
+    // Mobilize brigade tanks into formation with organic stagger and speed diversity
     for (const t of myField) {
       if (t.status === 'field' && t.cmdSpeedKmh === 0 && Math.abs(t.speed) < 0.2) {
+        const deployDelay = this.tankDeployDelay.get(t.id) || 0;
+        if (this.simTime < deployDelay) continue;
+
         const role = this.tankRoles.get(t.id) || 'VANGUARD';
         const roleWaypoint = getRoleWaypoint(
           t,
@@ -821,12 +983,15 @@ export class AiController {
         );
         const wpAngle = Math.atan2(roleWaypoint.y - t.y, roleWaypoint.x - t.x);
         t.heading = wpAngle;
+        const individualCruise = this.tankCruiseSpeeds.get(t.id) || (
+          profile.maxSpeedKmh > 18 ? 36 : C.AI_MOBILIZE_CRUISE_KMH
+        );
         const cruiseSpeed =
           this.currentPlan === C.AI_STRATEGY_PLANS.DELTA ||
           role.startsWith('SPEARHEAD') ||
-          (profile.maxSpeedKmh > 18 && role === 'VANGUARD')
+          role === 'VANGUARD'
             ? profile.maxSpeedKmh
-            : Math.min(C.AI_MOBILIZE_CRUISE_KMH, profile.maxSpeedKmh);
+            : Math.min(individualCruise, profile.maxSpeedKmh);
         t.cmdSpeedKmh = cruiseSpeed;
         t.speed = C.kmhToMs(C.SPEED_STEP_KMH); // immediate forward roll
         this.lastCommandedTime.set(t.id, this.simTime - (t.id % 5) * 0.18);
@@ -1216,11 +1381,18 @@ export class AiController {
         const isLocked = e.id === this.lockedTargetId;
         const noise = (Math.random() - 0.5) * C.AI_TARGET_NOISE_AMPLITUDE;
 
+        // Highest priority for enemy tanks emerging through the gate entrance!
+        const enemyGate = gateX(1 - owner);
+        const isEmergingFromGate =
+          Math.abs(e.x - enemyGate) <= 9.0 && Math.abs(e.y - C.GATE_CENTER_Y_M) <= 5.0;
+        const emergingBonus = isEmergingFromGate ? 70.0 : 0;
+
         const score =
           d +
           ang * C.AI_TARGET_THREAT_ANGLE_WEIGHT +
           (blocked ? C.AI_TARGET_LOS_BLOCKED_PENALTY : 0) +
           smokePenalty -
+          emergingBonus -
           (facingUs ? C.AI_TARGET_FACING_US_BONUS : 0) -
           (isLocked ? C.AI_TARGET_STICKINESS_BONUS : 0) +
           noise;
@@ -1266,6 +1438,12 @@ export class AiController {
     let isDoorwayMode = false;
     let maxSpeedOverride = profile.maxSpeedKmh;
 
+    const isAmbushRole =
+      assignedRole === 'NORTH_GATE_AMBUSH' || assignedRole === 'SOUTH_GATE_AMBUSH';
+    const ambushPose = isAmbushRole
+      ? getGateAmbushPose(tank, owner, assignedRole === 'NORTH_GATE_AMBUSH' ? 'NORTH' : 'SOUTH')
+      : null;
+
     if (profile.rearm && outOfShells) {
       this.lockedTargetId = null;
       world.players[owner].lockedTarget = null;
@@ -1289,6 +1467,11 @@ export class AiController {
         const attackWp = getAttackStandoffWaypoint(tank, combatTarget, world, profile, this.simTime);
         navTargetX = attackWp.x;
         navTargetY = attackWp.y;
+      } else if (isAmbushRole && ambushPose && ambushPose.isAtAmbush) {
+        // Hold position in ambush post, pre-aim gun directly across gate doorway threshold
+        navTargetX = ambushPose.doorwayAimX;
+        navTargetY = ambushPose.doorwayAimY;
+        maxSpeedOverride = 0; // pivot in place
       } else {
         navTargetY += this.laneOffset * 0.5;
       }

@@ -62,6 +62,20 @@ for (let s = 0; s < totalSteps; s++) {
       pitsEntered++;
     }
   }
+
+  // Verify that armed tanks near enemy base avoid the lethal direct frontal slit corridor
+  for (const t of world.tanks) {
+    if (t.status === 'field' && t.shells > 0) {
+      const enemyGate = t.owner === 0 ? C.FIELD_LENGTH_M : 0;
+      const distToEnemy = Math.abs(t.x - enemyGate);
+      if (distToEnemy <= 30.0) {
+        assert.ok(
+          t.y < 41.0 || t.y > 59.0,
+          `Tank ${t.id} must not charge into direct frontal enemy slit sector (x=${t.x.toFixed(1)}, y=${t.y.toFixed(1)})`,
+        );
+      }
+    }
+  }
 }
 
 console.log(`Simulation complete: ${totalSteps} ticks (${simDurationSec}s simulated).`);
