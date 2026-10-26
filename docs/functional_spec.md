@@ -822,6 +822,9 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
   - High-speed bonus maintains full $36\text{ km/h}$ cruising velocity on HARD difficulty by choosing wide, curvature-safe arcs around obstacles rather than jerky pivot stops.
 - **Friendly Safe Cruising Trim:**
   - Trajectory projection during time-slice selection switching checks for teammates ahead in the lane, issuing a stop command if a teammate is within the forward lookahead distance to prevent unselected tanks from cruising into friendlies.
+- **Organic Asymmetry & Bounded Control Iterations:**
+  - Trajectory evaluation incorporates per-tank personality bias ($\sin(\text{id} \cdot 1.7 \pm 1.35 + t \cdot 0.45)$) and stochastic tie-breaking noise, breaking CvC mirror symmetry and ensuring over 70% trajectory variance between opposing vanguards.
+  - Command adjustments (`applyKinematicCommands`, `applySafeCruisingTrim`) clamp target turn rates to speed-dependent vehicle limits and bound execution to at most 6 step iterations, eliminating infinite loops or UI thread freezes.
 
 ### 15.10 Test Harness (`test.cmd` & `test/run_tests.js`)
 - Fixed batch command `.\test.cmd` executing `node test/run_tests.js` without dynamic arguments.

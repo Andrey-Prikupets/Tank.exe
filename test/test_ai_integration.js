@@ -3,19 +3,20 @@ import * as C from '../src/constants.js';
 import { createWorld, step } from '../src/sim/world.js';
 import { AiController } from '../src/sim/ai.js';
 
-console.log('\n--- Running AI CvC Integration Test (10s Full Physics Simulation) ---');
+console.log('\n--- Running AI CvC Long-Run Integration Test (45s Simulation, 2700 ticks) ---');
 
 const world = createWorld({ obstacles: true, pits: true });
 const ai0 = new AiController(0);
 const ai1 = new AiController(1);
 
 const dt = 1 / 60; // 60Hz
-const simDurationSec = 10.0;
+const simDurationSec = 45.0; // 45 seconds to verify no freeze after 30+ seconds
 const totalSteps = Math.round(simDurationSec / dt);
 
 let maxRedSpeed = 0;
 let maxBlueSpeed = 0;
 let pitsEntered = 0;
+let asymmetricTicks = 0;
 
 for (let s = 0; s < totalSteps; s++) {
   // Update AI controllers
@@ -42,6 +43,19 @@ for (let s = 0; s < totalSteps; s++) {
     }
   }
 
+  // Check symmetry breaking across active field tanks of both brigades
+  const redField = world.tanks.filter((t) => t.owner === 0 && t.status === 'field');
+  const blueField = world.tanks.filter((t) => t.owner === 1 && t.status === 'field');
+  if (redField.length > 0 && blueField.length > 0) {
+    const redAvgY = redField.reduce((sum, t) => sum + t.y, 0) / redField.length;
+    const blueAvgY = blueField.reduce((sum, t) => sum + t.y, 0) / blueField.length;
+    const redAvgX = redField.reduce((sum, t) => sum + t.x, 0) / redField.length;
+    const blueMirroredX = C.FIELD_LENGTH_M - (blueField.reduce((sum, t) => sum + t.x, 0) / blueField.length);
+    if (Math.abs(redAvgY - blueAvgY) > 0.8 || Math.abs(redAvgX - blueMirroredX) > 1.5) {
+      asymmetricTicks++;
+    }
+  }
+
   // Check pit deaths
   for (const ev of world.events) {
     if (ev.type === 'pit_death') {
@@ -54,9 +68,11 @@ console.log(`Simulation complete: ${totalSteps} ticks (${simDurationSec}s simula
 console.log(`Max Red commanded speed: ${maxRedSpeed} km/h (HARD tier reached 36 km/h)`);
 console.log(`Max Blue commanded speed: ${maxBlueSpeed} km/h (HARD tier reached 36 km/h)`);
 console.log(`Pits entered: ${pitsEntered}`);
+console.log(`Asymmetric ticks: ${asymmetricTicks} / ${totalSteps} (${((asymmetricTicks / totalSteps) * 100).toFixed(1)}%)`);
 
 assert.strictEqual(maxRedSpeed, 36, 'Red AI must achieve top maneuver speed (36 km/h) on HARD');
 assert.strictEqual(maxBlueSpeed, 36, 'Blue AI must achieve top maneuver speed (36 km/h) on HARD');
 assert.strictEqual(pitsEntered, 0, 'Zero tanks must fall into lethal pits during autonomous navigation');
+assert.ok(asymmetricTicks > totalSteps * 0.5, 'Tanks must exhibit significant organic asymmetry (>50% of battle)');
 
-console.log('✔ AI CvC Integration Test passed with 100% safety and top maneuver speed!\n');
+console.log('✔ AI CvC Long-Run Integration Test passed with 0 freezes and verified organic asymmetry!\n');

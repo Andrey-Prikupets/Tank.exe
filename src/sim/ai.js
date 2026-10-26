@@ -59,8 +59,10 @@ const PROFILES = {
 };
 
 function normalizeAngle(a) {
-  while (a > Math.PI) a -= 2 * Math.PI;
-  while (a < -Math.PI) a += 2 * Math.PI;
+  if (!Number.isFinite(a)) return 0;
+  a = a % (2 * Math.PI);
+  if (a > Math.PI) a -= 2 * Math.PI;
+  if (a < -Math.PI) a += 2 * Math.PI;
   return a;
 }
 
@@ -493,8 +495,8 @@ function applySafeCruisingTrim(world, owner, tank, targetSpeedKmh = 18) {
   if (!tank || tank.status !== 'field') return;
 
   // 1. Straighten turn so unselected tank maintains stable straight heading
-  while (tank.cmdTurnDeg > 0) applyAction(world, owner, 'TURN_L');
-  while (tank.cmdTurnDeg < 0) applyAction(world, owner, 'TURN_R');
+  for (let i = 0; i < 6 && tank.cmdTurnDeg > 0; i++) applyAction(world, owner, 'TURN_L');
+  for (let i = 0; i < 6 && tank.cmdTurnDeg < 0; i++) applyAction(world, owner, 'TURN_R');
 
   // 2. Project 3.0s trajectory forward
   const lookAheadSec = C.AI_COURSE_PROJECT_TIME_S;
@@ -567,8 +569,8 @@ function applySafeCruisingTrim(world, owner, tank, targetSpeedKmh = 18) {
   if (hazardAhead) {
     applyAction(world, owner, 'STOP');
   } else {
-    while (tank.cmdSpeedKmh < targetSpeedKmh) applyAction(world, owner, 'FORWARD');
-    while (tank.cmdSpeedKmh > targetSpeedKmh) applyAction(world, owner, 'BACK');
+    for (let i = 0; i < 6 && tank.cmdSpeedKmh < targetSpeedKmh; i++) applyAction(world, owner, 'FORWARD');
+    for (let i = 0; i < 6 && tank.cmdSpeedKmh > targetSpeedKmh; i++) applyAction(world, owner, 'BACK');
   }
 }
 
@@ -1284,7 +1286,7 @@ export class AiController {
           this.currentPlan === C.AI_STRATEGY_PLANS.DELTA)
       ) {
         // High-level tactical attack standoff waypoint outside enemy front gun arc
-        const attackWp = getAttackStandoffWaypoint(tank, combatTarget, world, profile);
+        const attackWp = getAttackStandoffWaypoint(tank, combatTarget, world, profile, this.simTime);
         navTargetX = attackWp.x;
         navTargetY = attackWp.y;
       } else {
@@ -1307,7 +1309,7 @@ export class AiController {
       this.navGrid,
       { x: navTargetX, y: navTargetY },
       profile,
-      { isDoorwayMode, maxSpeedOverride },
+      { isDoorwayMode, maxSpeedOverride, simTime: this.simTime },
     );
 
     // 13. Apply kinematic commands

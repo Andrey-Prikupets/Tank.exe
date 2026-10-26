@@ -20,8 +20,10 @@ export const GRID_COLS = Math.ceil(C.FIELD_LENGTH_M / GRID_CELL_SIZE_M);
 export const GRID_ROWS = Math.ceil(C.FIELD_WIDTH_M / GRID_CELL_SIZE_M);
 
 function normalizeAngle(a) {
-  while (a > Math.PI) a -= 2 * Math.PI;
-  while (a < -Math.PI) a += 2 * Math.PI;
+  if (!Number.isFinite(a)) return 0;
+  a = a % (2 * Math.PI);
+  if (a > Math.PI) a -= 2 * Math.PI;
+  if (a < -Math.PI) a += 2 * Math.PI;
   return a;
 }
 
@@ -213,22 +215,24 @@ export function predictTargetCurvilinear(target, dt) {
 /**
  * Computes optimal tactical attack standoff vantage position outside enemy's forward gun arc.
  */
-export function getAttackStandoffWaypoint(tank, target, world, profile) {
+export function getAttackStandoffWaypoint(tank, target, world, profile, simTime = 0) {
   const dist = Math.hypot(target.x - tank.x, target.y - tank.y);
   const mySpeed = Math.max(4, Math.abs(tank.speed));
   const tIntercept = Math.min(3.0, dist / (mySpeed + Math.max(1, Math.abs(target.speed))));
 
   const predTarget = predictTargetCurvilinear(target, tIntercept);
-  const standoffDist = Math.max(18, Math.min(30, profile.standoffDist || 26));
+  const standoffJitter = (Math.random() - 0.5) * 3.5;
+  const standoffDist = Math.max(18, Math.min(30, (profile.standoffDist || 26) + standoffJitter));
 
-  // Candidate attack angles around predicted target: prefer lateral angles (flanking)
-  const angleToTarget = Math.atan2(predTarget.y - tank.y, predTarget.x - tank.x);
+  // Candidate attack angles around predicted target: prefer lateral angles (flanking) with organic asymmetry
+  const ownerBias = tank.owner === 0 ? 0.35 : -0.35;
+  const tankPhase = (tank.id % 5) * 0.45 + simTime * 0.25;
   const candidateOffsets = [
-    Math.PI,           // Directly opposite
-    Math.PI + 0.65,    // Left flank
-    Math.PI - 0.65,    // Right flank
-    Math.PI + 1.25,    // Wide left
-    Math.PI - 1.25,    // Wide right
+    Math.PI + ownerBias,
+    Math.PI + 0.65 + Math.sin(tankPhase) * 0.25,
+    Math.PI - 0.65 - Math.sin(tankPhase) * 0.25,
+    Math.PI + 1.25 + (Math.random() - 0.5) * 0.2,
+    Math.PI - 1.25 + (Math.random() - 0.5) * 0.2,
   ];
 
   let bestWaypoint = null;
@@ -272,8 +276,9 @@ export function getAttackStandoffWaypoint(tank, target, world, profile) {
 
     const travelDist = Math.hypot(wx - tank.x, wy - tank.y);
     const threatAngle = Math.abs(normalizeAngle(candidateAngle - (predTarget.heading + Math.PI)));
-    // Higher score for clear flanking positions with shorter travel
-    const score = 100 - travelDist * 1.5 + threatAngle * 10;
+    const noise = (Math.random() - 0.5) * 8.0;
+    // Higher score for clear flanking positions with shorter travel + organic noise
+    const score = 100 - travelDist * 1.5 + threatAngle * 10 + noise;
 
     if (score > bestScore) {
       bestScore = score;
@@ -522,10 +527,19 @@ export function evaluateKinematicTrajectoryArcs(
       // Steering smoothness bonus: prefer smaller turn adjustments
       const turnEffort = (Math.abs(cmdTurn - tank.cmdTurnDeg) / 45) * 4.0;
 
+      // Organic asymmetry & noise bonus: breaks CvC mirror symmetry
+      const simTime = options.simTime || 0;
+      const ownerSign = tank.owner === 0 ? 1 : -1;
+      const personalityBias = Math.sin((tank.id * 1.7) + ownerSign * 1.35 + simTime * 0.45);
+      const asymmetryBonus = personalityBias * (cmdTurn / 45) * 4.0;
+      const noise = (Math.random() - 0.5) * 4.0;
+
       const totalScore =
         progress * 18.0 +
         alignmentBonus +
-        speedBonus -
+        speedBonus +
+        asymmetryBonus +
+        noise -
         housePenalty -
         friendlyPenalty -
         turnEffort;
@@ -547,19 +561,31 @@ export function evaluateKinematicTrajectoryArcs(
 
 /**
  * Issues step-by-step game actions to achieve desired speed and turn commands.
+ * Strictly bounded to prevent infinite loops even if vehicle limits clamp values.
  */
 export function applyKinematicCommands(world, owner, tank, targetSpeedKmh, targetTurnDeg) {
   if (!tank || tank.status !== 'field') return;
 
-  // Turn rate adjustments
-  while (tank.cmdTurnDeg < targetTurnDeg) applyAction(world, owner, 'TURN_R');
-  while (tank.cmdTurnDeg > targetTurnDeg) applyAction(world, owner, 'TURN_L');
+  const maxLimit = tank.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
+  const clampedTurn = Math.max(-maxLimit, Math.min(maxLimit, Math.round(targetTurnDeg / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S));
 
-  // Speed adjustments
+  // Turn rate adjustments (bounded to at most 6 step iterations)
+  for (let i = 0; i < 6 && tank.cmdTurnDeg < clampedTurn; i++) {
+    applyAction(world, owner, 'TURN_R');
+  }
+  for (let i = 0; i < 6 && tank.cmdTurnDeg > clampedTurn; i++) {
+    applyAction(world, owner, 'TURN_L');
+  }
+
+  // Speed adjustments (bounded to at most 6 step iterations)
   if (targetSpeedKmh === 0 && tank.cmdSpeedKmh > 0) {
     applyAction(world, owner, 'STOP');
   } else {
-    while (tank.cmdSpeedKmh < targetSpeedKmh) applyAction(world, owner, 'FORWARD');
-    while (tank.cmdSpeedKmh > targetSpeedKmh) applyAction(world, owner, 'BACK');
+    for (let i = 0; i < 6 && tank.cmdSpeedKmh < targetSpeedKmh; i++) {
+      applyAction(world, owner, 'FORWARD');
+    }
+    for (let i = 0; i < 6 && tank.cmdSpeedKmh > targetSpeedKmh; i++) {
+      applyAction(world, owner, 'BACK');
+    }
   }
 }
