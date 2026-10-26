@@ -1,6 +1,14 @@
 import * as C from '../constants.js';
 import { applyAction, selectedTank, gateX, inwardDir, baseHeading, windowY, isSpawnClear } from './world.js';
 import { segmentVsObb, toLocal } from './geometry.js';
+import {
+  NavigationGrid,
+  getAttackStandoffWaypoint,
+  getGateCorridorPose,
+  evaluateKinematicTrajectoryArcs,
+  applyKinematicCommands,
+  gateReservationManager,
+} from './nav.js';
 
 const PROFILES = {
   EASY: {
@@ -542,6 +550,20 @@ function applySafeCruisingTrim(world, owner, tank, targetSpeedKmh = 18) {
     }
   }
 
+  // Friendly tanks ahead (prevent unselected cruising ramming into teammates)
+  if (!hazardAhead) {
+    const friendlies = world.tanks.filter(
+      (o) => o.owner === owner && o.id !== tank.id && o.status === 'field',
+    );
+    for (const f of friendlies) {
+      const [flx, fly] = toLocal(tank, f.x, f.y);
+      if (flx > 0.5 && flx < lookAheadDist && Math.abs(fly) < C.TANK_WIDTH_M + 1.2) {
+        hazardAhead = true;
+        break;
+      }
+    }
+  }
+
   if (hazardAhead) {
     applyAction(world, owner, 'STOP');
   } else {
@@ -573,6 +595,8 @@ export class AiController {
     this.lastCommandedTime = new Map();
     this.tankRoles = new Map();
     this.enemyTracker = new Map();
+    this.navGrid = new NavigationGrid();
+    this.navGridTimer = 0;
     this.randomizeOffsets();
   }
 
@@ -600,6 +624,9 @@ export class AiController {
     this.lastCommandedTime.clear();
     this.tankRoles.clear();
     this.enemyTracker.clear();
+    this.navGrid = new NavigationGrid();
+    this.navGridTimer = 0;
+    gateReservationManager.releaseGate(this.owner, this.owner);
     this.randomizeOffsets();
   }
 
@@ -852,7 +879,13 @@ export class AiController {
     this.simTime += dt;
     this.sliceTimer += dt;
     this.reserveDeployTimer += dt;
+    this.navGridTimer += dt;
     this.windowTurn = 0;
+
+    if (this.navGridTimer >= 0.8 || this.simTime <= dt) {
+      this.navGrid.update(world);
+      this.navGridTimer = 0;
+    }
 
     // 1. Slit window view
     if (pl.view === 'window') {
@@ -1228,344 +1261,57 @@ export class AiController {
     const outOfShells = tank.shells === 0;
     let navTargetX = roleWaypoint.x;
     let navTargetY = roleWaypoint.y;
-    let targetDist = Math.hypot(navTargetX - tank.x, navTargetY - tank.y);
-    let isRearming = false;
-    let isRearmAligned = false;
+    let isDoorwayMode = false;
+    let maxSpeedOverride = profile.maxSpeedKmh;
 
     if (profile.rearm && outOfShells) {
-      isRearming = true;
       this.lockedTargetId = null;
       world.players[owner].lockedTarget = null;
 
-      const myGateX = gateX(owner);
-      const inward = inwardDir(owner);
-      const distToGate = inward * (tank.x - myGateX);
-      const lateralOffset = Math.abs(tank.y - C.GATE_CENTER_Y_M);
-      const hangarHeading = owner === 0 ? Math.PI : 0;
-      const headingErrToHangar = Math.abs(normalizeAngle(hangarHeading - tank.heading));
-
-      const standoffX = myGateX + inward * C.AI_REARM_STANDOFF_DIST_M;
-      const standoffY = C.GATE_CENTER_Y_M;
-
-      // Misaligned when close to gate: lateral offset > 1.2m or heading not pointing towards hangar
-      const misalignedNearGate =
-        distToGate < C.AI_REARM_RESET_DIST_M &&
-        (lateralOffset > C.AI_REARM_ALIGN_LATERAL_M || headingErrToHangar > 0.52);
-
-      if (misalignedNearGate) {
-        // Move away from gate out into field to standoff point to correct trajectory
-        navTargetX = standoffX;
-        navTargetY = standoffY;
-      } else if (
-        distToGate <= C.AI_REARM_STANDOFF_DIST_M &&
-        lateralOffset <= C.AI_REARM_ALIGN_LATERAL_M &&
-        headingErrToHangar <= 0.45
-      ) {
-        // Aligned in the entry corridor: drive straight into the hangar through gate
-        isRearmAligned = true;
-        navTargetX = myGateX - inward * C.AI_REARM_PENETRATION_DEPTH_M;
-        navTargetY = C.GATE_CENTER_Y_M;
-      } else {
-        // Approaching from open field: steer toward standoff alignment point first
-        navTargetX = standoffX;
-        navTargetY = standoffY;
+      const gatePose = getGateCorridorPose(tank, owner, this.simTime);
+      navTargetX = gatePose.targetX;
+      navTargetY = gatePose.targetY;
+      isDoorwayMode = gatePose.isDoorwayMode;
+      if (gatePose.speedLimitKmh) {
+        maxSpeedOverride = Math.min(maxSpeedOverride, gatePose.speedLimitKmh);
       }
-      targetDist = Math.hypot(navTargetX - tank.x, navTargetY - tank.y);
-    } else if (
-      combatTarget &&
-      combatTargetPos &&
-      (combatTargetDist <= profile.maxFireDist + 8 ||
-        this.currentPlan === C.AI_STRATEGY_PLANS.DELTA)
-    ) {
-      // In combat engagement range or pursuit: steer towards target with lead
-      const shellSpeed = C.SHELL_RANGE_M / C.SHELL_FLIGHT_TIME_S;
-      const tFly = combatTargetDist / shellSpeed;
-      const tvx = Math.cos(combatTarget.heading) * combatTarget.speed;
-      const tvy = Math.sin(combatTarget.heading) * combatTarget.speed;
-      const effectiveLead = profile.leadFactor * (0.9 + Math.random() * 0.2);
-      navTargetX = combatTargetPos.x + tvx * tFly * effectiveLead;
-      navTargetY = combatTargetPos.y + tvy * tFly * effectiveLead;
-
-      // Oblique tactical approach when enemy is on head-on collision vector:
-      // Prevents charging directly down the enemy gun barrel and colliding head-on
-      const toEnemyAngle = Math.atan2(combatTargetPos.y - tank.y, combatTargetPos.x - tank.x);
-      const enemyFacingUs =
-        Math.abs(normalizeAngle(combatTarget.heading - (toEnemyAngle + Math.PI))) < 0.52;
-      if (enemyFacingUs && combatTargetDist > 14.0) {
-        const obliqueSign = (tank.id % 2 === 0 ? 1 : -1) * (owner === 0 ? 1 : -1);
-        const lateralDist = Math.max(6.0, Math.min(C.AI_OBLIQUE_ENGAGE_LATERAL_M, combatTargetDist * 0.35));
-        navTargetX += -Math.sin(toEnemyAngle) * lateralDist * obliqueSign;
-        navTargetY += Math.cos(toEnemyAngle) * lateralDist * obliqueSign;
-      }
-
-      targetDist = combatTargetDist;
     } else {
-      navTargetY += this.laneOffset * 0.5;
+      gateReservationManager.releaseGate(owner, tank.id);
+      if (
+        combatTarget &&
+        combatTargetPos &&
+        (combatTargetDist <= profile.maxFireDist + 8 ||
+          this.currentPlan === C.AI_STRATEGY_PLANS.DELTA)
+      ) {
+        // High-level tactical attack standoff waypoint outside enemy front gun arc
+        const attackWp = getAttackStandoffWaypoint(tank, combatTarget, world, profile);
+        navTargetX = attackWp.x;
+        navTargetY = attackWp.y;
+      } else {
+        navTargetY += this.laneOffset * 0.5;
+      }
     }
 
-    if (!isRearmAligned) {
+    if (!isDoorwayMode) {
       navTargetX = Math.max(4, Math.min(C.FIELD_LENGTH_M - 4, navTargetX));
       navTargetY = Math.max(4, Math.min(C.FIELD_WIDTH_M - 4, navTargetY));
     }
 
-    let desiredHeading = Math.atan2(navTargetY - tank.y, navTargetX - tank.x);
+    const targetDist = Math.hypot(navTargetX - tank.x, navTargetY - tank.y);
+    const desiredHeading = Math.atan2(navTargetY - tank.y, navTargetX - tank.x);
 
-    // Boundary steering avoidance (only if not aligned in rearm corridor)
-    if (!isRearmAligned) {
-      if (tank.y < 12 && Math.sin(tank.heading) < -0.3) {
-        desiredHeading = Math.atan2(25 - tank.y, Math.cos(tank.heading));
-      } else if (tank.y > C.FIELD_WIDTH_M - 12 && Math.sin(tank.heading) > 0.3) {
-        desiredHeading = Math.atan2(C.FIELD_WIDTH_M - 25 - tank.y, Math.cos(tank.heading));
-      }
-    }
-
-    // Terrain hazard avoidance (Pits, Mines, Obstacles)
-    const lookAhead = Math.max(12, Math.abs(tank.speed) * 1.8);
-    const fx = tank.x + Math.cos(tank.heading) * lookAhead;
-    const fy = tank.y + Math.sin(tank.heading) * lookAhead;
-    let emergencyBrake = false;
-    let avoidanceAngle = 0;
-    let mineManeuvering = false;
-
-    // Pits
-    if (world.pits && world.pits.length > 0) {
-      for (const pit of world.pits) {
-        const dPit = Math.hypot(pit.x - tank.x, pit.y - tank.y);
-        const pitR = Math.hypot(pit.l, pit.w) / 2;
-        if (dPit > pitR + lookAhead + 4) continue;
-
-        const [flx, fly] = toLocal(pit, fx, fy);
-        const [tlx, tly] = toLocal(pit, tank.x, tank.y);
-        const marginL = pit.l / 2 + C.TANK_WIDTH_M + 1.5;
-        const marginW = pit.w / 2 + C.TANK_WIDTH_M + 1.5;
-
-        const headingToPit = Math.abs(flx) < marginL && Math.abs(fly) < marginW;
-        const closeToPit = Math.abs(tlx) < marginL + 3 && Math.abs(tly) < marginW + 3;
-
-        if (headingToPit || closeToPit) {
-          const awayAngle = Math.atan2(tank.y - pit.y, tank.x - pit.x);
-          const diff = normalizeAngle(awayAngle - tank.heading);
-          avoidanceAngle = diff > 0 ? 1.0 : -1.0;
-          if (dPit < pitR + 6 && Math.abs(diff) > Math.PI / 2) {
-            emergencyBrake = true;
-          }
-          break;
-        }
-      }
-    }
-
-    // Mines: Active Maneuvering Avoidance
-    if (!avoidanceAngle && world.mines && world.mines.length > 0) {
-      const mineLookahead = Math.max(C.AI_MINE_LOOKAHEAD_MIN_M, Math.abs(tank.speed) * 2.5);
-      const mineTriggerR = C.TANK_WIDTH_M / 2 + C.MINE_TRIGGER_RADIUS_M + 0.6; // ~3.6m trigger boundary
-      const passClearance = C.AI_MINE_CLEARANCE_PASS_M; // 5.8m desired maneuvering corridor
-      let closestMine = null;
-      let closestDist = Infinity;
-
-      for (const m of world.mines) {
-        const dMine = Math.hypot(m.x - tank.x, m.y - tank.y);
-        if (dMine > mineLookahead + 8) continue;
-
-        const [mlx, mly] = toLocal(tank, m.x, m.y);
-        const toMineAngle = Math.atan2(m.y - tank.y, m.x - tank.x);
-        const relDesired = normalizeAngle(toMineAngle - desiredHeading);
-        const fwdDesired = dMine * Math.cos(relDesired);
-        const latDesired = Math.abs(dMine * Math.sin(relDesired));
-
-        const inCurrentPath = mlx > -1.0 && mlx < mineLookahead && Math.abs(mly) < passClearance;
-        const inDesiredPath =
-          fwdDesired > 0 && fwdDesired < mineLookahead && latDesired < passClearance;
-
-        if (inCurrentPath || inDesiredPath) {
-          if (dMine < closestDist) {
-            closestDist = dMine;
-            closestMine = { m, dMine, mlx, mly, toMineAngle };
-          }
-        }
-      }
-
-      if (closestMine) {
-        mineManeuvering = true;
-        const dClear = Math.max(passClearance + 0.2, closestMine.dMine);
-        const alpha = Math.asin(Math.min(1.0, passClearance / dClear)) + 0.25;
-        const steerLeft = normalizeAngle(closestMine.toMineAngle + alpha);
-        const steerRight = normalizeAngle(closestMine.toMineAngle - alpha);
-
-        const leftOutOfBounds =
-          (Math.sin(steerLeft) < 0 && tank.y < 12) ||
-          (Math.sin(steerLeft) > 0 && tank.y > C.FIELD_WIDTH_M - 12);
-        const rightOutOfBounds =
-          (Math.sin(steerRight) < 0 && tank.y < 12) ||
-          (Math.sin(steerRight) > 0 && tank.y > C.FIELD_WIDTH_M - 12);
-
-        let bestSteer = steerLeft;
-        if (leftOutOfBounds && !rightOutOfBounds) {
-          bestSteer = steerRight;
-        } else if (!leftOutOfBounds && rightOutOfBounds) {
-          bestSteer = steerLeft;
-        } else {
-          // If mine is to the right of centerline, maneuver left; if to the left, maneuver right
-          if (closestMine.mly > 0.15) bestSteer = steerLeft;
-          else if (closestMine.mly < -0.15) bestSteer = steerRight;
-          else {
-            // Dead center: steer towards the more open side of the arena
-            bestSteer = tank.y < C.FIELD_WIDTH_M / 2 ? steerRight : steerLeft;
-          }
-        }
-
-        avoidanceAngle = normalizeAngle(bestSteer - tank.heading);
-
-        // Emergency braking only if directly facing the mine at point-blank range (< 5.0m)
-        if (
-          closestMine.dMine < C.AI_MINE_EMERGENCY_BRAKE_DIST_M &&
-          closestMine.mlx > 0 &&
-          Math.abs(closestMine.mly) < mineTriggerR
-        ) {
-          emergencyBrake = true;
-        }
-      }
-    }
-
-    // Obstacles
-    if (!avoidanceAngle && world.obstacles && world.obstacles.length > 0) {
-      for (const ob of world.obstacles) {
-        const dOb = Math.hypot(ob.x - tank.x, ob.y - tank.y);
-        const obR = Math.hypot(ob.l, ob.w) / 2;
-        if (dOb > obR + lookAhead + 2) continue;
-
-        const hit = segmentVsObb(tank.x, tank.y, fx, fy, ob);
-        if (hit != null) {
-          const [, tly] = toLocal(ob, tank.x, tank.y);
-          avoidanceAngle = tly > 0 ? 0.8 : -0.8;
-          break;
-        }
-      }
-    }
-
-    // Live Vehicle Collision Avoidance (friendly and enemy tanks ahead)
-    if (!avoidanceAngle) {
-      const otherTanks = world.tanks.filter((o) => o.id !== tank.id && o.status === 'field');
-      let closestVeh = null;
-      let closestVehDist = Infinity;
-
-      for (const o of otherTanks) {
-        const dVeh = Math.hypot(o.x - tank.x, o.y - tank.y);
-        if (dVeh > C.AI_VEHICLE_AVOIDANCE_LOOKAHEAD_M + 4) continue;
-
-        const [vlx, vly] = toLocal(tank, o.x, o.y);
-        if (
-          vlx > 0.5 &&
-          vlx < C.AI_VEHICLE_AVOIDANCE_LOOKAHEAD_M &&
-          Math.abs(vly) < C.AI_VEHICLE_AVOIDANCE_CLEARANCE_M
-        ) {
-          if (dVeh < closestVehDist) {
-            closestVehDist = dVeh;
-            closestVeh = { o, vlx, vly, dVeh };
-          }
-        }
-      }
-
-      if (closestVeh) {
-        // Steer away from oncoming vehicle to pass smoothly without collision
-        avoidanceAngle = closestVeh.vly >= 0 ? -0.75 : 0.75;
-        if (closestVeh.dVeh < 8.0 && closestVeh.vlx > 0) {
-          emergencyBrake = true;
-        }
-      }
-    }
-
-    if (avoidanceAngle !== 0) {
-      desiredHeading = normalizeAngle(tank.heading + avoidanceAngle);
-    }
-
-    const angleErr = normalizeAngle(desiredHeading - tank.heading);
-
-    // 12. Steering with smooth step control
-    const maxTurnLimit =
-      tank.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
-    if (isRearmAligned && Math.abs(angleErr) < 0.12) {
-      // Lock turn rate to zero when driving straight through gate doorway
-      while (tank.cmdTurnDeg > 0) applyAction(world, owner, 'TURN_L');
-      while (tank.cmdTurnDeg < 0) applyAction(world, owner, 'TURN_R');
-    } else if (Math.abs(angleErr) <= profile.aimTolerance) {
-      while (tank.cmdTurnDeg > 0) applyAction(world, owner, 'TURN_L');
-      while (tank.cmdTurnDeg < 0) applyAction(world, owner, 'TURN_R');
-    } else {
-      const turnLimit = Math.abs(angleErr) < 0.5 ? Math.min(30, maxTurnLimit) : maxTurnLimit;
-      if (angleErr > 0) {
-        if (tank.cmdTurnDeg < turnLimit) applyAction(world, owner, 'TURN_R');
-        else if (tank.cmdTurnDeg > turnLimit) applyAction(world, owner, 'TURN_L');
-      } else {
-        if (tank.cmdTurnDeg > -turnLimit) applyAction(world, owner, 'TURN_L');
-        else if (tank.cmdTurnDeg < -turnLimit) applyAction(world, owner, 'TURN_R');
-      }
-    }
-
-    // 13. Throttle control, combat standoff, and mine maneuvering
-    const effectiveStandoff = Math.max(
-      C.TANK_LENGTH_M + 4,
-      profile.standoffDist + this.standoffJitter,
+    // 12. Kinematic Dynamic Window Trajectory Rollout & Obstacle Avoidance
+    const traj = evaluateKinematicTrajectoryArcs(
+      tank,
+      world,
+      this.navGrid,
+      { x: navTargetX, y: navTargetY },
+      profile,
+      { isDoorwayMode, maxSpeedOverride },
     );
-    const effectiveMinDist = Math.max(
-      C.TANK_LENGTH_M + 2,
-      profile.minDist + this.standoffJitter * 0.5,
-    );
-    const effectiveMaxSpeed = profile.maxSpeedKmh;
 
-    let desiredSpeed = effectiveMaxSpeed;
-    if (emergencyBrake) {
-      desiredSpeed = 0; // Brake while pivoting away
-    } else if (mineManeuvering) {
-      // Actively maneuver around the mine at controlled cruising speed!
-      desiredSpeed = Math.min(18, effectiveMaxSpeed);
-    } else if (outOfShells && profile.rearm) {
-      const myGateX = gateX(owner);
-      const inward = inwardDir(owner);
-      const distToGate = inward * (tank.x - myGateX);
-      if (isRearmAligned) {
-        desiredSpeed = Math.min(18, effectiveMaxSpeed); // Controlled cruise through gate
-      } else if (distToGate < 8.0 && Math.abs(angleErr) > Math.PI / 2) {
-        desiredSpeed = 0; // Pivot in place to face standoff point without driving into border wall
-      } else {
-        desiredSpeed = Math.min(18, effectiveMaxSpeed);
-      }
-    } else if (
-      this.currentPlan === C.AI_STRATEGY_PLANS.DELTA ||
-      assignedRole.startsWith('SPEARHEAD')
-    ) {
-      desiredSpeed = effectiveMaxSpeed;
-    } else if (combatTarget && combatTargetDist <= profile.maxFireDist) {
-      if (combatTargetDist > effectiveStandoff + 10) {
-        desiredSpeed = effectiveMaxSpeed;
-      } else if (combatTargetDist > effectiveStandoff) {
-        desiredSpeed = Math.min(18, effectiveMaxSpeed);
-      } else if (combatTargetDist >= effectiveMinDist) {
-        desiredSpeed = 0; // Standoff firing position
-      } else {
-        desiredSpeed = -C.TANK_MAX_REVERSE_KMH; // Back off to avoid collision
-      }
-    } else if (targetDist > 12) {
-      desiredSpeed = effectiveMaxSpeed;
-    } else {
-      desiredSpeed = Math.min(18, effectiveMaxSpeed);
-    }
-
-    if (desiredSpeed < 0 && world.mines && world.mines.length > 0) {
-      const mineSafetyR = C.TANK_WIDTH_M / 2 + C.MINE_TRIGGER_RADIUS_M + 0.8;
-      const mineBehind = world.mines.some((m) => {
-        const [mlx, mly] = toLocal(tank, m.x, m.y);
-        return mlx < 0.5 && mlx > -8.0 && Math.abs(mly) < mineSafetyR;
-      });
-      if (mineBehind) desiredSpeed = 0;
-    }
-
-    if (desiredSpeed === 0 && tank.cmdSpeedKmh > 0) {
-      applyAction(world, owner, 'BACK');
-    } else if (tank.cmdSpeedKmh < desiredSpeed) {
-      applyAction(world, owner, 'FORWARD');
-    } else if (tank.cmdSpeedKmh > desiredSpeed) {
-      applyAction(world, owner, 'BACK');
-    }
+    // 13. Apply kinematic commands
+    applyKinematicCommands(world, owner, tank, traj.bestSpeedKmh, traj.bestTurnDeg);
 
     // 14. Defensive smoke
     if (tank.smokes > 0) {

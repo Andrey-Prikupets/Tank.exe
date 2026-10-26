@@ -803,6 +803,30 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 - **Oblique Combat Approach (Jinking):** When engaging enemy tanks that are facing directly on a head-on collision course, the AI applies an oblique lateral offset (`AI_OBLIQUE_ENGAGE_LATERAL_M = 10.0m`) rather than charging straight down the enemy's gun barrel, evading predictable incoming fire while maintaining firing lead.
 - **Live Vehicle Collision Avoidance:** The steering reflex checks for both friendly and enemy vehicles directly in the forward path within `AI_VEHICLE_AVOIDANCE_LOOKAHEAD_M = 16.0m` (`AI_VEHICLE_AVOIDANCE_CLEARANCE_M = 5.2m`), steering laterally away to pass smoothly without ramming, and braking if within 8.0m.
 
+### 15.9 Custom Kinematic Navigation & Pathfinding Framework (`src/sim/nav.js`)
+- **Macro-Scale 2D Cost Grid:**
+  - $250\text{ m} \times 100\text{ m}$ field discretized into $2.0\text{ m}$ cells ($125 \times 50 = 6,250$ entries stored in a `Uint8Array`).
+  - **Fatal Hazards (Pits & Mines):** Marked with `COST_LETHAL = 255`. Configuration-space safety buffers ensure lethal pits ($+1.6\text{ m}$) and armed mines ($+3.6\text{ m}$) are treated as hard barriers that trajectory evaluators strictly reject.
+  - **Soft Obstacles (Houses & Border Walls):** Marked with `COST_HOUSE = 12` (caution zone $= 4$). Instead of failing or blocking routing, paths may graze or brush house walls with a proportional drag penalty (`BORDER_DRAG_FACTOR = 0.5`) if open detours are unavailable or to avoid lethal hazards.
+  - **Open Terrain:** Standard movement cost `COST_OPEN = 1`.
+- **Target Maneuver & Curvilinear Intercept:**
+  - `predictTargetCurvilinear(target, dt)` models moving enemy units using circular arc dead-reckoning when turning ($\omega \ne 0$), avoiding linear overshoots.
+  - `getAttackStandoffWaypoint(tank, target, world, profile)` calculates tactical attack positions at $20\text{--}30\text{ m}$ standoff outside the target's forward firing cone ($\pm 45^\circ$) with verified line-of-sight past buildings.
+- **Gate Reservation Mutex & Corridor Alignment:**
+  - `GateReservationManager` assigns a single-token gate mutex per team so only one tank approaches or transits the 7m gateway at a time. Secondary retreating/deploying tanks hold at lateral staging waypoints ($Y = 32\text{ m}$ or $68\text{ m}$) until the gateway is clear.
+  - Two-stage docking corridor: locks speed to $18\text{ km/h}$ and aligns heading to $\pm 4^\circ$ in the approach zone, then locks turn commands to zero (`cmdTurnDeg = 0`) to cruise straight through the doorway at $Y = 50.0\text{ m}$.
+- **Kinematic Dynamic Window Trajectory Rollout (DWA):**
+  - Evaluates 7 reachable steering arcs ($\{-45, -30, -15, 0, 15, 30, 45\}^\circ/\text{s}$) over a $1.8\text{ s}$ horizon (6 simulation steps) adhering to skid-steer acceleration limits.
+  - Hard discard ($-\infty$) for any arc contacting pit overlap or mine trigger radii.
+  - Time-to-Collision (TTC) prediction penalizes arcs approaching within $6.0\text{ m}$ of unselected friendly tanks, eliminating team bunching and speed-draining collisions.
+  - High-speed bonus maintains full $36\text{ km/h}$ cruising velocity on HARD difficulty by choosing wide, curvature-safe arcs around obstacles rather than jerky pivot stops.
+- **Friendly Safe Cruising Trim:**
+  - Trajectory projection during time-slice selection switching checks for teammates ahead in the lane, issuing a stop command if a teammate is within the forward lookahead distance to prevent unselected tanks from cruising into friendlies.
+
+### 15.10 Test Harness (`test.cmd` & `test/run_tests.js`)
+- Fixed batch command `.\test.cmd` executing `node test/run_tests.js` without dynamic arguments.
+- Executes unit test suites (`test/test_nav.js`) covering cost grid differentiation, curvilinear prediction, gate reservation, and trajectory rollout, alongside end-to-end CvC 60Hz physics simulations (`test/test_ai_integration.js`).
+
 ---
 
 ## 16. Constants Summary (initial)
