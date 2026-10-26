@@ -118,6 +118,13 @@ export const AI_MINE_LOOKAHEAD_MIN_M = 16.0;
 export const AI_MINE_CLEARANCE_PASS_M = 5.8;
 export const AI_MINE_EMERGENCY_BRAKE_DIST_M = 5.0;
 
+// AI Hangar Rearm & Entry Alignment
+export const AI_REARM_STANDOFF_DIST_M = 22.0;
+export const AI_REARM_ALIGN_LATERAL_M = 1.2;
+export const AI_REARM_PENETRATION_DEPTH_M = 12.0;
+export const AI_REARM_RESET_DIST_M = 18.0;
+export const AI_URGENCY_DEPLOY_ARMED_RESERVE = 92;
+
 // ---- Field ------------------------------------------------------------------
 export const FIELD_LENGTH_M = 250;
 export const FIELD_WIDTH_M = 100;

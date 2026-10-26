@@ -561,6 +561,23 @@ function updateGates(world, dt, wants) {
   }
 }
 
+export function spawnArea(owner) {
+  const dir = inwardDir(owner);
+  return {
+    x: gateX(owner) + dir * (C.SPAWN_OFFSET_FROM_GATE_M + C.TANK_LENGTH_M / 2),
+    y: C.GATE_CENTER_Y_M,
+    h: baseHeading(owner),
+    l: C.TANK_LENGTH_M + 2 * C.SPAWN_CLEARANCE_M,
+    w: C.TANK_WIDTH_M + 2 * C.SPAWN_CLEARANCE_M,
+  };
+}
+
+export function isSpawnClear(world, owner) {
+  const spawn = spawnArea(owner);
+  const field = fieldTanks(world);
+  return !field.some((o) => satOverlap(spawn, body(o)));
+}
+
 function tryDeploys(world, wants) {
   const field = fieldTanks(world);
   for (const pl of world.players) {
@@ -569,14 +586,7 @@ function tryDeploys(world, wants) {
       pl.blocked = false;
       continue;
     }
-    const dir = inwardDir(pl.id);
-    const spawn = {
-      x: gateX(pl.id) + dir * (C.SPAWN_OFFSET_FROM_GATE_M + C.TANK_LENGTH_M / 2),
-      y: C.GATE_CENTER_Y_M,
-      h: baseHeading(pl.id),
-      l: C.TANK_LENGTH_M + 2 * C.SPAWN_CLEARANCE_M,
-      w: C.TANK_WIDTH_M + 2 * C.SPAWN_CLEARANCE_M,
-    };
+    const spawn = spawnArea(pl.id);
     const blocked = field.some((o) => satOverlap(spawn, body(o)));
     if (blocked) {
       if (!pl.blocked) emit(world, 'blocked', spawn.x, pl.id);

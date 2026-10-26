@@ -1,5 +1,5 @@
 import * as C from '../constants.js';
-import { applyAction, selectedTank, gateX, inwardDir, baseHeading, windowY } from './world.js';
+import { applyAction, selectedTank, gateX, inwardDir, baseHeading, windowY, isSpawnClear } from './world.js';
 import { segmentVsObb, toLocal } from './geometry.js';
 
 const PROFILES = {
@@ -853,21 +853,57 @@ export class AiController {
 
     // 5. Dead or missing selection
     if (!tank || tank.status === 'dead') {
+      const reserves = world.tanks.filter(
+        (t) => t.owner === owner && t.status === 'hangar' && t.number != null,
+      );
+      const armedReserve = reserves.find((t) => t.shells > 0);
+      const allFieldEmpty = myField.length > 0 && myField.every((t) => t.shells === 0);
+
+      // Prioritize immediately deploying recharged/armed tanks from hangar
+      if (
+        armedReserve &&
+        myField.length < C.TANKS_ON_FIELD_MAX &&
+        (myField.length === 0 || allFieldEmpty || (myField.length < 3 && isSpawnClear(world, owner)))
+      ) {
+        applyAction(world, owner, 'SELECT', armedReserve.number);
+        applyAction(world, owner, 'FORWARD');
+        this.sliceTimer = 0;
+        this.reserveDeployTimer = 0;
+        this.lastCommandedTime.set(armedReserve.id, this.simTime);
+        return;
+      }
+
       if (myField.length > 0) {
-        const best = myField[0];
+        let best = myField[0];
+        let maxU = -Infinity;
+        for (const t of myField) {
+          const timeSince = this.simTime - (this.lastCommandedTime.get(t.id) || 0);
+          const u = evaluateTankUrgency(
+            world,
+            owner,
+            t,
+            enemyField,
+            profile,
+            timeSince,
+            this.enemyTracker,
+            this.simTime,
+          ).urgency;
+          if (u > maxU) {
+            maxU = u;
+            best = t;
+          }
+        }
         applyAction(world, owner, 'SELECT', best.number);
         tank = best;
         this.sliceTimer = 0;
         this.lastCommandedTime.set(best.id, this.simTime);
-      } else {
-        const reserves = world.tanks.filter(
-          (t) => t.owner === owner && t.status === 'hangar' && t.number != null,
-        );
-        if (reserves.length > 0) {
-          const reserve = reserves[Math.floor(Math.random() * reserves.length)];
-          applyAction(world, owner, 'SELECT', reserve.number);
-          applyAction(world, owner, 'FORWARD');
-        }
+      } else if (reserves.length > 0) {
+        const reserve = armedReserve || reserves[Math.floor(Math.random() * reserves.length)];
+        applyAction(world, owner, 'SELECT', reserve.number);
+        applyAction(world, owner, 'FORWARD');
+        this.sliceTimer = 0;
+        this.reserveDeployTimer = 0;
+        this.lastCommandedTime.set(reserve.id, this.simTime);
         return;
       }
     }
@@ -928,9 +964,8 @@ export class AiController {
       }
     }
 
-    // Reserve deployment check
+    // Reserve deployment check: proactively deploy recharged armed tanks from hangar
     if (
-      !shouldSwitch &&
       myField.length < C.TANKS_ON_FIELD_MAX &&
       this.reserveDeployTimer >= 2.0 &&
       canSwitch
@@ -938,15 +973,41 @@ export class AiController {
       const reserves = world.tanks.filter(
         (t) => t.owner === owner && t.status === 'hangar' && t.number != null,
       );
-      if (
-        reserves.length > 0 &&
-        (currUrgency < C.AI_URGENCY_DEPLOY_RESERVE || myField.length === 0)
-      ) {
-        this.reserveDeployTimer = 0;
-        const reserve = reserves[0];
-        applyAction(world, owner, 'SELECT', reserve.number);
-        applyAction(world, owner, 'FORWARD');
-        return;
+      const armedReserve = reserves.find((t) => t.shells > 0);
+      const reserveToDeploy = armedReserve || reserves[0];
+
+      if (reserveToDeploy) {
+        let deployUrgency = C.AI_URGENCY_DEPLOY_RESERVE;
+        const allFieldEmpty = myField.every((t) => t.shells === 0);
+
+        if (myField.length === 0) {
+          deployUrgency = 100;
+        } else if (armedReserve && allFieldEmpty) {
+          deployUrgency = C.AI_URGENCY_DEPLOY_ARMED_RESERVE;
+        } else if (armedReserve && myField.length < 3) {
+          deployUrgency = 75;
+        } else if (armedReserve && myField.length < C.TANKS_ON_FIELD_MAX) {
+          deployUrgency = 60;
+        }
+
+        const spawnClear = isSpawnClear(world, owner);
+
+        if (spawnClear && (deployUrgency > currUrgency || !bestTank)) {
+          // Safe Cruising Course Projection for active tank before switching to deploy
+          const activeRole = this.tankRoles.get(tank.id);
+          const cruisingSpeed =
+            this.currentPlan === C.AI_STRATEGY_PLANS.DELTA || activeRole?.startsWith('SPEARHEAD')
+              ? C.TANK_MAX_SPEED_KMH
+              : Math.min(18, profile.maxSpeedKmh);
+          applySafeCruisingTrim(world, owner, tank, cruisingSpeed);
+
+          this.reserveDeployTimer = 0;
+          this.sliceTimer = 0;
+          applyAction(world, owner, 'SELECT', reserveToDeploy.number);
+          applyAction(world, owner, 'FORWARD');
+          this.lastCommandedTime.set(reserveToDeploy.id, this.simTime);
+          return;
+        }
       }
     }
 
@@ -1126,12 +1187,47 @@ export class AiController {
     let navTargetX = roleWaypoint.x;
     let navTargetY = roleWaypoint.y;
     let targetDist = Math.hypot(navTargetX - tank.x, navTargetY - tank.y);
+    let isRearming = false;
+    let isRearmAligned = false;
 
     if (profile.rearm && outOfShells) {
+      isRearming = true;
       this.lockedTargetId = null;
       world.players[owner].lockedTarget = null;
-      navTargetX = gateX(owner) + inwardDir(owner) * 4;
-      navTargetY = C.GATE_CENTER_Y_M;
+
+      const myGateX = gateX(owner);
+      const inward = inwardDir(owner);
+      const distToGate = inward * (tank.x - myGateX);
+      const lateralOffset = Math.abs(tank.y - C.GATE_CENTER_Y_M);
+      const hangarHeading = owner === 0 ? Math.PI : 0;
+      const headingErrToHangar = Math.abs(normalizeAngle(hangarHeading - tank.heading));
+
+      const standoffX = myGateX + inward * C.AI_REARM_STANDOFF_DIST_M;
+      const standoffY = C.GATE_CENTER_Y_M;
+
+      // Misaligned when close to gate: lateral offset > 1.2m or heading not pointing towards hangar
+      const misalignedNearGate =
+        distToGate < C.AI_REARM_RESET_DIST_M &&
+        (lateralOffset > C.AI_REARM_ALIGN_LATERAL_M || headingErrToHangar > 0.52);
+
+      if (misalignedNearGate) {
+        // Move away from gate out into field to standoff point to correct trajectory
+        navTargetX = standoffX;
+        navTargetY = standoffY;
+      } else if (
+        distToGate <= C.AI_REARM_STANDOFF_DIST_M &&
+        lateralOffset <= C.AI_REARM_ALIGN_LATERAL_M &&
+        headingErrToHangar <= 0.45
+      ) {
+        // Aligned in the entry corridor: drive straight into the hangar through gate
+        isRearmAligned = true;
+        navTargetX = myGateX - inward * C.AI_REARM_PENETRATION_DEPTH_M;
+        navTargetY = C.GATE_CENTER_Y_M;
+      } else {
+        // Approaching from open field: steer toward standoff alignment point first
+        navTargetX = standoffX;
+        navTargetY = standoffY;
+      }
       targetDist = Math.hypot(navTargetX - tank.x, navTargetY - tank.y);
     } else if (
       combatTarget &&
@@ -1152,16 +1248,20 @@ export class AiController {
       navTargetY += this.laneOffset * 0.5;
     }
 
-    navTargetX = Math.max(4, Math.min(C.FIELD_LENGTH_M - 4, navTargetX));
-    navTargetY = Math.max(4, Math.min(C.FIELD_WIDTH_M - 4, navTargetY));
+    if (!isRearmAligned) {
+      navTargetX = Math.max(4, Math.min(C.FIELD_LENGTH_M - 4, navTargetX));
+      navTargetY = Math.max(4, Math.min(C.FIELD_WIDTH_M - 4, navTargetY));
+    }
 
     let desiredHeading = Math.atan2(navTargetY - tank.y, navTargetX - tank.x);
 
-    // Boundary steering avoidance
-    if (tank.y < 12 && Math.sin(tank.heading) < -0.3) {
-      desiredHeading = Math.atan2(25 - tank.y, Math.cos(tank.heading));
-    } else if (tank.y > C.FIELD_WIDTH_M - 12 && Math.sin(tank.heading) > 0.3) {
-      desiredHeading = Math.atan2(C.FIELD_WIDTH_M - 25 - tank.y, Math.cos(tank.heading));
+    // Boundary steering avoidance (only if not aligned in rearm corridor)
+    if (!isRearmAligned) {
+      if (tank.y < 12 && Math.sin(tank.heading) < -0.3) {
+        desiredHeading = Math.atan2(25 - tank.y, Math.cos(tank.heading));
+      } else if (tank.y > C.FIELD_WIDTH_M - 12 && Math.sin(tank.heading) > 0.3) {
+        desiredHeading = Math.atan2(C.FIELD_WIDTH_M - 25 - tank.y, Math.cos(tank.heading));
+      }
     }
 
     // Terrain hazard avoidance (Pits, Mines, Obstacles)
@@ -1296,7 +1396,11 @@ export class AiController {
     // 12. Steering with smooth step control
     const maxTurnLimit =
       tank.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
-    if (Math.abs(angleErr) <= profile.aimTolerance) {
+    if (isRearmAligned && Math.abs(angleErr) < 0.12) {
+      // Lock turn rate to zero when driving straight through gate doorway
+      while (tank.cmdTurnDeg > 0) applyAction(world, owner, 'TURN_L');
+      while (tank.cmdTurnDeg < 0) applyAction(world, owner, 'TURN_R');
+    } else if (Math.abs(angleErr) <= profile.aimTolerance) {
       while (tank.cmdTurnDeg > 0) applyAction(world, owner, 'TURN_L');
       while (tank.cmdTurnDeg < 0) applyAction(world, owner, 'TURN_R');
     } else {
@@ -1328,7 +1432,16 @@ export class AiController {
       // Actively maneuver around the mine at controlled cruising speed!
       desiredSpeed = Math.min(18, effectiveMaxSpeed);
     } else if (outOfShells && profile.rearm) {
-      desiredSpeed = effectiveMaxSpeed;
+      const myGateX = gateX(owner);
+      const inward = inwardDir(owner);
+      const distToGate = inward * (tank.x - myGateX);
+      if (isRearmAligned) {
+        desiredSpeed = Math.min(18, effectiveMaxSpeed); // Controlled cruise through gate
+      } else if (distToGate < 8.0 && Math.abs(angleErr) > Math.PI / 2) {
+        desiredSpeed = 0; // Pivot in place to face standoff point without driving into border wall
+      } else {
+        desiredSpeed = Math.min(18, effectiveMaxSpeed);
+      }
     } else if (
       this.currentPlan === C.AI_STRATEGY_PLANS.DELTA ||
       assignedRole.startsWith('SPEARHEAD')

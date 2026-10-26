@@ -785,6 +785,15 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 ### 15.4 Strategic Brigade Control Architecture
 - For comprehensive multi-tank coordination, urgency-based time-slice dispatching, attack formations (Pincer Envelopment, Wedge Breach), and dynamic plan switching, refer to the full architectural specification in [`docs/ai_strategic_control_plan.md`](./ai_strategic_control_plan.md).
 
+### 15.5 Hangar Rearm Navigation & Doorway Alignment Corridor
+- **Two-Stage Alignment Trajectory:** When an empty AI tank returns to the base to rearm (`profile.rearm` with 0 shells), it targets an external standoff alignment waypoint located `AI_REARM_STANDOFF_DIST_M = 22.0m` in front of the gate along the central axis ($Y = 50.0\text{ m}$).
+- **Standoff Reset for Misaligned Approaches:** If an empty tank approaches within `AI_REARM_RESET_DIST_M = 18.0m` of the gate but is misaligned laterally ($|Y - 50.0| > \text{AI\_REARM\_ALIGN\_LATERAL\_M} = 1.2\text{ m}$) or has an angular error $> 30^\circ$ relative to the doorway, it steers away from the gate into the open field toward the standoff waypoint $(22.0, 50.0)$. If close to the wall ($< 8\text{ m}$) and facing the boundary, it pivots in place to face outward before moving forward, completely eliminating gate wall collisions, loops, and figure-8 entrapment.
+- **Deep Hangar Penetration Target:** Once aligned within the corridor ($dist \le 22.0\text{ m}$, lateral offset $\le 1.2\text{ m}$, heading error $\le 25^\circ$), the target waypoint penetrates deep inside the hangar (`AI_REARM_PENETRATION_DEPTH_M = 12.0m` beyond the gate line) without field-boundary clamping. The AI locks steering commands to zero (`cmdTurnDeg = 0`) when heading error is $< 6^\circ$ and cruises straight through the doorway at a controlled $18\text{ km/h}$.
+
+### 15.6 Armed Reserve Deployment Priority
+- **Immediate Recharged Reserve Deployment:** When an empty tank berths in a hangar slot, it instantly reloads to full capacity (5 shells, 2 mines, 2 smokes). If active field tanks are out of ammunition (`shells === 0`) or field strength is below maximum, the AI prioritizes selecting and deploying the recharged armed reserve (`AI_URGENCY_DEPLOY_ARMED_RESERVE = 92`) rather than idling in the hangar or solely managing out-of-ammo field tanks.
+- **Spawn Area Clearance Verification:** The AI verifies that the gate exit corridor is unblocked (`isSpawnClear(world, owner)`) before issuing deployment commands, ensuring departing reserves enter cleanly without jamming returning units.
+
 ---
 
 ## 16. Constants Summary (initial)
@@ -838,6 +847,11 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 | `AI_SLIT_DEFENSE_TRIGGER_DIST_M` | 48 | m |
 | `AI_SLIT_AIM_TOLERANCE_RAD` / `FIRE_TOLERANCE_RAD` | 0.08 / 0.12 | rad |
 | `AI_SLIT_MAX_FIRE_DIST_M` | 60 | m |
+| `AI_REARM_STANDOFF_DIST_M` | 22.0 | m |
+| `AI_REARM_ALIGN_LATERAL_M` | 1.2 | m |
+| `AI_REARM_PENETRATION_DEPTH_M` | 12.0 | m |
+| `AI_REARM_RESET_DIST_M` | 18.0 | m |
+| `AI_URGENCY_DEPLOY_ARMED_RESERVE` | 92 | |
 | `MAP_TARGET_ARROW_WIDTH_PX` | 1.5 | px |
 | `MAP_TARGET_ARROW_HEAD_LEN_M` | 3.2 | m |
 | `MAP_TARGET_ARROW_HEAD_ANGLE_RAD` | 0.42 | rad |
