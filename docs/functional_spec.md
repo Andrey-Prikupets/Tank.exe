@@ -259,7 +259,7 @@ Each tank has:
 - `heading` (rad), `pos` (x, y).
 - **Commanded** linear speed `cmdSpeedKmh` and **commanded** turn rate `cmdTurnDeg` — set by key steps.
 - **Actual** linear speed `speed` and **actual** turn rate `turn` — approach the commanded values
-  with non-momentary step acceleration (**1s per step transition**).
+  with non-momentary step acceleration (**0.5s per step transition**).
 
 Every tick:
 ```
@@ -280,18 +280,18 @@ then collisions (§7) are resolved.
 - **Rotational Speed Steps:**
   - **While Moving (`speed ≠ 0`):** 3 steps in each direction: `15°/s`, `30°/s`, `45°/s` (ladder: `[-45, -30, -15, 0, 15, 30, 45] °/s`).
   - **While Stationary / Pivot Turn (`speed = 0`):** 2 steps in each direction: `15°/s`, `30°/s` (ladder: `[-30, -15, 0, 15, 30] °/s`).
-- **Step Acceleration & Deceleration (1s per step transition):**
-  - Switching between any adjacent speed steps takes **1.0 second**:
-    - `0 ↔ ±6 km/h`: $6\text{ km/h/s} = 1.667\text{ m/s}^2$
-    - `6 ↔ 18 km/h`: $12\text{ km/h/s} = 3.333\text{ m/s}^2$
-    - `18 ↔ 36 km/h`: $18\text{ km/h/s} = 5.000\text{ m/s}^2$
-  - Switching between any adjacent turn steps takes **1.0 second**:
-    - `TANK_TURN_ACCEL_DEG_S2 = 15 °/s²`.
-  - **STOP Command:** Setting commanded speed and turn to 0 decelerates the tank smoothly at 1 second per step:
-    - Stopping from `36 km/h` takes 3 seconds (36 $\to$ 18 $\to$ 6 $\to$ 0).
-    - Stopping from `18 km/h` takes 2 seconds (18 $\to$ 6 $\to$ 0).
-    - Stopping from `6 km/h` or `-6 km/h` takes 1 second.
-    - Stopping turn from `45°/s` takes 3 seconds; from `30°/s` takes 2 seconds; from `15°/s` takes 1 second.
+- **Step Acceleration & Deceleration (0.5s per step transition):**
+  - Switching between any adjacent speed steps takes **0.5 seconds**:
+    - `0 ↔ ±6 km/h`: $12\text{ km/h/s} = 3.333\text{ m/s}^2$
+    - `6 ↔ 18 km/h`: $24\text{ km/h/s} = 6.667\text{ m/s}^2$
+    - `18 ↔ 36 km/h`: $36\text{ km/h/s} = 10.000\text{ m/s}^2$
+  - Switching between any adjacent turn steps takes **0.5 seconds**:
+    - `TANK_TURN_ACCEL_DEG_S2 = 30 °/s²`.
+  - **STOP Command:** Setting commanded speed and turn to 0 decelerates the tank smoothly at 0.5 seconds per step:
+    - Stopping from `36 km/h` takes 1.5 seconds (36 $\to$ 18 $\to$ 6 $\to$ 0).
+    - Stopping from `18 km/h` takes 1.0 second (18 $\to$ 6 $\to$ 0).
+    - Stopping from `6 km/h` or `-6 km/h` takes 0.5 seconds.
+    - Stopping turn from `45°/s` takes 1.5 seconds; from `30°/s` takes 1.0 second; from `15°/s` takes 0.5 seconds.
 
 | Constant | Value | Description |
 |---|---|---|
@@ -301,7 +301,7 @@ then collisions (§7) are resolved.
 | `TANK_MAX_TURN_DEG_S` | 45 | 3 moving steps: 15, 30, 45 °/s |
 | `TANK_MAX_PIVOT_TURN_DEG_S` | 30 | 2 stationary steps: 15, 30 °/s |
 | `TURN_STEP_DEG_S` | 15 | Rotational step size |
-| `TANK_TURN_ACCEL_DEG_S2` | 15 | 1s per 15°/s step transition |
+| `TANK_TURN_ACCEL_DEG_S2` | 30 | 0.5s per 15°/s step transition |
 | `KEY_REPEAT_MS` | 150 | ms |
 
 ### 6.3 Persistence of motion
@@ -372,7 +372,7 @@ Tanks are oriented rectangles (OBB). Collision is checked every tick.
 - View is rendered through a **narrow horizontal slit** mask (black above/below) to look like a
   window; crosshair in the center.
 - Default facing: perpendicular to the wall, into the field.
-- Turn keys (`A`/`D`, `←`/`→`) **rotate the view** (not a tank) in discrete steps: **15°/s and 30°/s** (`WINDOW_YAW_STEP_DEG_S = 15`, `WINDOW_YAW_RATE_DEG_S = 30`), up to `WINDOW_MAX_YAW_DEG` (45°, i.e. 50 % of the 90° to the wall) each side. Angular acceleration between steps is non-momentary at **1.0s per 15°/s step transition** (`WINDOW_YAW_ACCEL_DEG_S2 = 15 °/s²`). The STOP command zeroes commanded window rotation with 1.0s per step deceleration (30 $\to$ 15 $\to$ 0 in 2s).
+- Turn keys (`A`/`D`, `←`/`→`) **rotate the view** (not a tank) in discrete steps: **15°/s and 30°/s** (`WINDOW_YAW_STEP_DEG_S = 15`, `WINDOW_YAW_RATE_DEG_S = 30`), up to `WINDOW_MAX_YAW_DEG` (45°, i.e. 50 % of the 90° to the wall) each side. Angular acceleration between steps is non-momentary at **0.5s per 15°/s step transition** (`WINDOW_YAW_ACCEL_DEG_S2 = 30 °/s²`). The STOP command zeroes commanded window rotation with 0.5s per step deceleration (30 $\to$ 15 $\to$ 0 in 1.0s).
 - Accelerate/decelerate keys have no effect in window view.
 - Fire key shoots a shell from the window along the view direction. **Unlimited ammo**, limited by
   `WINDOW_RELOAD_S` (1.5) between shots (per window). Same shell range/speed as tank shells. **[A14]**
@@ -818,10 +818,10 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 | `TANKS_PER_PLAYER` | 15 | |
 | `TANK_MAX_SPEED_KMH` / `TANK_MAX_REVERSE_KMH` | 36 / 6 | km/h |
 | `TANK_SPEED_STEPS_KMH` | `[-6, 0, 6, 18, 36]` | km/h |
-| `TANK_LINEAR_ACCEL_MS2` | 1.67 / 3.33 / 5.0 (1s per step) | m/s² |
+| `TANK_LINEAR_ACCEL_MS2` | 3.33 / 6.67 / 10.0 (0.5s per step) | m/s² |
 | `TANK_MAX_TURN_DEG_S` / `TANK_MAX_PIVOT_TURN_DEG_S` | 45 / 30 | °/s |
 | `TURN_STEP_DEG_S` | 15 | °/s |
-| `TANK_TURN_ACCEL_DEG_S2` | 15 (1s per step) | °/s² |
+| `TANK_TURN_ACCEL_DEG_S2` | 30 (0.5s per step) | °/s² |
 | `KEY_REPEAT_MS` | 150 | ms |
 | `BORDER_DRAG_FACTOR` / `TANK_CONTACT_TURN_FACTOR` | 0.5 / 0.5 | |
 | `TANK_START_SHELLS` / `MINES` / `SMOKES` | 5 / 2 / 2 | |
@@ -831,7 +831,7 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 | `SMOKE_RADIUS_M` / `SMOKE_LIFETIME_S` / `SMOKE_FADE_S` | 10 / 10 / 2 | m / s / s |
 | `WINDOW_OFFSET_FROM_GATE_M` / `WINDOW_LENGTH_M` | 8 / 5 | m |
 | `WINDOW_MAX_YAW_DEG` / `WINDOW_YAW_RATE_DEG_S` | 45 / 30 | ° / °/s |
-| `WINDOW_YAW_STEP_DEG_S` / `WINDOW_YAW_ACCEL_DEG_S2` | 15 / 15 (1s per step) | °/s / °/s² |
+| `WINDOW_YAW_STEP_DEG_S` / `WINDOW_YAW_ACCEL_DEG_S2` | 15 / 30 (0.5s per step) | °/s / °/s² |
 | `DEAD_ZONE_DEPTH_M` | 6 | m |
 | `START_BORDER_GAP_M` / `START_SPACING_M` | 6 / 10 | m |
 | `CAMERA_HEIGHT_M` / `CAMERA_FOV_DEG` | 2.2 / 60 | m / ° |

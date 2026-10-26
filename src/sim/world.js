@@ -391,9 +391,9 @@ function kill(world, t, killerOwner, big, reason) {
 
 export function getLinearAccelMs2(currentSpeedMs) {
   const currentKmh = Math.abs(currentSpeedMs * 3.6);
-  if (currentKmh > 18) return 18 / 3.6; // 5.0 m/s^2 (18 km/h per second for the 18..36 step)
-  if (currentKmh > 6) return 12 / 3.6;  // 3.3333 m/s^2 (12 km/h per second for the 6..18 step)
-  return 6 / 3.6;                       // 1.6667 m/s^2 (6 km/h per second for the 0..6 or 0..-6 step)
+  if (currentKmh > 18) return 36 / 3.6; // 10.0 m/s^2 (18 km/h per 0.5 second for the 18..36 step)
+  if (currentKmh > 6) return 24 / 3.6;  // 6.6667 m/s^2 (12 km/h per 0.5 second for the 6..18 step)
+  return 12 / 3.6;                      // 3.3333 m/s^2 (6 km/h per 0.5 second for the 0..6 or 0..-6 step)
 }
 
 // ---------------------------------------------------------------------------

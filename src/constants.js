@@ -171,7 +171,7 @@ export const TANK_LINEAR_ACCEL_MS2 = 3;
 export const TANK_MAX_TURN_DEG_S = 45; // 3 steps while moving: 15, 30, 45 deg/s
 export const TANK_MAX_PIVOT_TURN_DEG_S = 30; // 2 steps while stationary: 15, 30 deg/s
 export const TURN_STEP_DEG_S = 15;
-export const TANK_TURN_ACCEL_DEG_S2 = 15; // 1s per 15 deg/s step
+export const TANK_TURN_ACCEL_DEG_S2 = 30; // 0.5s per 15 deg/s step
 export const BORDER_DRAG_FACTOR = 0.5;
 export const TANK_CONTACT_TURN_FACTOR = 0.5;
 
@@ -236,7 +236,7 @@ export const WINDOW_LENGTH_M = 5;
 export const WINDOW_MAX_YAW_DEG = 45;
 export const WINDOW_YAW_RATE_DEG_S = 30; // 2 steps: 15, 30 deg/s
 export const WINDOW_YAW_STEP_DEG_S = 15;
-export const WINDOW_YAW_ACCEL_DEG_S2 = 15; // 1s per 15 deg/s step
+export const WINDOW_YAW_ACCEL_DEG_S2 = 30; // 0.5s per 15 deg/s step
 export const WINDOW_YAW_STEPS_DEG_S = [-30, -15, 0, 15, 30];
 export const WINDOW_CAMERA_INSET_M = 0.4;
 export const DEAD_ZONE_DEPTH_M = TANK_LENGTH_M;
