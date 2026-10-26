@@ -103,6 +103,14 @@ export const AI_WEDGE_ECHELON_LAG_M = 12.0;
 export const AI_BASE_DEFENSE_ARC_RADIUS_M = 26.0;
 export const AI_COURSE_PROJECT_TIME_S = 3.0;
 
+// Tactical Trajectory & Mobilization
+export const AI_MOBILIZE_CRUISE_KMH = 18;
+export const AI_TRAJECTORY_WEAVE_AMP_M = 5.0;
+export const AI_TRAJECTORY_WEAVE_FREQ = 0.65;
+export const AI_VEHICLE_AVOIDANCE_LOOKAHEAD_M = 16.0;
+export const AI_VEHICLE_AVOIDANCE_CLEARANCE_M = 5.2;
+export const AI_OBLIQUE_ENGAGE_LATERAL_M = 10.0;
+
 // Smoke Line of Sight & Blind Fire Prediction
 export const AI_SMOKE_MAX_TRACK_AGE_S = 10.0;
 export const AI_SMOKE_PREDICT_DECAY_PER_S = 0.22;

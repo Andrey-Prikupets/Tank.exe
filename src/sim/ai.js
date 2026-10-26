@@ -281,53 +281,60 @@ function assignBrigadeRoles(myField, plan) {
   return roles;
 }
 
-/** Calculates tactical waypoints based on assigned formation role. */
-function getRoleWaypoint(tank, role, plan, owner, enemyGateX) {
+/** Calculates tactical waypoints based on assigned formation role with organic trajectory weaving. */
+function getRoleWaypoint(tank, role, plan, owner, enemyGateX, simTime = 0) {
   const midX = (gateX(owner) + enemyGateX) / 2;
   const beforeMid = owner === 0 ? tank.x < midX : tank.x > midX;
 
+  // Organic S-curve lateral weave: amplitude ~3-5m, varies with time and tank ID
+  const weavePhase = simTime * C.AI_TRAJECTORY_WEAVE_FREQ + (tank.id % 5) * 1.35;
+  const weaveY = Math.sin(weavePhase) * C.AI_TRAJECTORY_WEAVE_AMP_M;
+
+  // Asymmetric lane offset for center vanguard to prevent head-on collisions at Y=50
+  const vanguardLaneY = owner === 0 ? C.AI_LANE_CENTER_Y - 5.0 : C.AI_LANE_CENTER_Y + 5.0;
+
   switch (role) {
     case 'VANGUARD':
-      return { x: enemyGateX, y: C.AI_LANE_CENTER_Y };
+      return { x: enemyGateX, y: vanguardLaneY + weaveY };
 
     case 'NORTH_FLANK_LEAD':
       return {
         x: beforeMid ? midX : enemyGateX,
-        y: beforeMid ? C.AI_LANE_NORTH_Y : C.AI_LANE_NORTH_Y + 4,
+        y: (beforeMid ? C.AI_LANE_NORTH_Y : C.AI_LANE_NORTH_Y + 4) + weaveY * 0.7,
       };
 
     case 'NORTH_FLANK_TRAIL':
       return {
         x: beforeMid ? (gateX(owner) + midX) / 2 : enemyGateX,
-        y: C.AI_LANE_NORTH_Y + 2,
+        y: C.AI_LANE_NORTH_Y + 2 + weaveY * 0.7,
       };
 
     case 'SOUTH_FLANK_LEAD':
       return {
         x: beforeMid ? midX : enemyGateX,
-        y: beforeMid ? C.AI_LANE_SOUTH_Y : C.AI_LANE_SOUTH_Y - 4,
+        y: (beforeMid ? C.AI_LANE_SOUTH_Y : C.AI_LANE_SOUTH_Y - 4) + weaveY * 0.7,
       };
 
     case 'SOUTH_FLANK_TRAIL':
       return {
         x: beforeMid ? (gateX(owner) + midX) / 2 : enemyGateX,
-        y: C.AI_LANE_SOUTH_Y - 2,
+        y: C.AI_LANE_SOUTH_Y - 2 + weaveY * 0.7,
       };
 
     case 'SPEARHEAD_N':
-      return { x: enemyGateX, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y };
+      return { x: enemyGateX, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
 
     case 'SPEARHEAD_S':
-      return { x: enemyGateX, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y };
+      return { x: enemyGateX, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
 
     case 'ECHELON_N':
-      return { x: enemyGateX, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y * 2 };
+      return { x: enemyGateX, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
 
     case 'ECHELON_S':
-      return { x: enemyGateX, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y * 2 };
+      return { x: enemyGateX, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
 
     case 'REARGUARD':
-      return { x: (gateX(owner) + midX) / 2, y: C.AI_LANE_CENTER_Y };
+      return { x: (gateX(owner) + midX) / 2, y: C.AI_LANE_CENTER_Y + weaveY * 0.5 };
 
     case 'SENTRY':
       return { x: gateX(owner) + inwardDir(owner) * 14, y: C.GATE_CENTER_Y_M };
@@ -335,21 +342,21 @@ function getRoleWaypoint(tank, role, plan, owner, enemyGateX) {
     case 'DEFENSE_ARC_N':
       return {
         x: gateX(owner) + inwardDir(owner) * C.AI_BASE_DEFENSE_ARC_RADIUS_M,
-        y: C.GATE_CENTER_Y_M - 15,
+        y: C.GATE_CENTER_Y_M - 15 + weaveY * 0.4,
       };
 
     case 'DEFENSE_ARC_S':
       return {
         x: gateX(owner) + inwardDir(owner) * C.AI_BASE_DEFENSE_ARC_RADIUS_M,
-        y: C.GATE_CENTER_Y_M + 15,
+        y: C.GATE_CENTER_Y_M + 15 + weaveY * 0.4,
       };
 
     case 'RELOADER':
-      return { x: gateX(owner) + inwardDir(owner) * 4, y: C.GATE_CENTER_Y_M };
+      return { x: gateX(owner) + inwardDir(owner) * C.AI_REARM_STANDOFF_DIST_M, y: C.GATE_CENTER_Y_M };
 
     case 'PURSUER':
     default:
-      return { x: enemyGateX, y: C.GATE_CENTER_Y_M };
+      return { x: enemyGateX, y: C.GATE_CENTER_Y_M + weaveY };
   }
 }
 
@@ -749,7 +756,7 @@ export class AiController {
   }
 
   /** Tier 1: Brigade Commander Strategic State Machine. */
-  updateCommander(world, dt, myField, enemyField) {
+  updateCommander(world, dt, myField, enemyField, profile) {
     const owner = this.owner;
     this.commanderTimer += dt;
 
@@ -763,6 +770,39 @@ export class AiController {
     this.casualtyTimestamps = this.casualtyTimestamps.filter(
       (ts) => this.simTime - ts <= C.AI_CASUALTY_WINDOW_S,
     );
+
+    const enemyGateX = gateX(1 - owner);
+
+    // Initial and dynamic brigade role assignment if unassigned
+    if (!this.tankRoles || this.tankRoles.size === 0) {
+      this.tankRoles = assignBrigadeRoles(myField, this.currentPlan);
+    }
+
+    // Mobilize whole brigade at once: ensure all friendly field tanks immediately advance into formation
+    for (const t of myField) {
+      if (t.status === 'field' && t.cmdSpeedKmh === 0 && Math.abs(t.speed) < 0.2) {
+        const role = this.tankRoles.get(t.id) || 'VANGUARD';
+        const roleWaypoint = getRoleWaypoint(
+          t,
+          role,
+          this.currentPlan,
+          owner,
+          enemyGateX,
+          this.simTime,
+        );
+        const wpAngle = Math.atan2(roleWaypoint.y - t.y, roleWaypoint.x - t.x);
+        t.heading = wpAngle;
+        const cruiseSpeed =
+          this.currentPlan === C.AI_STRATEGY_PLANS.DELTA ||
+          role.startsWith('SPEARHEAD') ||
+          (profile.maxSpeedKmh > 18 && role === 'VANGUARD')
+            ? profile.maxSpeedKmh
+            : Math.min(C.AI_MOBILIZE_CRUISE_KMH, profile.maxSpeedKmh);
+        t.cmdSpeedKmh = cruiseSpeed;
+        t.speed = C.kmhToMs(C.SPEED_STEP_KMH); // immediate forward roll
+        this.lastCommandedTime.set(t.id, this.simTime - (t.id % 5) * 0.18);
+      }
+    }
 
     if (this.commanderTimer < C.AI_COMMANDER_EVAL_INTERVAL_S) return;
     this.commanderTimer = 0;
@@ -828,7 +868,7 @@ export class AiController {
     const enemyField = world.tanks.filter((t) => t.owner !== owner && t.status === 'field');
 
     // 2. Commander update
-    this.updateCommander(world, dt, myField, enemyField);
+    this.updateCommander(world, dt, myField, enemyField, profile);
 
     let tank = selectedTank(world, owner);
 
@@ -1030,6 +1070,7 @@ export class AiController {
     }
 
     if (!tank || tank.status !== 'field') return;
+    this.lastCommandedTime.set(tank.id, this.simTime);
 
     // 7. Real-time weapons reflex: handles direct LOS and blind fire through smoke
     tryFireWeapon(
@@ -1181,6 +1222,7 @@ export class AiController {
       this.currentPlan,
       owner,
       enemyGateX,
+      this.simTime,
     );
 
     const outOfShells = tank.shells === 0;
@@ -1243,6 +1285,19 @@ export class AiController {
       const effectiveLead = profile.leadFactor * (0.9 + Math.random() * 0.2);
       navTargetX = combatTargetPos.x + tvx * tFly * effectiveLead;
       navTargetY = combatTargetPos.y + tvy * tFly * effectiveLead;
+
+      // Oblique tactical approach when enemy is on head-on collision vector:
+      // Prevents charging directly down the enemy gun barrel and colliding head-on
+      const toEnemyAngle = Math.atan2(combatTargetPos.y - tank.y, combatTargetPos.x - tank.x);
+      const enemyFacingUs =
+        Math.abs(normalizeAngle(combatTarget.heading - (toEnemyAngle + Math.PI))) < 0.52;
+      if (enemyFacingUs && combatTargetDist > 14.0) {
+        const obliqueSign = (tank.id % 2 === 0 ? 1 : -1) * (owner === 0 ? 1 : -1);
+        const lateralDist = Math.max(6.0, Math.min(C.AI_OBLIQUE_ENGAGE_LATERAL_M, combatTargetDist * 0.35));
+        navTargetX += -Math.sin(toEnemyAngle) * lateralDist * obliqueSign;
+        navTargetY += Math.cos(toEnemyAngle) * lateralDist * obliqueSign;
+      }
+
       targetDist = combatTargetDist;
     } else {
       navTargetY += this.laneOffset * 0.5;
@@ -1383,6 +1438,38 @@ export class AiController {
           const [, tly] = toLocal(ob, tank.x, tank.y);
           avoidanceAngle = tly > 0 ? 0.8 : -0.8;
           break;
+        }
+      }
+    }
+
+    // Live Vehicle Collision Avoidance (friendly and enemy tanks ahead)
+    if (!avoidanceAngle) {
+      const otherTanks = world.tanks.filter((o) => o.id !== tank.id && o.status === 'field');
+      let closestVeh = null;
+      let closestVehDist = Infinity;
+
+      for (const o of otherTanks) {
+        const dVeh = Math.hypot(o.x - tank.x, o.y - tank.y);
+        if (dVeh > C.AI_VEHICLE_AVOIDANCE_LOOKAHEAD_M + 4) continue;
+
+        const [vlx, vly] = toLocal(tank, o.x, o.y);
+        if (
+          vlx > 0.5 &&
+          vlx < C.AI_VEHICLE_AVOIDANCE_LOOKAHEAD_M &&
+          Math.abs(vly) < C.AI_VEHICLE_AVOIDANCE_CLEARANCE_M
+        ) {
+          if (dVeh < closestVehDist) {
+            closestVehDist = dVeh;
+            closestVeh = { o, vlx, vly, dVeh };
+          }
+        }
+      }
+
+      if (closestVeh) {
+        // Steer away from oncoming vehicle to pass smoothly without collision
+        avoidanceAngle = closestVeh.vly >= 0 ? -0.75 : 0.75;
+        if (closestVeh.dVeh < 8.0 && closestVeh.vlx > 0) {
+          emergencyBrake = true;
         }
       }
     }

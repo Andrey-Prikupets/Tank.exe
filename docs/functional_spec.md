@@ -794,6 +794,15 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 - **Immediate Recharged Reserve Deployment:** When an empty tank berths in a hangar slot, it instantly reloads to full capacity (5 shells, 2 mines, 2 smokes). If active field tanks are out of ammunition (`shells === 0`) or field strength is below maximum, the AI prioritizes selecting and deploying the recharged armed reserve (`AI_URGENCY_DEPLOY_ARMED_RESERVE = 92`) rather than idling in the hangar or solely managing out-of-ammo field tanks.
 - **Spawn Area Clearance Verification:** The AI verifies that the gate exit corridor is unblocked (`isSpawnClear(world, owner)`) before issuing deployment commands, ensuring departing reserves enter cleanly without jamming returning units.
 
+### 15.7 Whole-Brigade Rollout & Initial Mobilization
+- **Simultaneous Brigade Advance:** At match start, instead of only moving the selected tank while the remaining 4 units remain stationary, the AI immediately mobilizes all field tanks (`t.status === 'field'`) into their assigned tactical roles (Vanguard, Flanks, Echelons). Each tank is given its initial cruising speed (`AI_MOBILIZE_CRUISE_KMH = 18` or up to 36 km/h on HARD) and heading, so the entire brigade sweeps across the battlefield simultaneously.
+- **Active Time-Slice Dispatcher Cycling:** The active unit continuously updates its commanded timestamp (`lastCommandedTime`), allowing starvation score to grow for unselected tanks. Every time slice (`AI_MAX_SLICE_S = 0.85s`), the dispatcher rotates control across all 5 tanks in balanced round-robin fashion unless acute combat/hazard emergencies take precedence.
+
+### 15.8 Dynamic Organic Trajectories & Oblique Combat Maneuvers
+- **Organic S-Curve Weaving:** Rather than advancing down identical straight lines, each role waypoint applies an organic sinusoidal lateral weave (`AI_TRAJECTORY_WEAVE_AMP_M = 5.0m`, `AI_TRAJECTORY_WEAVE_FREQ = 0.65Hz`) parameterized by simulation time and individual tank ID. Center Vanguard units apply an asymmetric lane bias ($Y \approx 45\text{ m}$ for Red, $Y \approx 55\text{ m}$ for Blue), eliminating head-on central collisions along $Y = 50.0\text{ m}$.
+- **Oblique Combat Approach (Jinking):** When engaging enemy tanks that are facing directly on a head-on collision course, the AI applies an oblique lateral offset (`AI_OBLIQUE_ENGAGE_LATERAL_M = 10.0m`) rather than charging straight down the enemy's gun barrel, evading predictable incoming fire while maintaining firing lead.
+- **Live Vehicle Collision Avoidance:** The steering reflex checks for both friendly and enemy vehicles directly in the forward path within `AI_VEHICLE_AVOIDANCE_LOOKAHEAD_M = 16.0m` (`AI_VEHICLE_AVOIDANCE_CLEARANCE_M = 5.2m`), steering laterally away to pass smoothly without ramming, and braking if within 8.0m.
+
 ---
 
 ## 16. Constants Summary (initial)
@@ -847,6 +856,12 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 | `AI_SLIT_DEFENSE_TRIGGER_DIST_M` | 48 | m |
 | `AI_SLIT_AIM_TOLERANCE_RAD` / `FIRE_TOLERANCE_RAD` | 0.08 / 0.12 | rad |
 | `AI_SLIT_MAX_FIRE_DIST_M` | 60 | m |
+| `AI_MOBILIZE_CRUISE_KMH` | 18 | km/h |
+| `AI_TRAJECTORY_WEAVE_AMP_M` | 5.0 | m |
+| `AI_TRAJECTORY_WEAVE_FREQ` | 0.65 | Hz |
+| `AI_VEHICLE_AVOIDANCE_LOOKAHEAD_M` | 16.0 | m |
+| `AI_VEHICLE_AVOIDANCE_CLEARANCE_M` | 5.2 | m |
+| `AI_OBLIQUE_ENGAGE_LATERAL_M` | 10.0 | m |
 | `AI_REARM_STANDOFF_DIST_M` | 22.0 | m |
 | `AI_REARM_ALIGN_LATERAL_M` | 1.2 | m |
 | `AI_REARM_PENETRATION_DEPTH_M` | 12.0 | m |
