@@ -9,14 +9,47 @@ export const BRIGADE_DOCTRINES = [
   'ASYMMETRIC_SPLIT',// Asymmetric single flank thrust with stealth gate lurker
 ];
 
-/** Assigns brigade formation roles across friendly field tanks with doctrine-specific tactical asymmetry. */
-export function assignBrigadeRoles(myField, plan, doctrine = 'PINCER_AMBUSH', owner = 0) {
-  // Use a pseudo-random permutation seeded by tank IDs and owner so roles are organically distributed
-  const sorted = [...myField].sort((a, b) => {
+/** Role sets (ordered by slot) per doctrine. */
+const DOCTRINE_ROLES = {
+  NORTH_SWEEP: ['NORTH_GATE_AMBUSH', 'NORTH_FLANK_LEAD', 'NORTH_FLANK_TRAIL', 'VANGUARD', 'SOUTH_FLANK_LEAD'],
+  SOUTH_SWEEP: ['SOUTH_GATE_AMBUSH', 'SOUTH_FLANK_LEAD', 'SOUTH_FLANK_TRAIL', 'VANGUARD', 'NORTH_FLANK_LEAD'],
+  PINCER_AMBUSH: ['NORTH_GATE_AMBUSH', 'SOUTH_GATE_AMBUSH', 'VANGUARD', 'NORTH_FLANK_LEAD', 'SOUTH_FLANK_LEAD'],
+  SPEARHEAD_WEDGE: ['SPEARHEAD_N', 'SPEARHEAD_S', 'ECHELON_N', 'NORTH_GATE_AMBUSH', 'SOUTH_GATE_AMBUSH'],
+};
+/** Plan Bravo: concentrated wedge with a rearguard. */
+const BRAVO_ROLES = ['SPEARHEAD_N', 'SPEARHEAD_S', 'ECHELON_N', 'ECHELON_S', 'REARGUARD'];
+/** Plan Delta: everybody chases. */
+const DELTA_ROLES = ['PURSUER', 'PURSUER', 'PURSUER', 'PURSUER', 'PURSUER'];
+
+/** Ordered role slots for a plan (Charlie is handled separately, it depends on ammo). */
+function roleTable(plan, doctrine, owner) {
+  if (plan === C.AI_STRATEGY_PLANS.BRAVO) return BRAVO_ROLES;
+  if (plan === C.AI_STRATEGY_PLANS.DELTA) return DELTA_ROLES;
+  if (doctrine === 'ASYMMETRIC_SPLIT' || !DOCTRINE_ROLES[doctrine]) {
+    const n = owner === 0;
+    return [
+      n ? 'NORTH_GATE_AMBUSH' : 'SOUTH_GATE_AMBUSH',
+      'VANGUARD',
+      n ? 'NORTH_FLANK_LEAD' : 'SOUTH_FLANK_LEAD',
+      n ? 'SOUTH_GATE_AMBUSH' : 'NORTH_GATE_AMBUSH',
+      'REARGUARD',
+    ];
+  }
+  return DOCTRINE_ROLES[doctrine];
+}
+
+/** Pseudo-random but stable permutation (seeded by tank id and owner) so roles are organically distributed. */
+function hashSorted(myField, owner) {
+  return [...myField].sort((a, b) => {
     const hashA = (a.id * 7 + (owner === 0 ? 3 : 11)) % 17;
     const hashB = (b.id * 7 + (owner === 0 ? 3 : 11)) % 17;
     return hashA - hashB;
   });
+}
+
+/** Assigns brigade formation roles across friendly field tanks with doctrine-specific tactical asymmetry. */
+export function assignBrigadeRoles(myField, plan, doctrine = 'PINCER_AMBUSH', owner = 0) {
+  const sorted = hashSorted(myField, owner);
   const roles = new Map();
 
   if (plan === C.AI_STRATEGY_PLANS.CHARLIE) {
@@ -29,59 +62,34 @@ export function assignBrigadeRoles(myField, plan, doctrine = 'PINCER_AMBUSH', ow
     return roles;
   }
 
-  switch (doctrine) {
-    case 'NORTH_SWEEP':
-      sorted.forEach((t, idx) => {
-        if (idx === 0) roles.set(t.id, 'NORTH_GATE_AMBUSH');
-        else if (idx === 1) roles.set(t.id, 'NORTH_FLANK_LEAD');
-        else if (idx === 2) roles.set(t.id, 'NORTH_FLANK_TRAIL');
-        else if (idx === 3) roles.set(t.id, 'VANGUARD');
-        else roles.set(t.id, 'SOUTH_FLANK_LEAD');
-      });
-      break;
+  const table = roleTable(plan, doctrine, owner);
+  sorted.forEach((t, idx) => roles.set(t.id, table[Math.min(idx, table.length - 1)]));
+  return roles;
+}
 
-    case 'SOUTH_SWEEP':
-      sorted.forEach((t, idx) => {
-        if (idx === 0) roles.set(t.id, 'SOUTH_GATE_AMBUSH');
-        else if (idx === 1) roles.set(t.id, 'SOUTH_FLANK_LEAD');
-        else if (idx === 2) roles.set(t.id, 'SOUTH_FLANK_TRAIL');
-        else if (idx === 3) roles.set(t.id, 'VANGUARD');
-        else roles.set(t.id, 'NORTH_FLANK_LEAD');
-      });
-      break;
-
-    case 'PINCER_AMBUSH':
-      sorted.forEach((t, idx) => {
-        if (idx === 0) roles.set(t.id, 'NORTH_GATE_AMBUSH');
-        else if (idx === 1) roles.set(t.id, 'SOUTH_GATE_AMBUSH');
-        else if (idx === 2) roles.set(t.id, 'VANGUARD');
-        else if (idx === 3) roles.set(t.id, 'NORTH_FLANK_LEAD');
-        else roles.set(t.id, 'SOUTH_FLANK_LEAD');
-      });
-      break;
-
-    case 'SPEARHEAD_WEDGE':
-      sorted.forEach((t, idx) => {
-        if (idx === 0) roles.set(t.id, 'SPEARHEAD_N');
-        else if (idx === 1) roles.set(t.id, 'SPEARHEAD_S');
-        else if (idx === 2) roles.set(t.id, 'ECHELON_N');
-        else if (idx === 3) roles.set(t.id, 'NORTH_GATE_AMBUSH');
-        else roles.set(t.id, 'SOUTH_GATE_AMBUSH');
-      });
-      break;
-
-    case 'ASYMMETRIC_SPLIT':
-    default:
-      sorted.forEach((t, idx) => {
-        if (idx === 0) roles.set(t.id, owner === 0 ? 'NORTH_GATE_AMBUSH' : 'SOUTH_GATE_AMBUSH');
-        else if (idx === 1) roles.set(t.id, 'VANGUARD');
-        else if (idx === 2) roles.set(t.id, owner === 0 ? 'NORTH_FLANK_LEAD' : 'SOUTH_FLANK_LEAD');
-        else if (idx === 3) roles.set(t.id, owner === 0 ? 'SOUTH_GATE_AMBUSH' : 'NORTH_GATE_AMBUSH');
-        else roles.set(t.id, 'REARGUARD');
-      });
-      break;
+/**
+ * Sticky role update: a full reassignment happens only on a plan change (or for Charlie, which
+ * depends on ammo). Otherwise tanks keep their roles; tanks without a role (newly deployed)
+ * take the roles freed by tanks that left the field. Prevents flanks swapping sides mid-battle.
+ */
+export function updateBrigadeRoles(prevRoles, myField, plan, planChanged, doctrine, owner) {
+  if (planChanged || plan === C.AI_STRATEGY_PLANS.CHARLIE || !prevRoles || prevRoles.size === 0) {
+    return assignBrigadeRoles(myField, plan, doctrine, owner);
   }
-
+  const free = [...roleTable(plan, doctrine, owner)];
+  const sorted = hashSorted(myField, owner);
+  const roles = new Map();
+  for (const t of sorted) {
+    const r = prevRoles.get(t.id);
+    const i = r ? free.indexOf(r) : -1;
+    if (i >= 0) {
+      roles.set(t.id, r);
+      free.splice(i, 1);
+    }
+  }
+  for (const t of sorted) {
+    if (!roles.has(t.id)) roles.set(t.id, free.length ? free.shift() : 'VANGUARD');
+  }
   return roles;
 }
 

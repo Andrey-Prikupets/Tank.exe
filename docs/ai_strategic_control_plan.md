@@ -67,17 +67,22 @@ The enemy slit-gun hit sector (`isInEnemySlitGunSector`) is never an acceptable 
 ### 3.3 Plans
 | Plan | Meaning |
 |---|---|
-| **Alpha** (`PINCER`) | Default offensive using the brigade doctrine. |
-| **Bravo** (`WEDGE`) | Periodic concentrated assault when >= 4 tanks are in the field. Same doctrine roles, maximum cruise speed. |
-| **Charlie** (`BASE_DEFENSE`) | Enemy within 45 m of own gate. Roles become sentry / defense arcs / reloader; mines are laid behind defenders. |
-| **Delta** (`PURSUIT`) | Enemy average ammo <= 0.5, or enemy has <= 1 tank vs >= 3 of ours. Maximum speed; attack-standoff waypoints are used regardless of range. |
+| **Alpha** (`PINCER`) | Default offensive using the brigade doctrine roles. |
+| **Bravo** (`WEDGE`) | Periodic concentrated assault when >= 4 tanks are in the field. Wedge roles: `SPEARHEAD_N/S`, `ECHELON_N/S`, `REARGUARD`. Ends after 20 s or when fewer than 4 tanks remain. |
+| **Charlie** (`BASE_DEFENSE`) | Gate threat: >= 2 enemies within 45 m of own gate, or any enemy within 30 m. Roles become sentry / defense arcs / reloader; mines are laid behind defenders. |
+| **Delta** (`PURSUIT`) | Enemy average ammo <= 0.5, or enemy has <= 1 tank vs >= 3 of ours. All tanks are `PURSUER`, maximum speed, attack-standoff waypoints regardless of range. Ends when the condition stops holding. |
 
-### 3.4 Plan transitions (evaluated in this priority order)
-1. Enemy within 45 m of own gate -> Charlie.
-2. In Charlie and nearest enemy farther than 60 m -> Alpha.
-3. >= 2 own casualties in 8 s -> Alpha (regroup).
-4. Enemy ammo exhausted / outnumbered -> Delta.
-5. In Alpha with >= 4 tanks and periodic trigger -> Bravo.
+Roles are **sticky**: they are fully reassigned only on a plan change (Charlie re-evaluates because
+roles depend on ammo). Otherwise a tank keeps its role; a newly deployed tank takes a role freed by a
+destroyed or retired tank, so flanks never swap sides mid-battle.
+
+### 3.4 Plan transitions (priority order, with hysteresis)
+1. Gate threat (see Charlie) -> Charlie. Leaving Charlie needs no gate threat, the nearest enemy
+   >= 60 m away and >= 4 s in the plan (`AI_PLAN_MIN_DWELL_S`).
+2. >= 2 own casualties within 8 s -> Alpha (regroup); no Bravo/Delta while casualties are recent.
+3. Delta -> Alpha when its condition ends (after the dwell time).
+4. Bravo -> Delta if pursuit condition holds; Bravo -> Alpha on timeout/depletion.
+5. Alpha -> Delta on pursuit condition; Alpha -> Bravo when >= 4 tanks and the periodic trigger fires.
 
 ## 4. Tier 2 - Urgency dispatcher
 

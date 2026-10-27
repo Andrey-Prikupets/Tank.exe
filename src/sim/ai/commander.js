@@ -1,6 +1,6 @@
 import * as C from '../../constants.js';
 import { gateX } from '../world.js';
-import { assignBrigadeRoles, getRoleWaypoint } from './roles.js';
+import { assignBrigadeRoles, updateBrigadeRoles, getRoleWaypoint } from './roles.js';
 
 /** Tier 1: Brigade Commander Strategic State Machine. */
 export function updateCommander(ctl, world, dt, myField, enemyField, profile) {
@@ -72,39 +72,67 @@ export function updateCommander(ctl, world, dt, myField, enemyField, profile) {
     enemyField.length > 0 ? enemyField.reduce((s, e) => s + e.shells, 0) / enemyField.length : 0;
   const recentCasualties = ctl.casualtyTimestamps.length;
 
-  // Dynamic Plan Transitions
+  // Dynamic Plan Transitions (with dwell time / hysteresis so plans do not flap)
+  const P = C.AI_STRATEGY_PLANS;
   const prevPlan = ctl.currentPlan;
-  let planReason = '';
-  if (closestEnemyDist <= C.AI_PLAN_DEFENSE_TRIGGER_DIST_M) {
-    ctl.currentPlan = C.AI_STRATEGY_PLANS.CHARLIE; // Base Defense
-    planReason = `enemy ${closestEnemyDist.toFixed(0)} m from our gate`;
-  } else if (
-    ctl.currentPlan === C.AI_STRATEGY_PLANS.CHARLIE &&
-    closestEnemyDist >= C.AI_PLAN_DEFENSE_CLEAR_DIST_M
-  ) {
-    ctl.currentPlan = C.AI_STRATEGY_PLANS.ALPHA; // Disengage Defense
-    planReason = 'gate threat cleared';
-  } else if (recentCasualties >= C.AI_CASUALTY_RETREAT_COUNT) {
-    ctl.currentPlan = C.AI_STRATEGY_PLANS.ALPHA; // Regroup with Standoff
-    planReason = `${recentCasualties} tanks lost recently - regroup`;
-  } else if (
+  const dwell = ctl.simTime - ctl.planSince;
+  const nearThreats = enemyField.filter(
+    (e) => Math.abs(e.x - myGateX) <= C.AI_PLAN_DEFENSE_TRIGGER_DIST_M,
+  ).length;
+  const gateThreat =
+    closestEnemyDist <= C.AI_PLAN_DEFENSE_INNER_DIST_M ||
+    nearThreats >= C.AI_PLAN_DEFENSE_MIN_THREATS;
+  const pursuitCond =
     enemyField.length > 0 &&
     (enemyAvgAmmo <= C.AI_PURSUIT_AMMO_THRESHOLD ||
-      (enemyField.length <= 1 && myField.length >= 3))
-  ) {
-    ctl.currentPlan = C.AI_STRATEGY_PLANS.DELTA; // Pursuit
-    planReason = enemyAvgAmmo <= C.AI_PURSUIT_AMMO_THRESHOLD ? 'enemy out of ammo' : 'enemy nearly eliminated';
-  } else if (ctl.currentPlan === C.AI_STRATEGY_PLANS.ALPHA && myField.length >= 4) {
-    // Periodic Wedge breach assault when forces are consolidated
-    if (Math.sin(ctl.simTime * 0.12) > 0.75) {
-      ctl.currentPlan = C.AI_STRATEGY_PLANS.BRAVO;
+      (enemyField.length <= 1 && myField.length >= 3));
+  const pursuitWhy =
+    enemyAvgAmmo <= C.AI_PURSUIT_AMMO_THRESHOLD ? 'enemy out of ammo' : 'enemy nearly eliminated';
+  const calm = recentCasualties < C.AI_CASUALTY_RETREAT_COUNT;
+  let planReason = '';
+
+  if (gateThreat && prevPlan !== P.CHARLIE) {
+    ctl.currentPlan = P.CHARLIE; // Base Defense
+    planReason = `${nearThreats} enemy near gate, nearest ${closestEnemyDist.toFixed(0)} m`;
+  } else if (prevPlan === P.CHARLIE) {
+    if (!gateThreat && closestEnemyDist >= C.AI_PLAN_DEFENSE_CLEAR_DIST_M && dwell >= C.AI_PLAN_MIN_DWELL_S) {
+      ctl.currentPlan = P.ALPHA; // Disengage Defense
+      planReason = 'gate threat cleared';
+    }
+  } else if (!calm && prevPlan !== P.ALPHA) {
+    ctl.currentPlan = P.ALPHA; // Regroup with Standoff
+    planReason = `${recentCasualties} tanks lost recently - regroup`;
+  } else if (prevPlan === P.DELTA) {
+    if (!pursuitCond && dwell >= C.AI_PLAN_MIN_DWELL_S) {
+      ctl.currentPlan = P.ALPHA;
+      planReason = 'pursuit condition ended';
+    }
+  } else if (prevPlan === P.BRAVO) {
+    if (pursuitCond) {
+      ctl.currentPlan = P.DELTA;
+      planReason = pursuitWhy;
+    } else if (myField.length < C.AI_WEDGE_MIN_TANKS || dwell >= C.AI_WEDGE_MAX_DURATION_S) {
+      ctl.currentPlan = P.ALPHA;
+      planReason = myField.length < C.AI_WEDGE_MIN_TANKS ? 'wedge depleted' : 'wedge assault timed out';
+    }
+  } else if (calm) {
+    // Alpha
+    if (pursuitCond) {
+      ctl.currentPlan = P.DELTA; // Pursuit
+      planReason = pursuitWhy;
+    } else if (myField.length >= C.AI_WEDGE_MIN_TANKS && Math.sin(ctl.simTime * 0.12) > 0.75) {
+      // Periodic Wedge breach assault when forces are consolidated
+      ctl.currentPlan = P.BRAVO;
       planReason = 'forces consolidated - wedge assault';
     }
   }
-  if (ctl.currentPlan !== prevPlan) {
+
+  const planChanged = ctl.currentPlan !== prevPlan;
+  if (planChanged) {
+    ctl.planSince = ctl.simTime;
     ctl.note('PLAN', `${prevPlan} -> ${ctl.currentPlan}: ${planReason}`);
   }
 
-  ctl.tankRoles = assignBrigadeRoles(myField, ctl.currentPlan);
+  ctl.tankRoles = updateBrigadeRoles(ctl.tankRoles, myField, ctl.currentPlan, planChanged, ctl.doctrine, owner);
   ctl.noteRoles(myField, ctl.tankRoles);
 }

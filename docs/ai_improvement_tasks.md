@@ -21,12 +21,12 @@ Each task: implement -> `.\test.cmd` (+ `.\vcr.cmd` log analysis where useful) -
 - [x] Behaviour unchanged: `.\test.cmd` + identical `.\vcr.cmd` output for the same seed (byte-identical 40 s log)
 
 ## Task 1 - Commander correctness (doctrine, roles, plan hysteresis)
-- [ ] Pass `doctrine` and `owner` to every `assignBrigadeRoles` call (doctrine bug)
-- [ ] Sticky roles: keep existing assignments, only fill roles for new tanks / free dead tanks' roles
-- [ ] Give Bravo and Delta distinct role sets (spearhead pair + echelon, `PURSUER`)
-- [ ] Exits for Bravo/Delta (minimum dwell, revert when condition ends)
-- [ ] Charlie trigger needs a real threat (>= 2 enemies, or 1 within the inner radius) + cooldown
-- [ ] Tests: doctrine survives commander ticks; roles do not change when an unrelated tank dies
+- [x] Pass `doctrine` and `owner` to every `assignBrigadeRoles` call (doctrine bug)
+- [x] Sticky roles: keep existing assignments, only fill roles for new tanks / free dead tanks' roles
+- [x] Give Bravo and Delta distinct role sets (spearhead pair + echelon, `PURSUER`)
+- [x] Exits for Bravo/Delta (minimum dwell, revert when condition ends)
+- [x] Charlie trigger needs a real threat (>= 2 enemies, or 1 within the inner radius) + dwell
+- [x] Tests: `test/test_ai_commander.js` (sticky roles, plan role sets, no role flapping)
 
 ## Task 2 - Hull aiming (fixed gun)
 - [ ] Aim state for the selected tank: when a visible target is in effective range, steer/pivot the hull toward the lead point

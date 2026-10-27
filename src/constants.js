@@ -96,6 +96,11 @@ export const AI_STRATEGY_PLANS = {
 };
 export const AI_PLAN_DEFENSE_TRIGGER_DIST_M = 45;
 export const AI_PLAN_DEFENSE_CLEAR_DIST_M = 60;
+export const AI_PLAN_DEFENSE_INNER_DIST_M = 30; // a single enemy this close triggers Charlie
+export const AI_PLAN_DEFENSE_MIN_THREATS = 2; // enemies within trigger distance needed otherwise
+export const AI_PLAN_MIN_DWELL_S = 4.0; // minimum time in a plan before a non-emergency exit
+export const AI_WEDGE_MIN_TANKS = 4;
+export const AI_WEDGE_MAX_DURATION_S = 20.0;
 export const AI_CASUALTY_WINDOW_S = 8.0;
 export const AI_CASUALTY_RETREAT_COUNT = 2;
 export const AI_PURSUIT_AMMO_THRESHOLD = 0.5;

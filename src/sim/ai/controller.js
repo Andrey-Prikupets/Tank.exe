@@ -16,6 +16,7 @@ export class AiController {
     this.owner = owner;
     this.log = new DecisionLog(() => this.simTime);
     this.currentPlan = C.AI_STRATEGY_PLANS.ALPHA;
+    this.planSince = 0;
     this.simTime = 0;
     this.sliceTimer = 0;
     this.commanderTimer = Math.random() * 0.4;
@@ -83,12 +84,13 @@ export class AiController {
   /** Logs the current role assignment (rate-limited, only when it changes). */
   noteRoles(myField, roles) {
     const parts = myField.map((t) => `T${t.number}=${roles.get(t.id) || '-'}`);
-    this.note('ROLES', parts.join(' '), { key: 'roles', gap: 2 });
+    this.note('ROLES', parts.join(' '), { key: 'roles' });
   }
 
   reset() {
     this.log.clear();
     this.currentPlan = C.AI_STRATEGY_PLANS.ALPHA;
+    this.planSince = 0;
     this.simTime = 0;
     this.sliceTimer = 0;
     this.commanderTimer = Math.random() * 0.4;
