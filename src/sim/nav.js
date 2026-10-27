@@ -51,7 +51,14 @@ export class NavigationGrid {
   }
 
   getCostAt(x, y) {
-    if (x < 0 || x > C.FIELD_LENGTH_M || y < 0 || y > C.FIELD_WIDTH_M) {
+    const inGate = Math.abs(y - C.GATE_CENTER_Y_M) <= C.GATE_WIDTH_M / 2 + 0.6;
+    if (x < 0) {
+      return inGate && x >= -C.AI_REARM_PENETRATION_DEPTH_M - 2 ? COST_OPEN : COST_LETHAL;
+    }
+    if (x > C.FIELD_LENGTH_M) {
+      return inGate && x <= C.FIELD_LENGTH_M + C.AI_REARM_PENETRATION_DEPTH_M + 2 ? COST_OPEN : COST_LETHAL;
+    }
+    if (y < 0 || y > C.FIELD_WIDTH_M) {
       return COST_LETHAL;
     }
     const [col, row] = this.coordToCell(x, y);
@@ -437,6 +444,16 @@ export class GateReservationManager {
     }
   }
 
+  reset(owner) {
+    if (owner != null) {
+      this.reservedTankId[owner] = null;
+      this.reservationTime[owner] = 0;
+    } else {
+      this.reservedTankId = [null, null];
+      this.reservationTime = [0, 0];
+    }
+  }
+
   isGateReservedByOther(owner, tankId) {
     return this.reservedTankId[owner] != null && this.reservedTankId[owner] !== tankId;
   }
@@ -469,13 +486,15 @@ export function getGateCorridorPose(tank, owner, simTime) {
     };
   }
 
-  // Zone 2: Doorway Tunnel ($distToGate \le 20m$, lateral error $\le 1.2m$, heading aligned)
-  if (distToGate <= 20.0 && lateralOffset <= 1.2 && headingErr <= 0.45) {
+  // Zone 2: In corridor approach or doorway ($distToGate \le 26m$, laterally aligned)
+  // Target penetrates deep into the hangar so heading vector pulls directly through doorway.
+  if (distToGate <= C.AI_REARM_STANDOFF_DIST_M + 4.0 && lateralOffset <= 2.6) {
+    const isDoorway = distToGate <= 16.0 && lateralOffset <= 1.6 && headingErr <= 0.45;
     return {
       targetX: myGateX - inward * C.AI_REARM_PENETRATION_DEPTH_M,
       targetY: C.GATE_CENTER_Y_M,
       speedLimitKmh: 18,
-      isDoorwayMode: true,
+      isDoorwayMode: isDoorway,
       isHolding: false,
     };
   }

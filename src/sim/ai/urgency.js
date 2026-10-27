@@ -78,7 +78,11 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
 
   // Obstacles & Boundaries
   if (hazardScore < C.AI_URGENCY_HAZARD_OBSTACLE) {
-    if (fy < 8 || fy > C.FIELD_WIDTH_M - 8 || fx < 8 || fx > C.FIELD_LENGTH_M - 8) {
+    const inOwnGateLane = Math.abs(fy - C.GATE_CENTER_Y_M) <= C.GATE_WIDTH_M / 2 + 1.0;
+    const xOob = owner === 0
+      ? (fx < 8 ? (!inOwnGateLane || fx < -C.AI_REARM_PENETRATION_DEPTH_M) : fx > C.FIELD_LENGTH_M - 8)
+      : (fx > C.FIELD_LENGTH_M - 8 ? (!inOwnGateLane || fx > C.FIELD_LENGTH_M + C.AI_REARM_PENETRATION_DEPTH_M) : fx < 8);
+    if (fy < 8 || fy > C.FIELD_WIDTH_M - 8 || xOob) {
       if (Math.abs(tank.speed) > 1.5) {
         hazardScore = Math.max(hazardScore, C.AI_URGENCY_HAZARD_OBSTACLE);
       }
@@ -152,6 +156,15 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
       if (emerging) score += C.AI_URGENCY_GATE_TARGET_BONUS;
       combatScore = Math.max(combatScore, score);
     }
+    // Armed combatant engagement/advance baseline when enemies are on the field
+    if (combatScore === 0) {
+      let minEnemyDist = Infinity;
+      for (const e of enemyField) {
+        const d = Math.hypot(e.x - tank.x, e.y - tank.y);
+        if (d < minEnemyDist) minEnemyDist = d;
+      }
+      combatScore = Math.max(45, C.AI_URGENCY_COMBAT_ENGAGING - (minEnemyDist / C.FIELD_LENGTH_M) * 20);
+    }
   }
 
   // 3. Rearm
@@ -163,7 +176,7 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
   const starvationScore = Math.min(C.AI_STARVATION_MAX, timeSinceCommand * C.AI_STARVATION_RATE_PER_S);
 
   const acuteScore = Math.max(hazardScore, combatScore, rearmScore);
-  const urgency = acuteScore + starvationScore * 0.4;
+  const urgency = acuteScore + starvationScore * 0.8;
 
   return { urgency, hazardScore, combatScore, rearmScore, starvationScore };
 }
@@ -186,9 +199,16 @@ export function applySafeCruisingTrim(world, owner, tank, targetSpeedKmh = 18) {
     const fx = tank.x + Math.cos(heading) * lookAheadDist;
     const fy = tank.y + Math.sin(heading) * lookAheadDist;
 
-    // Boundary checks
+    // Boundary checks (allow passage through own gate doorway)
+    const inOwnGateLane = Math.abs(fy - C.GATE_CENTER_Y_M) <= C.GATE_WIDTH_M / 2 + 1.0;
     if (fy < 8 || fy > C.FIELD_WIDTH_M - 8) return true;
-    if (fx < 6 || fx > C.FIELD_LENGTH_M - 6) return true;
+    if (owner === 0) {
+      if (fx < 6 && (!inOwnGateLane || fx < -C.AI_REARM_PENETRATION_DEPTH_M)) return true;
+      if (fx > C.FIELD_LENGTH_M - 6) return true;
+    } else {
+      if (fx < 6) return true;
+      if (fx > C.FIELD_LENGTH_M - 6 && (!inOwnGateLane || fx > C.FIELD_LENGTH_M + C.AI_REARM_PENETRATION_DEPTH_M)) return true;
+    }
 
     // Pits
     if (world.pits) {

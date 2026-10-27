@@ -96,12 +96,15 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
     profile.tickInterval *
     (1 - C.AI_TICK_JITTER_FRACTION + Math.random() * 2 * C.AI_TICK_JITTER_FRACTION);
 
+  const outOfShells = tank.shells === 0;
+  const isRearming = profile.rearm && outOfShells;
+
   // 10. Target selection (LOS check with smoke obscuration, threat weighting, lock hysteresis)
   let combatTarget = null;
   let combatTargetDist = Infinity;
   let combatTargetPos = null;
 
-  if (enemyField.length > 0) {
+  if (!isRearming && enemyField.length > 0) {
     let bestScore = Infinity;
     for (const e of enemyField) {
       const smokeBlocked = isLineOfSightBlockedBySmoke(world, tank.x, tank.y, e.x, e.y);
@@ -191,7 +194,6 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
     world,
   );
 
-  const outOfShells = tank.shells === 0;
   let navTargetX = roleWaypoint.x;
   let navTargetY = roleWaypoint.y;
   let isDoorwayMode = false;
@@ -203,10 +205,10 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
     ? getGateAmbushPose(tank, owner, assignedRole === 'NORTH_GATE_AMBUSH' ? 'NORTH' : 'SOUTH')
     : null;
 
-  if (profile.rearm && outOfShells) {
+  if (isRearming) {
     ctl.note('REARM', `T${tank.number} out of shells - returning to hangar`, {
       key: `rearm${tank.id}`,
-      gap: 20,
+      gap: 5,
     });
     ctl.lockedTargetId = null;
     world.players[owner].lockedTarget = null;

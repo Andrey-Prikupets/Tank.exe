@@ -53,7 +53,11 @@ export function runDispatcher(ctl, world, myField, enemyField, profile, tank) {
   if (bestTank && bestTank.id !== tank.id) {
     if (acuteHazardEmergency) {
       shouldSwitch = true;
-    } else if (forceSwitch && maxUrgency > currUrgency) {
+    } else if (
+      forceSwitch &&
+      currUrgencyInfo.hazardScore < C.AI_URGENCY_HAZARD_MINE &&
+      currUrgencyInfo.combatScore < C.AI_URGENCY_COMBAT_AIMED
+    ) {
       shouldSwitch = true;
     } else if (canSwitch && maxUrgency - currUrgency >= C.AI_DISPATCH_THRESHOLD_DELTA) {
       shouldSwitch = true;

@@ -111,7 +111,7 @@ export class AiController {
     this.enemyTracker.clear();
     this.navGrid = new NavigationGrid();
     this.navGridTimer = 0;
-    gateReservationManager.releaseGate(this.owner, this.owner);
+    gateReservationManager.reset(this.owner);
     this.initBrigadePersonality();
     this.randomizeOffsets();
   }
@@ -167,6 +167,7 @@ export class AiController {
 
     // 4. Hangar tank handling
     if (tank && tank.status === 'hangar') {
+      gateReservationManager.releaseGate(owner, tank.id);
       if (pl.blocked) {
         const alt = myField.find((t) => t.number);
         if (alt) {

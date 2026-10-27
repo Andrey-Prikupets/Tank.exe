@@ -1,5 +1,6 @@
 import * as C from '../../constants.js';
-import { gateX } from '../world.js';
+import { gateX, selectedTank } from '../world.js';
+import { getGateCorridorPose } from '../nav.js';
 import { normalizeAngle } from './math.js';
 import { assignBrigadeRoles, updateBrigadeRoles, getRoleWaypoint } from './roles.js';
 
@@ -66,6 +67,39 @@ export function updateCommander(ctl, world, dt, myField, enemyField, profile) {
 
   if (ctl.commanderTimer < C.AI_COMMANDER_EVAL_INTERVAL_S) return;
   ctl.commanderTimer = 0;
+
+  // Keep unselected tanks maneuvering: armed tanks advance toward role waypoints, empty tanks return to hangar
+  const activeTank = selectedTank(world, owner);
+  for (const t of myField) {
+    if (t.status === 'field' && t.id !== activeTank?.id) {
+      const role = ctl.tankRoles.get(t.id) || 'VANGUARD';
+      const isAmbush = role === 'NORTH_GATE_AMBUSH' || role === 'SOUTH_GATE_AMBUSH';
+      const isRearming = profile.rearm && t.shells === 0;
+      if (isRearming) {
+        const gatePose = getGateCorridorPose(t, owner, ctl.simTime);
+        const wpAngle = Math.atan2(gatePose.targetY - t.y, gatePose.targetX - t.x);
+        const errRad = normalizeAngle(wpAngle - t.heading);
+        const desiredTurn = Math.round(C.radToDeg(errRad) / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S;
+        t.cmdTurnDeg = gatePose.isDoorwayMode ? 0 : Math.max(-C.TANK_MAX_TURN_DEG_S, Math.min(C.TANK_MAX_TURN_DEG_S, desiredTurn));
+        t.cmdSpeedKmh = gatePose.speedLimitKmh || 18;
+      } else if (t.cmdSpeedKmh === 0 && !isAmbush) {
+        const roleWaypoint = getRoleWaypoint(
+          t,
+          role,
+          ctl.currentPlan,
+          owner,
+          enemyGateX,
+          ctl.simTime,
+          world,
+        );
+        const wpAngle = Math.atan2(roleWaypoint.y - t.y, roleWaypoint.x - t.x);
+        const errRad = normalizeAngle(wpAngle - t.heading);
+        const desiredTurn = Math.round(C.radToDeg(errRad) / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S;
+        t.cmdTurnDeg = Math.max(-C.TANK_MAX_TURN_DEG_S, Math.min(C.TANK_MAX_TURN_DEG_S, desiredTurn));
+        t.cmdSpeedKmh = profile.maxSpeedKmh > 18 ? 27 : C.AI_MOBILIZE_CRUISE_KMH;
+      }
+    }
+  }
 
   const myGateX = gateX(owner);
   const closestEnemyDist = enemyField.reduce((min, e) => {
