@@ -782,11 +782,12 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
   - Slit gun aiming vectors (`DEBUG_VECTOR_LENGTH_M = 32.5m`) are rendered for both windows on both home bases. The currently manned/active window is highlighted in vivid team color with a circular target reticle at its terminus.
 
 ### 15.3 Slit Window Tactical Defense
-- When enemies penetrate within `AI_SLIT_DEFENSE_TRIGGER_DIST_M = 40m` of the home gate and active tanks are distant, the AI can enter a hangar slit window to deliver defensive fire with unlimited ammo.
+- **Fixed gun rule:** every tank's gun is rigidly fixed to the hull; the turret never rotates and the firing vector always equals the body heading. The AI aims by steering/pivoting the whole tank (turn limits in §16).
+- When enemies penetrate within `AI_SLIT_DEFENSE_TRIGGER_DIST_M = 40m` of the home gate and the selected tank is farther than 60 m from the gate, the AI can enter a hangar slit window to deliver defensive fire with unlimited ammo.
 - The AI aims through the slit window's angular limits (`WINDOW_MAX_YAW_DEG = 45°`), fires upon alignment (within `AI_SLIT_MAX_FIRE_DIST_M = 50m`), switches to the opposing slit window if enemies cross the gate axis, and returns to tank command once threats subside.
 
 ### 15.4 Strategic Brigade Control Architecture
-- For comprehensive multi-tank coordination, urgency-based time-slice dispatching, attack formations (Pincer Envelopment, Wedge Breach), and dynamic plan switching, refer to the full architectural specification in [`docs/ai_strategic_control_plan.md`](./ai_strategic_control_plan.md).
+- For multi-tank coordination, urgency-based dispatching, doctrines/roles, plans (Alpha/Bravo/Charlie/Delta) and plan switching, see [`docs/ai_strategic_control_plan.md`](./ai_strategic_control_plan.md) (source of truth). Planned improvements: [`docs/ai_improvement_tasks.md`](./ai_improvement_tasks.md).
 
 ### 15.5 Hangar Rearm Navigation & Doorway Alignment Corridor
 - **Two-Stage Alignment Trajectory:** When an empty AI tank returns to the base to rearm (`profile.rearm` with 0 shells), it targets an external standoff alignment waypoint located `AI_REARM_STANDOFF_DIST_M = 22.0m` in front of the gate along the central axis ($Y = 50.0\text{ m}$).
@@ -799,12 +800,12 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 
 ### 15.7 Whole-Brigade Rollout & Initial Mobilization
 - **Simultaneous Brigade Advance:** At match start, instead of only moving the selected tank while the remaining 4 units remain stationary, the AI immediately mobilizes all field tanks (`t.status === 'field'`) into their assigned tactical roles (Vanguard, Flanks, Echelons). Each tank is given its initial cruising speed (`AI_MOBILIZE_CRUISE_KMH = 18` or up to 36 km/h on HARD) and heading, so the entire brigade sweeps across the battlefield simultaneously.
-- **Active Time-Slice Dispatcher Cycling:** The active unit continuously updates its commanded timestamp (`lastCommandedTime`), allowing starvation score to grow for unselected tanks. Every time slice (`AI_MAX_SLICE_S = 0.85s`), the dispatcher rotates control across all 5 tanks in balanced round-robin fashion unless acute combat/hazard emergencies take precedence.
+- **Urgency-Weighted Dispatcher:** The selected unit's commanded timestamp (`lastCommandedTime`) is updated each tick so starvation grows for unselected tanks. Selection switches to the most urgent tank after `AI_MIN_SLICE_S = 0.22s` if it leads by `AI_DISPATCH_THRESHOLD_DELTA = 15`, or after `AI_MAX_SLICE_S = 0.85s` if it is strictly more urgent; hazard emergencies switch immediately. It is not round-robin.
 
 ### 15.8 Dynamic Organic Trajectories & Oblique Combat Maneuvers
 - **Organic S-Curve Weaving:** Rather than advancing down identical straight lines, each role waypoint applies an organic sinusoidal lateral weave (`AI_TRAJECTORY_WEAVE_AMP_M = 5.0m`, `AI_TRAJECTORY_WEAVE_FREQ = 0.65Hz`) parameterized by simulation time and individual tank ID. Center Vanguard units apply an asymmetric lane bias ($Y \approx 45\text{ m}$ for Red, $Y \approx 55\text{ m}$ for Blue), eliminating head-on central collisions along $Y = 50.0\text{ m}$.
-- **Oblique Combat Approach (Jinking):** When engaging enemy tanks that are facing directly on a head-on collision course, the AI applies an oblique lateral offset (`AI_OBLIQUE_ENGAGE_LATERAL_M = 10.0m`) rather than charging straight down the enemy's gun barrel, evading predictable incoming fire while maintaining firing lead.
-- **Live Vehicle Collision Avoidance:** The steering reflex checks for both friendly and enemy vehicles directly in the forward path within `AI_VEHICLE_AVOIDANCE_LOOKAHEAD_M = 16.0m` (`AI_VEHICLE_AVOIDANCE_CLEARANCE_M = 5.2m`), steering laterally away to pass smoothly without ramming, and braking if within 8.0m.
+- **Oblique Combat Approach (Jinking):** Attack waypoints are chosen at flanking angles (about ±37° and ±72° off the target's rear/front axis) rather than straight down the target's gun line (`getAttackStandoffWaypoint`). The constant `AI_OBLIQUE_ENGAGE_LATERAL_M` is currently unused.
+- **Live Vehicle Collision Avoidance:** Handled by the DWA rollout (§15.9), which penalises arcs passing within 6 m of any friendly tank. Enemy tanks are tracked but not penalised. `AI_VEHICLE_AVOIDANCE_*` constants are currently unused.
 
 ### 15.9 Custom Kinematic Navigation & Pathfinding Framework (`src/sim/nav.js`)
 - **Macro-Scale 2D Cost Grid:**

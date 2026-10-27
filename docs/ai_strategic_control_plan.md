@@ -1,136 +1,117 @@
-# Architectural Plan: AI Strategic Brigade Control in Tank.exe
+# AI Strategic Brigade Control in Tank.exe
 
-## 1. Executive Summary & Root Cause Analysis
+> Source of truth for the AI hierarchy. Implementation: `src/sim/ai.js` (controller),
+> `src/sim/nav.js` (navigation). Planned improvements are tracked in
+> [`ai_improvement_tasks.md`](./ai_improvement_tasks.md).
 
-### Current Limitations
-In **Tank.exe**, the simulation rules dictate that player controls (linear speed, rotational turn, fire, secondary weapons) are directly issued to **only the currently selected unit**. Unselected tanks continue moving on their last commanded linear speed and turn rate indefinitely until commanded again.
+## 1. Hard game constraints the AI must respect
 
-The current AI controller behaves myopically:
-1. **Blind Round-Robin Cycling:** Every 2.0 seconds, it simply rotates to the next tank (`1 -> 2 -> 3 -> 4 -> 5 -> 1`).
-2. **Zero Situational Prioritization:** It switches away from a tank that is engaged in an active firefight, leaving it unable to dodge or aim. Conversely, an unselected tank driving towards a lethal water pit or building obstacle remains unselected until its turn comes 8 seconds later, leading to avoidable collisions and drownings.
-3. **No Coordinated Formations or Roles:** Tanks do not operate as a cohesive 5-tank brigade. Each unit drives forward independently in a straight corridor rather than executing coordinated pincer movements, crossfire traps, or layered defensive formations.
-4. **No Dynamic Strategy Switching:** The AI lacks the capability to detect high-level battle phase transitions (e.g., enemy assault on base, severe casualties, or opponent ammo depletion) and cannot pivot its plan on the fly.
+- **Only the selected tank can be commanded.** Unselected tanks keep their last commanded
+  linear speed and turn rate until selected again.
+- **The gun is rigidly fixed to the hull.** The turret does **not** rotate; the firing vector is
+  always the tank body heading. "Aiming" therefore means steering/pivoting the whole tank.
+  Hull turn rate is limited to 45°/s while moving and 30°/s when stationary, with 0.5 s per
+  15°/s step (see `functional_spec.md` §16).
+- **Only the selected tank fires** (plus the hangar slit gun while the player is in window view).
+  One brigade therefore delivers at most one tank gun's fire at a time; the dispatcher decides
+  whose gun that is.
+- Each tank carries 5 shells, 2 mines, 2 smokes; reload 1 s; shell range 50 m.
+- A side loses when all 15 of its tanks are destroyed.
 
----
-
-## 2. High-Level Architecture: Three-Tier Hierarchy
+## 2. Three-tier hierarchy
 
 ```
-+-------------------------------------------------------------+
-|             TIER 1: BRIGADE COMMANDER                      |
-|  - Assesses global battlefield state every 1.0s             |
-|  - Selects active Brigade Strategic Plan                    |
-|  - Assigns tactical roles to all 5 tanks                    |
-+-------------------------------------------------------------+
-                              |
-                              v
-+-------------------------------------------------------------+
-|             TIER 2: TIME-SLICE DISPATCHER                   |
-|  - Replaces fixed round-robin with Urgency-Weighted Priority|
-|  - Evaluates immediate micro-needs across all 5 tanks       |
-|  - Instantly switches selection to the most critical unit   |
-+-------------------------------------------------------------+
-                              |
-                              v
-+-------------------------------------------------------------+
-|             TIER 3: TACTICAL UNIT EXECUTOR                  |
-|  - Executes role-specific behavior (Vanguard, Flanker, etc.)|
-|  - Calculates safe trajectory & cruising vectors            |
-|  - Performs aim alignment, weapon fire, and hazard evasion  |
-+-------------------------------------------------------------+
+TIER 1  Brigade Commander   (every AI_COMMANDER_EVAL_INTERVAL_S = 0.8 s)
+        - picks strategic plan (Alpha/Bravo/Charlie/Delta)
+        - assigns tactical roles to field tanks (per brigade doctrine)
+TIER 2  Urgency Dispatcher  (every update)
+        - scores each field tank, switches the selected tank to the most urgent
+TIER 3  Tactical Executor   (decision tick 50-160 ms depending on level)
+        - target selection, waypoint choice, DWA steering, weapons, smoke/mines
 ```
 
----
+## 3. Tier 1 - Brigade doctrines, roles and plans
 
-## 3. Tier 1: Brigade Strategic Plans & Formations
+### 3.1 Doctrine (chosen once per match per brigade)
+`NORTH_SWEEP`, `SOUTH_SWEEP`, `PINCER_AMBUSH`, `SPEARHEAD_WEDGE`, `ASYMMETRIC_SPLIT`.
+Owners 0 and 1 are offset in the pick so opposing AIs differ. A doctrine maps the tanks (ordered
+by a pseudo-random id hash) onto roles, e.g. `PINCER_AMBUSH` = North ambush, South ambush,
+Vanguard, North flank lead, South flank lead.
 
-The Commander evaluates the battlefield state and dynamically executes one of four strategic plans:
+### 3.2 Roles and where they go (all coordinates in metres)
+| Role | Destination |
+|---|---|
+| `NORTH_GATE_AMBUSH` / `SOUTH_GATE_AMBUSH` | Edge-crawl along Y=7.5 / Y=92.5, then ambush post 8.5 m from the enemy gate at Y=30 / Y=70, gun held on the doorway threshold. |
+| `VANGUARD` | Safe standoff line 52 m from the enemy gate, Y = centre -/+ 6 with S-curve weave. |
+| `*_FLANK_LEAD` / `*_FLANK_TRAIL` | Edge-crawl along Y=7.5 / 92.5 to mid-field, then to 8.5-20 m from the enemy gate on the same side. |
+| `SPEARHEAD_N/S`, `ECHELON_N/S` | Wedge on the 52-56 m line at Y = centre -/+ 4 m (multiples of 4). |
+| `REARGUARD` | Behind mid-field, offset 12 m from centre. |
+| `SENTRY`, `DEFENSE_ARC_N/S`, `RELOADER` | Charlie only: gate +14 m, arc 26 m out at Y = 50 -/+ 15, rearm standoff 22 m. |
+| `PURSUER` | Fallback: chase along the nearest edge corridor. |
 
-### Plan Alpha: "Pincer Envelopment" (Default Offensive)
-- **Objective:** Overwhelm the opponent from opposing edges while pinning the center.
-- **Roles:**
-  - **Tank 1 (Vanguard/Decoy):** Advances along centerline ($Y \approx 50$), holding a conservative standoff distance ($32\text{ m}$) to attract fire.
-  - **Tank 2 & 3 (North Flankers):** Move along upper boundary ($Y = 15\text{--}25$), flanking around buildings to attack from the enemy's blind side.
-  - **Tank 4 & 5 (South Flankers):** Move along lower boundary ($Y = 75\text{--}85$), coordinating convergence upon the enemy gate.
+The enemy slit-gun hit sector (`isInEnemySlitGunSector`) is never an acceptable destination.
 
-### Plan Bravo: "Wedge Breach" (Concentrated Assault)
-- **Objective:** Punch through a single weak sector when enemy forces are dispersed.
-- **Roles:**
-  - **Tank 1 & 2:** Lead spearhead abreast ($4\text{ m}$ lateral spacing), advancing aggressively with maximum cruising speed.
-  - **Tank 3 & 4:** Trailing support echelon ($12\text{ m}$ behind spearhead), firing past lead tanks through open sight lines.
-  - **Tank 5:** Rearguard / Interceptor preventing rear flanks.
+### 3.3 Plans
+| Plan | Meaning |
+|---|---|
+| **Alpha** (`PINCER`) | Default offensive using the brigade doctrine. |
+| **Bravo** (`WEDGE`) | Periodic concentrated assault when >= 4 tanks are in the field. Same doctrine roles, maximum cruise speed. |
+| **Charlie** (`BASE_DEFENSE`) | Enemy within 45 m of own gate. Roles become sentry / defense arcs / reloader; mines are laid behind defenders. |
+| **Delta** (`PURSUIT`) | Enemy average ammo <= 0.5, or enemy has <= 1 tank vs >= 3 of ours. Maximum speed; attack-standoff waypoints are used regardless of range. |
 
-### Plan Charlie: "Base Defense & Slit Crossfire" (Defensive Retraction)
-- **Objective:** Defend the home gate when opponent forces advance deep into home territory ($< 50\text{ m}$ from gate).
-- **Roles:**
-  - **Hangar Slit Sentry:** Commander switches view to active slit window, exploiting infinite ammo to suppress incoming attackers.
-  - **Tanks 1--3:** Form a defensive arc around the gateway perimeter ($20\text{--}30\text{ m}$ out), laying mines in approach lanes.
-  - **Tanks 4 & 5:** Staggered rear reloaders cycling through hangar slots for fresh ammo.
+### 3.4 Plan transitions (evaluated in this priority order)
+1. Enemy within 45 m of own gate -> Charlie.
+2. In Charlie and nearest enemy farther than 60 m -> Alpha.
+3. >= 2 own casualties in 8 s -> Alpha (regroup).
+4. Enemy ammo exhausted / outnumbered -> Delta.
+5. In Alpha with >= 4 tanks and periodic trigger -> Bravo.
 
-### Plan Delta: "All-Out Pursuit" (Exploitation)
-- **Objective:** Triggered when enemy tanks are out of ammunition, retreating, or outnumbered $\ge 3:1$.
-- **Roles:** All available units switch to high-speed pursuit ($36\text{ km/h}$), cutting off retreat angles towards the enemy gate.
+## 4. Tier 2 - Urgency dispatcher
 
----
+Per field tank: `urgency = max(hazard, combat, rearm) + 0.4 * starvation`.
 
-## 4. Tier 2: Urgency-Weighted Time-Slice Dispatcher
+| Component | Values |
+|---|---|
+| Hazard | pit ahead 95; enemy slit sector ahead 92; mine ahead 90; building/boundary ahead 80 |
+| Combat | aimed shot ready (gun within 0.16 rad of a visible target in range) 85; incoming shell 75; target in range but not aimed 65 |
+| Rearm | 0 shells and level rearms: 50 |
+| Starvation | +5 points per second since last command, capped at 40 |
 
-Instead of switching tanks at static time intervals, the dispatcher continuously evaluates an **Urgency Score ($U_i$)** for every live tank $i \in [1..5]$ each simulation tick:
+Switching rules (`AI_MIN_SLICE_S = 0.22 s`, `AI_MAX_SLICE_S = 0.85 s`, `AI_DISPATCH_THRESHOLD_DELTA = 15`):
+- immediate switch if another tank has a mine/pit-class hazard and the current one does not;
+- after the minimum slice, switch if the best tank beats the current one by the delta;
+- after the maximum slice, switch if the best tank has strictly higher urgency.
+This is **not** blind round-robin.
 
-$$U_i = W_{\text{hazard}} \cdot H_i + W_{\text{combat}} \cdot C_i + W_{\text{rearm}} \cdot R_i + W_{\text{starvation}} \cdot S_i$$
+Reserve deployment (armed reserve in hangar, spawn corridor clear) has its own urgency
+(55-100) and competes with field tanks.
 
-### Urgency Weighting Matrix:
-1. **Critical Hazard Threat ($H_i \in [0, 100]$):**
-   - Imminent pit or obstacle collision within $1.5\text{ s}$ course projection: **Score = 95**
-   - Mine in forward or reverse path: **Score = 90**
-2. **Combat Firing Opportunity ($C_i \in [0, 80]$):**
-   - Shell loaded, gun pointed within $5^\circ$ of unblocked enemy target: **Score = 80**
-   - Incoming hostile shell on collision course (requires immediate smoke/turn): **Score = 75**
-3. **Rearm & Gate Clearance ($R_i \in [0, 60]$):**
-   - Ammo depleted, needs course alignment toward hangar doors: **Score = 50**
-4. **Starvation / Neglect ($S_i \in [0, 40]$):**
-   - Accumulated elapsed time since unit was last commanded: **$+5\text{ points/sec}$** (ensures no tank is abandoned).
+Before leaving a tank, **safe cruising trim** straightens its turn, projects 3.5 s ahead and either
+holds an 18 km/h cruise (36 on Delta / spearhead) or issues STOP when a hazard lies ahead.
 
-**Selection Rule:** When $\max(U_i) - U_{\text{current}} > \Delta_{\text{threshold}}$, the dispatcher instantly switches selection to Tank $i$, commands corrective/firing action for a micro-slice ($150\text{--}300\text{ ms}$), and re-evaluates.
+## 5. Tier 3 - Tactical executor
 
----
+1. Target selection: distance + angle penalty + LOS-blocked penalty + smoke penalty, minus
+   bonuses for enemies facing us, the locked target (hysteresis) and tanks emerging from a gate.
+2. Waypoint: role waypoint, replaced by `getAttackStandoffWaypoint` (20-30 m flanking standoff
+   outside the target's front cone and the slit sector) when a target is within range.
+3. Steering: DWA rollout over 1.8 s (7 turn rates x 3-4 speeds), rejecting lethal arcs and slit-sector
+   entries, penalising friendlies/buildings.
+4. Weapons: fire when the hull heading is within tolerance of the lead point and the line of fire
+   is clear (no building or friendly in the way). Smoke when incoming shell or low ammo; mines
+   behind the tank when engaging closely or defending.
+5. Rearm: empty tanks use the gate corridor with a one-token gate mutex per team.
 
-## 5. Dynamic Plan Adaptation ("Quickly Change Plan")
+## 6. Slit window defense
 
-The Commander continuously tracks battlefield telemetry and triggers immediate plan transitions:
+When an enemy is within 40 m of the home gate **and the selected tank is farther than 60 m from it**,
+the AI enters a slit window (random trigger, ~18 % per update), aims within the 45° yaw limit and
+fires with unlimited ammunition. After 2.5 s without a target it returns to a field tank.
 
-| Trigger Condition | Current Plan | New Plan | Action Taken |
-|---|---|---|---|
-| **Enemy unit penetrates within $45\text{ m}$ of gate** | Pincer / Wedge | **Plan Charlie (Base Defense)** | Immediate retraction of nearest tanks; commander mans slit window |
-| **Friendly casualty ($\ge 2$ tanks lost within $8\text{ s}$)** | Wedge / Pursuit | **Plan Alpha (Pincer/Standoff)** | Disengage from close brawl; fall back to safe standoff distance |
-| **All active tanks out of shells** | Offensive | **Coordinated Rearm** | Staggered hangar retreat while active sentry suppresses via slit |
-| **Enemy brigade low on shells ($\le 1$ avg ammo)** | Defense / Pincer | **Plan Delta (Pursuit)** | Full offensive charge; surround enemy and deny hangar entrance |
+## 7. Status
 
----
-
-## 6. Micro-Waypoint Course Projection for Unselected Tanks
-
-Before the dispatcher switches selection away from Tank $A$ to Tank $B$, it must ensure Tank $A$ is left in a **stable cruising vector**:
-1. **Clear Path Verification:** AI projects Tank $A$'s current speed and turn rate forward for $3.0\text{ s}$.
-2. **Safe Trim Application:**
-   - If forward path approaches a boundary or obstacle, AI zeroes turn rate (`TURN_L` / `TURN_R` back to $0^\circ/\text{s}$) or reduces speed to $12\text{ km/h}$ to prevent high-speed collisions.
-   - If positioned in an open lane, AI locks a stable forward speed ($24\text{--}36\text{ km/h}$) with $0^\circ/\text{s}$ turn rate so the tank holds its tactical heading reliably.
-
----
-
-## 7. Phased Implementation Roadmap
-
-- [x] **Phase 1: Foundation (Completed):**
-  - Organic decision asymmetry, desynchronized tick/coordination timers, personality jitter.
-  - Obstacle LOS checking, threat weighting, lock hysteresis, and tie-breaking noise.
-  - Strategic map UI: 2 thin directional arrows from active units to locked targets.
-  - Hangar slit window aiming and defensive firing.
-- [x] **Phase 2: Urgency-Weighted Time-Slice Dispatcher (Completed):**
-  - Implement urgency scoring across all 5 brigade tanks.
-  - Replace static cyclic timeout with priority-based micro-switching.
-- [x] **Phase 3: Formation & Role Assignment Engine (Completed):**
-  - Implement North/South Flanker, Vanguard, and Anchor tactical roles.
-  - Implement stable cruising course projection for unselected tanks.
-- [x] **Phase 4: Commander Strategic State Machine (Completed):**
-  - Implement real-time plan switching (Pincer, Wedge, Base Defense, Pursuit).
-  - Telemetry monitoring for casualty rates, penetration threats, and ammunition levels.
+Phases 1-4 (foundation, dispatcher, roles, strategic state machine) are implemented.
+Open improvements (doctrine persistence, sticky roles, hull-aiming, shot allocation, ammo
+discipline, slit continuity, breach plan, routing) are in
+[`ai_improvement_tasks.md`](./ai_improvement_tasks.md). AI decisions are visible live in the side
+log panels (functional spec §15.11).
