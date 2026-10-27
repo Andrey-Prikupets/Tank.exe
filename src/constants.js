@@ -47,6 +47,10 @@ export const AI_SMOKE_INCOMING_SHELL_DIST_M = 30;
 export const AI_SMOKE_SHELL_DOT_THRESHOLD = 0.8;
 export const AI_MINE_BEHIND_ANGLE_RAD = 0.7;
 
+// ---- AI hull aiming (gun is fixed to the hull) ------------------------------
+export const AI_AIM_GAIN_PER_S = 1.5; // commanded turn rate (deg/s) per degree of heading error
+export const AI_AIM_DEADBAND_DEG = 1.0;
+
 // ---- AI decision log (side panels) ------------------------------------------
 export const AI_LOG_MAX_ENTRIES = 300;
 export const AI_LOG_MAX_ROWS_RENDERED = 60;
@@ -54,6 +58,7 @@ export const AI_LOG_TARGET_MAX_DIST_M = 70;
 export const AI_LOG_MIN_PANEL_WIDTH_PX = 110;
 export const AI_LOG_PANEL_PADDING_PX = 4;
 export const AI_LOG_TAG_COLORS = {
+  AIM: '#ffb4a8',
   DOCTRINE: '#b0b8c0',
   PLAN: '#ffd54a',
   ROLES: '#7f8a94',

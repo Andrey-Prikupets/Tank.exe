@@ -849,6 +849,11 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 - Every `AiController` records timestamped decisions (`decisionLog`, capped at `AI_LOG_MAX_ENTRIES = 300`): `DOCTRINE`, `PLAN` (strategy change with reason), `ROLES`, `ATTACK`/`PURSUE` (target locks within `AI_LOG_TARGET_MAX_DIST_M = 70m`), `AVOID` (hazards, halts, stuck recovery), `SLIT` (window defence), `REARM`, `DEPLOY`, `FIRE`, `SMOKE`, `MINE`, `AMBUSH`, `LOSS`, `SELECT`. Repeats are de-duplicated/rate-limited per key.
 - For each **AI-controlled** side, a scrolling log panel is drawn in the empty (black) area to the left (Red) / right (Blue) of the strategic map. The first column is seconds since game start (AI simulation time, reset on new game); the second is a colour-coded tag; then the message. Newest entries are at the bottom. Panels are hidden when the free area is narrower than `AI_LOG_MIN_PANEL_WIDTH_PX = 110`, when the side is human-controlled, or outside a running game.
 - **VCR** (`.\vcr.cmd [seconds] [level] [seed]`, `tools/vcr.js`): deterministic (seeded RNG) headless AI-vs-AI replay that writes `vcr.log` (merged decision log plus 5 s tank snapshots) and prints a summary (losses, shots, hits, event counts). Used for analysing AI behaviour without screenshots.
+- **Bench** (`.\bench.cmd [seeds] [seconds] [level]`, `tools/bench.js`): aggregates several seeded matches (tanks lost, hit rate, shots, mine explosions) to compare AI versions before/after a change.
+
+### 15.12 Hull Aiming (fixed gun)
+- The gun is fixed to the hull, so the AI aims by steering the whole tank. When the locked target is within the level's effective range with a clear line of fire (`findAimSolution`, `src/sim/ai/aiming.js`) the selected tank **stops and pivots** onto the target's lead point (`leadPoint`: target position advanced by its velocity over the shell flight time x `profile.leadFactor`).
+- Commanded turn rate = heading error (deg) x `AI_AIM_GAIN_PER_S = 1.5`, capped at the stationary pivot limit (30°/s), with a dead band of `AI_AIM_DEADBAND_DEG = 1°`. The fire reflex fires as soon as the heading is within tolerance. Aiming is skipped while rearming, in the gate doorway, or while inside an enemy slit-gun sector (escape has priority). Logged as `AIM`.
 
 ---
 

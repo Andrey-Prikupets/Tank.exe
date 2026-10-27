@@ -29,10 +29,11 @@ Each task: implement -> `.\test.cmd` (+ `.\vcr.cmd` log analysis where useful) -
 - [x] Tests: `test/test_ai_commander.js` (sticky roles, plan role sets, no role flapping)
 
 ## Task 2 - Hull aiming (fixed gun)
-- [ ] Aim state for the selected tank: when a visible target is in effective range, steer/pivot the hull toward the lead point
-- [ ] Hold fire until aligned, keep hull on target while reloading
-- [ ] Dispatcher "aimed shot ready" urgency uses the real firing tolerance
-- [ ] VCR metric: shots fired / hits per brigade; test: hit ratio does not regress
+- [x] Aim state for the selected tank: when a visible target is in effective range, stop and pivot the hull toward the lead point
+- [x] Fire reflex fires once heading is within tolerance (hull kept on target while reloading)
+- [ ] Dispatcher "aimed shot ready" urgency uses the real firing tolerance (moved to Task 3)
+- [x] `.\bench.cmd` metrics + `test/test_ai_aiming.js`. Bench (6 seeds x 120 s HARD): hit rate 55.0 % -> 56.9 %,
+      shots/match 18.5 -> 18.2 (little change; real gains need Task 3 shot allocation, see mine-kill note there)
 
 ## Task 3 - Shot allocation and ammo discipline
 - [ ] Dispatcher scores expected kill value (distance, alignment, target emerging from gate) to choose whose gun fires

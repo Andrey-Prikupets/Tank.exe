@@ -6,6 +6,7 @@ import { normalizeAngle } from './math.js';
 import { isLineOfSightBlockedBySmoke, getPredictedEnemyState, isLineOfFireBlocked } from './perception.js';
 import { tryFireWeapon } from './weapons.js';
 import { getRoleWaypoint } from './roles.js';
+import { findAimSolution } from './aiming.js';
 
 export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelName) {
   const owner = ctl.owner;
@@ -259,18 +260,32 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
   const targetDist = Math.hypot(navTargetX - tank.x, navTargetY - tank.y);
   const desiredHeading = Math.atan2(navTargetY - tank.y, navTargetX - tank.x);
 
-  // 12. Kinematic Dynamic Window Trajectory Rollout & Obstacle Avoidance
-  const traj = evaluateKinematicTrajectoryArcs(
-    tank,
-    world,
-    ctl.navGrid,
-    { x: navTargetX, y: navTargetY },
-    profile,
-    { isDoorwayMode, maxSpeedOverride, simTime: ctl.simTime },
-  );
+  // 12-13. Hull aiming (fixed gun): stop and pivot the whole tank onto the target's lead point,
+  // otherwise Kinematic Dynamic Window rollout & obstacle avoidance toward the waypoint.
+  const rearming = profile.rearm && outOfShells;
+  const aim =
+    !rearming && !isDoorwayMode && !isInEnemySlitGunSector(tank.x, tank.y, 1 - owner)
+      ? findAimSolution(world, owner, tank, combatTarget, combatTargetPos, profile)
+      : null;
 
-  // 13. Apply kinematic commands
-  applyKinematicCommands(world, owner, tank, traj.bestSpeedKmh, traj.bestTurnDeg);
+  if (aim) {
+    ctl.note('AIM', `T${tank.number} aiming at enemy #${combatTarget.id} (err ${C.radToDeg(Math.abs(aim.errRad)).toFixed(0)} deg)`, {
+      key: `aim${tank.id}`,
+      sig: combatTarget.id,
+      gap: 2,
+    });
+    applyKinematicCommands(world, owner, tank, 0, aim.turnDeg);
+  } else {
+    const traj = evaluateKinematicTrajectoryArcs(
+      tank,
+      world,
+      ctl.navGrid,
+      { x: navTargetX, y: navTargetY },
+      profile,
+      { isDoorwayMode, maxSpeedOverride, simTime: ctl.simTime },
+    );
+    applyKinematicCommands(world, owner, tank, traj.bestSpeedKmh, traj.bestTurnDeg);
+  }
 
   // 14. Defensive smoke
   if (tank.smokes > 0) {
