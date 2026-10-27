@@ -843,7 +843,12 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 
 ### 15.10 Test Harness (`test.cmd` & `test/run_tests.js`)
 - Fixed batch command `.\test.cmd` executing `node test/run_tests.js` without dynamic arguments.
-- Executes unit test suites (`test/test_nav.js`) covering cost grid differentiation, curvilinear prediction, gate reservation, trajectory rollout, and slit gun sector avoidance/ambush geometry, alongside end-to-end CvC 60Hz physics simulations (`test/test_ai_integration.js`).
+- Executes unit test suites (`test/test_nav.js`) covering cost grid differentiation, curvilinear prediction, gate reservation, trajectory rollout, and slit gun sector avoidance/ambush geometry, alongside decision-log tests (`test/test_ai_log.js`) and end-to-end CvC 60Hz physics simulations (`test/test_ai_integration.js`).
+
+### 15.11 AI Decision Log Panels & VCR
+- Every `AiController` records timestamped decisions (`decisionLog`, capped at `AI_LOG_MAX_ENTRIES = 300`): `DOCTRINE`, `PLAN` (strategy change with reason), `ROLES`, `ATTACK`/`PURSUE` (target locks within `AI_LOG_TARGET_MAX_DIST_M = 70m`), `AVOID` (hazards, halts, stuck recovery), `SLIT` (window defence), `REARM`, `DEPLOY`, `FIRE`, `SMOKE`, `MINE`, `AMBUSH`, `LOSS`, `SELECT`. Repeats are de-duplicated/rate-limited per key.
+- For each **AI-controlled** side, a scrolling log panel is drawn in the empty (black) area to the left (Red) / right (Blue) of the strategic map. The first column is seconds since game start (AI simulation time, reset on new game); the second is a colour-coded tag; then the message. Newest entries are at the bottom. Panels are hidden when the free area is narrower than `AI_LOG_MIN_PANEL_WIDTH_PX = 110`, when the side is human-controlled, or outside a running game.
+- **VCR** (`.\vcr.cmd [seconds] [level] [seed]`, `tools/vcr.js`): deterministic (seeded RNG) headless AI-vs-AI replay that writes `vcr.log` (merged decision log plus 5 s tank snapshots) and prints a summary (losses, shots, hits, event counts). Used for analysing AI behaviour without screenshots.
 
 ---
 

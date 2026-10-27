@@ -47,6 +47,30 @@ export const AI_SMOKE_INCOMING_SHELL_DIST_M = 30;
 export const AI_SMOKE_SHELL_DOT_THRESHOLD = 0.8;
 export const AI_MINE_BEHIND_ANGLE_RAD = 0.7;
 
+// ---- AI decision log (side panels) ------------------------------------------
+export const AI_LOG_MAX_ENTRIES = 300;
+export const AI_LOG_MAX_ROWS_RENDERED = 60;
+export const AI_LOG_TARGET_MAX_DIST_M = 70;
+export const AI_LOG_MIN_PANEL_WIDTH_PX = 110;
+export const AI_LOG_PANEL_PADDING_PX = 4;
+export const AI_LOG_TAG_COLORS = {
+  DOCTRINE: '#b0b8c0',
+  PLAN: '#ffd54a',
+  ROLES: '#7f8a94',
+  ATTACK: '#ff8a7a',
+  PURSUE: '#ffa94d',
+  AVOID: '#4dd8ff',
+  SLIT: '#c58cff',
+  REARM: '#7be07b',
+  DEPLOY: '#9fe0c0',
+  FIRE: '#ffffff',
+  SELECT: '#6c7a86',
+  LOSS: '#ff4d4d',
+  SMOKE: '#cfd8dc',
+  MINE: '#d7b36a',
+  AMBUSH: '#e0a0ff',
+};
+
 // ---- AI Decision Randomness & Target Selection -------------------------------
 export const AI_TARGET_STICKINESS_BONUS = 20;
 export const AI_TARGET_LOS_BLOCKED_PENALTY = 70;

@@ -1465,3 +1465,27 @@ html, body {
   margin-top: 1px;
 }
 
+
+/* ---- AI decision log panels (side areas of the strategic map) ---- */
+.ai-log {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(8, 12, 14, 0.92);
+  border: 1px solid #2a3238;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.25;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ai-log.left { left: 4px; border-top: 2px solid var(--red); }
+.ai-log.right { right: 4px; border-top: 2px solid var(--blue); }
+.ai-log-head { padding: 2px 6px; color: var(--dim); letter-spacing: 1px; border-bottom: 1px solid #1c2429; }
+.ai-log-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 2px 3px; }
+.ai-row { display: grid; grid-template-columns: 34px 52px 1fr; gap: 4px; padding: 1px 0; }
+.ai-t { color: var(--dim); text-align: right; }
+.ai-tag { font-weight: bold; }
+.ai-msg { color: var(--text); word-break: break-word; }

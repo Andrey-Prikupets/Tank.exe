@@ -498,7 +498,15 @@ export function createMap2D(canvas, options = {}) {
     ctx.globalAlpha = 1;
   }
 
-  return { resize, render };
+  /** Width in px of the empty (letterbox) area on each side of the drawn map. */
+  function sideWidthPx() {
+    const worldW = C.FIELD_LENGTH_M + 2 * C.MAP_MARGIN_X_M;
+    const worldH = C.FIELD_WIDTH_M + 2 * C.MAP_MARGIN_Y_M;
+    const scale = Math.min(w / worldW, h / worldH);
+    return Math.max(0, (w - worldW * scale) / 2);
+  }
+
+  return { resize, render, sideWidthPx };
 }
 
 export { slotPos };

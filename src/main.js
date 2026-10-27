@@ -4,6 +4,7 @@ import { createWorld, applyAction, step, syncWorldTerrain } from './sim/world.js
 import { slotInfo, saveSlot, loadSlot } from './sim/save.js';
 import { Input, keyLabel } from './input.js';
 import { createMap2D } from './render/map2d.js';
+import { createAiLog } from './render/ai_log.js';
 import { createView3D } from './render/view3d.js';
 import { createHud } from './render/hud.js';
 import { createMenu } from './ui/menu.js';
@@ -203,6 +204,7 @@ let gameOverShown = false;
 const menu = createMenu(document.getElementById('menu'));
 const kbScreen = createKeyboardScreen(document.getElementById('keyboardScreen'));
 const map = createMap2D(document.getElementById('map'), { debugVectors });
+const aiLog = createAiLog(document.getElementById('mapWrap'));
 const view = createView3D(document.getElementById('gl'));
 const hud = createHud();
 
@@ -711,6 +713,7 @@ function frame(now) {
   dirty = false;
 
   map.render(world);
+  aiLog.update(aiControllers, isAiPlayer, map.sideWidthPx(), appState === 'PLAYING');
   view.render(world);
   hud.update(world, now, false);
   touch.update(world, appState, menu.isOpen());

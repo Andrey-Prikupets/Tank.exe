@@ -249,7 +249,7 @@ function tryFireWeapon(world, owner, tank, enemyField, profile, enemyTracker, si
     if (aimErr <= allowedTol && Math.random() < 0.96) {
       if (!isLineOfFireBlocked(world, owner, tank.x, tank.y, aimX, aimY, tank.id)) {
         applyAction(world, owner, 'FIRE');
-        return true;
+        return e;
       }
     }
   }
@@ -503,6 +503,34 @@ function getRoleWaypoint(tank, role, plan, owner, enemyGateX, simTime = 0) {
   }
 }
 
+/** Human-readable reason why a tank scored high urgency (for the AI decision log). */
+function urgencyReason(info) {
+  if (info.hazardScore > 0 && info.hazardScore >= info.combatScore && info.hazardScore >= info.rearmScore) {
+    const h = info.hazardScore;
+    const text =
+      h >= C.AI_URGENCY_HAZARD_PIT
+        ? 'pit ahead'
+        : h >= 92
+          ? 'enemy slit-gun sector ahead'
+          : h >= C.AI_URGENCY_HAZARD_MINE
+            ? 'mine ahead'
+            : 'obstacle/boundary ahead';
+    return { tag: 'AVOID', text };
+  }
+  if (info.combatScore > 0 && info.combatScore >= info.rearmScore) {
+    const c = info.combatScore;
+    const text =
+      c >= C.AI_URGENCY_COMBAT_AIMED
+        ? 'aimed shot ready'
+        : c >= C.AI_URGENCY_COMBAT_SHELL_INCOMING
+          ? 'incoming shell'
+          : 'engaging target';
+    return { tag: 'ATTACK', text };
+  }
+  if (info.rearmScore > 0) return { tag: 'REARM', text: 'out of shells' };
+  return { tag: 'SELECT', text: 'neglected unit' };
+}
+
 /** Evaluates Urgency Score (U_i) for a brigade unit. */
 function evaluateTankUrgency(world, owner, tank, enemyField, profile, timeSinceCommand, enemyTracker, simTime) {
   let hazardScore = 0;
@@ -721,11 +749,15 @@ function applySafeCruisingTrim(world, owner, tank, targetSpeedKmh = 18) {
     for (let i = 0; i < 6 && tank.cmdSpeedKmh < targetSpeedKmh; i++) applyAction(world, owner, 'FORWARD');
     for (let i = 0; i < 6 && tank.cmdSpeedKmh > targetSpeedKmh; i++) applyAction(world, owner, 'BACK');
   }
+  return hazardAhead;
 }
 
 export class AiController {
   constructor(owner) {
     this.owner = owner;
+    this.decisionLog = []; // { t, tag, msg } entries shown in the side log panel
+    this.logVersion = 0;
+    this.noteMemo = new Map();
     this.currentPlan = C.AI_STRATEGY_PLANS.ALPHA;
     this.simTime = 0;
     this.sliceTimer = 0;
@@ -759,6 +791,7 @@ export class AiController {
     const doctrineIdx =
       (Math.floor(Math.random() * BRIGADE_DOCTRINES.length) + offset) % BRIGADE_DOCTRINES.length;
     this.doctrine = BRIGADE_DOCTRINES[doctrineIdx];
+    this.note('DOCTRINE', `Brigade doctrine: ${this.doctrine}`);
 
     this.tankCruiseSpeeds = new Map();
     this.tankDeployDelay = new Map();
@@ -778,7 +811,39 @@ export class AiController {
     this.laneOffset = (Math.random() - 0.5) * 2 * C.AI_LANE_OFFSET_MAX_M;
   }
 
+  /**
+   * Appends a timestamped entry to the decision log.
+   * opts.key + opts.sig: skip when the same signature was already logged for that key
+   * (unless opts.gap seconds have passed). With a gap, different signatures are rate-limited too.
+   */
+  note(tag, msg, opts = {}) {
+    const { key, sig = msg, gap = 0 } = opts;
+    if (key) {
+      const m = this.noteMemo.get(key);
+      if (m) {
+        if (m.sig === sig) {
+          if (!gap || this.simTime - m.t < gap) return;
+        } else if (gap && this.simTime - m.t < gap) {
+          return;
+        }
+      }
+      this.noteMemo.set(key, { sig, t: this.simTime });
+    }
+    this.decisionLog.push({ t: this.simTime, tag, msg });
+    if (this.decisionLog.length > C.AI_LOG_MAX_ENTRIES) this.decisionLog.shift();
+    this.logVersion++;
+  }
+
+  /** Logs the current role assignment (rate-limited, only when it changes). */
+  noteRoles(myField, roles) {
+    const parts = myField.map((t) => `T${t.number}=${roles.get(t.id) || '-'}`);
+    this.note('ROLES', parts.join(' '), { key: 'roles', gap: 2 });
+  }
+
   reset() {
+    this.decisionLog.length = 0;
+    this.noteMemo.clear();
+    this.logVersion++;
     this.currentPlan = C.AI_STRATEGY_PLANS.ALPHA;
     this.simTime = 0;
     this.sliceTimer = 0;
@@ -897,6 +962,11 @@ export class AiController {
 
     if (bestEnemy && bestEnemyPos) {
       this.lockedTargetId = bestEnemy.id;
+      this.note('SLIT', `Window ${pl.windowIdx + 1} locks enemy #${bestEnemy.id}`, {
+        key: 'slit-lock',
+        sig: bestEnemy.id,
+        gap: 1,
+      });
       world.players[owner].lockedTarget = {
         id: bestEnemy.id,
         x: bestEnemyPos.x,
@@ -918,6 +988,7 @@ export class AiController {
 
       if (Math.abs(yawErr) <= C.AI_SLIT_FIRE_TOLERANCE_RAD && pl.windowReload <= 0) {
         applyAction(world, owner, 'FIRE');
+        this.note('SLIT', `Slit gun fires at enemy #${bestEnemy.id}`, { key: 'slit-fire', gap: 1.5 });
       }
     } else {
       this.windowTurn = 0;
@@ -940,6 +1011,10 @@ export class AiController {
       });
 
       if (canSeeInOther) {
+        this.note('SLIT', `Switching to window ${otherIdx + 1} (enemy crossed gate axis)`, {
+          key: 'slit-switch',
+          gap: 2,
+        });
         applyAction(world, owner, otherIdx === 0 ? 'WIN_R' : 'WIN_L');
         return;
       }
@@ -949,6 +1024,10 @@ export class AiController {
         const fieldTank = world.tanks.find((t) => t.owner === owner && t.status === 'field');
         if (fieldTank && fieldTank.number) {
           this.slitTimer = 0;
+          this.note('SLIT', `No targets in window - back to tank ${fieldTank.number}`, {
+            key: 'slit-exit',
+            gap: 2,
+          });
           applyAction(world, owner, 'SELECT', fieldTank.number);
         }
       }
@@ -965,6 +1044,7 @@ export class AiController {
       if (t.owner === owner && t.status === 'dead' && !this.deadTankIds.has(t.id)) {
         this.deadTankIds.add(t.id);
         this.casualtyTimestamps.push(this.simTime);
+        this.note('LOSS', `Tank destroyed at (${t.x.toFixed(0)}, ${t.y.toFixed(0)}); ${this.deadTankIds.size} lost`);
       }
     }
     this.casualtyTimestamps = this.casualtyTimestamps.filter(
@@ -976,6 +1056,7 @@ export class AiController {
     // Initial and dynamic brigade role assignment if unassigned
     if (!this.tankRoles || this.tankRoles.size === 0) {
       this.tankRoles = assignBrigadeRoles(myField, this.currentPlan, this.doctrine, owner);
+      this.noteRoles(myField, this.tankRoles);
     }
 
     // Mobilize brigade tanks into formation with organic stagger and speed diversity
@@ -1024,29 +1105,40 @@ export class AiController {
     const recentCasualties = this.casualtyTimestamps.length;
 
     // Dynamic Plan Transitions
+    const prevPlan = this.currentPlan;
+    let planReason = '';
     if (closestEnemyDist <= C.AI_PLAN_DEFENSE_TRIGGER_DIST_M) {
       this.currentPlan = C.AI_STRATEGY_PLANS.CHARLIE; // Base Defense
+      planReason = `enemy ${closestEnemyDist.toFixed(0)} m from our gate`;
     } else if (
       this.currentPlan === C.AI_STRATEGY_PLANS.CHARLIE &&
       closestEnemyDist >= C.AI_PLAN_DEFENSE_CLEAR_DIST_M
     ) {
       this.currentPlan = C.AI_STRATEGY_PLANS.ALPHA; // Disengage Defense
+      planReason = 'gate threat cleared';
     } else if (recentCasualties >= C.AI_CASUALTY_RETREAT_COUNT) {
       this.currentPlan = C.AI_STRATEGY_PLANS.ALPHA; // Regroup with Standoff
+      planReason = `${recentCasualties} tanks lost recently - regroup`;
     } else if (
       enemyField.length > 0 &&
       (enemyAvgAmmo <= C.AI_PURSUIT_AMMO_THRESHOLD ||
         (enemyField.length <= 1 && myField.length >= 3))
     ) {
       this.currentPlan = C.AI_STRATEGY_PLANS.DELTA; // Pursuit
+      planReason = enemyAvgAmmo <= C.AI_PURSUIT_AMMO_THRESHOLD ? 'enemy out of ammo' : 'enemy nearly eliminated';
     } else if (this.currentPlan === C.AI_STRATEGY_PLANS.ALPHA && myField.length >= 4) {
       // Periodic Wedge breach assault when forces are consolidated
       if (Math.sin(this.simTime * 0.12) > 0.75) {
         this.currentPlan = C.AI_STRATEGY_PLANS.BRAVO;
+        planReason = 'forces consolidated - wedge assault';
       }
+    }
+    if (this.currentPlan !== prevPlan) {
+      this.note('PLAN', `${prevPlan} -> ${this.currentPlan}: ${planReason}`);
     }
 
     this.tankRoles = assignBrigadeRoles(myField, this.currentPlan);
+    this.noteRoles(myField, this.tankRoles);
   }
 
   update(world, dt, levelName = 'MEDIUM') {
@@ -1119,6 +1211,7 @@ export class AiController {
       ) {
         applyAction(world, owner, 'SELECT', armedReserve.number);
         applyAction(world, owner, 'FORWARD');
+        this.note('DEPLOY', `Armed reserve tank ${armedReserve.number} leaves hangar`, { key: 'deploy', gap: 1 });
         this.sliceTimer = 0;
         this.reserveDeployTimer = 0;
         this.lastCommandedTime.set(armedReserve.id, this.simTime);
@@ -1257,6 +1350,10 @@ export class AiController {
           this.sliceTimer = 0;
           applyAction(world, owner, 'SELECT', reserveToDeploy.number);
           applyAction(world, owner, 'FORWARD');
+          this.note('DEPLOY', `Reserve tank ${reserveToDeploy.number} deploys (${myField.length}/${C.TANKS_ON_FIELD_MAX} on field)`, {
+            key: 'deploy',
+            gap: 1,
+          });
           this.lastCommandedTime.set(reserveToDeploy.id, this.simTime);
           return;
         }
@@ -1272,9 +1369,17 @@ export class AiController {
           : Math.min(18, profile.maxSpeedKmh);
 
       // Safe Cruising Course Projection
-      applySafeCruisingTrim(world, owner, tank, cruisingSpeed);
+      const halted = applySafeCruisingTrim(world, owner, tank, cruisingSpeed);
+      if (halted) {
+        this.note('AVOID', `T${tank.number} halted (hazard ahead) before hand-off`, {
+          key: `halt${tank.id}`,
+          gap: 3,
+        });
+      }
 
       // Switch selection
+      const why = urgencyReason(bestUrgencyInfo);
+      this.note(why.tag, `T${tank.number} -> T${bestTank.number}: ${why.text}`, { key: 'select', gap: 1.2 });
       applyAction(world, owner, 'SELECT', bestTank.number);
       tank = bestTank;
       this.sliceTimer = 0;
@@ -1285,7 +1390,7 @@ export class AiController {
     this.lastCommandedTime.set(tank.id, this.simTime);
 
     // 7. Real-time weapons reflex: handles direct LOS and blind fire through smoke
-    tryFireWeapon(
+    const firedAt = tryFireWeapon(
       world,
       owner,
       tank,
@@ -1295,6 +1400,14 @@ export class AiController {
       this.simTime,
       levelName,
     );
+    if (firedAt) {
+      const fd = Math.hypot(firedAt.x - tank.x, firedAt.y - tank.y);
+      this.note('FIRE', `T${tank.number} fires at enemy #${firedAt.id} (${fd.toFixed(0)} m)`, {
+        key: `fire${tank.id}`,
+        sig: 'f',
+        gap: 1.5,
+      });
+    }
 
     // Tactical slit defense: if an enemy has penetrated close to gate and our tank is distant
     if (enemyField.length > 0 && profile.rearm) {
@@ -1311,6 +1424,11 @@ export class AiController {
             (e) => Math.abs(e.x - gateX(owner)) < C.AI_SLIT_DEFENSE_TRIGGER_DIST_M,
           );
           const slitAction = threat && threat.y < C.GATE_CENTER_Y_M ? 'WIN_L' : 'WIN_R';
+          this.note(
+            'SLIT',
+            `Enemy ${closestEnemyDist.toFixed(0)} m from gate, field tanks far - manning slit window`,
+            { key: 'slit-enter', gap: 3 },
+          );
           applyAction(world, owner, slitAction);
           return;
         }
@@ -1323,6 +1441,7 @@ export class AiController {
       if (this.stuckTimer > 0.4) {
         this.reverseTimer = 1.0;
         this.stuckTimer = 0;
+        this.note('AVOID', `T${tank.number} stuck on contact - reversing`, { key: `stuck${tank.id}`, gap: 2 });
       }
     } else {
       this.stuckTimer = Math.max(0, this.stuckTimer - dt);
@@ -1418,6 +1537,13 @@ export class AiController {
       }
 
       if (combatTarget && combatTargetPos) {
+        if (combatTargetDist <= C.AI_LOG_TARGET_MAX_DIST_M) {
+          this.note(
+            this.currentPlan === C.AI_STRATEGY_PLANS.DELTA ? 'PURSUE' : 'ATTACK',
+            `T${tank.number} locks enemy #${combatTarget.id} at ${combatTargetDist.toFixed(0)} m`,
+            { key: `lock${tank.id}`, sig: combatTarget.id, gap: 1.5 },
+          );
+        }
         this.lockedTargetId = combatTarget.id;
         world.players[owner].lockedTarget = {
           id: combatTarget.id,
@@ -1458,6 +1584,10 @@ export class AiController {
       : null;
 
     if (profile.rearm && outOfShells) {
+      this.note('REARM', `T${tank.number} out of shells - returning to hangar`, {
+        key: `rearm${tank.id}`,
+        gap: 20,
+      });
       this.lockedTargetId = null;
       world.players[owner].lockedTarget = null;
 
@@ -1481,6 +1611,7 @@ export class AiController {
         navTargetX = attackWp.x;
         navTargetY = attackWp.y;
       } else if (isAmbushRole && ambushPose && ambushPose.isAtAmbush) {
+        this.note('AMBUSH', `T${tank.number} holds gate ambush post`, { key: `amb${tank.id}`, gap: 30 });
         // Hold position in ambush post, pre-aim gun directly across gate doorway threshold
         navTargetX = ambushPose.doorwayAimX;
         navTargetY = ambushPose.doorwayAimY;
@@ -1542,7 +1673,10 @@ export class AiController {
           }
         }
       }
-      if (threat) applyAction(world, owner, 'SMOKE');
+      if (threat) {
+        applyAction(world, owner, 'SMOKE');
+        this.note('SMOKE', `T${tank.number} drops smoke`, { key: `smk${tank.id}`, gap: 2 });
+      }
     }
 
     // 15. Defensive mines
@@ -1550,6 +1684,7 @@ export class AiController {
       const behindAngle = normalizeAngle(desiredHeading - (tank.heading + Math.PI));
       if (Math.abs(behindAngle) < C.AI_MINE_BEHIND_ANGLE_RAD && Math.random() < profile.useMines) {
         applyAction(world, owner, 'MINE');
+        this.note('MINE', `T${tank.number} lays a mine`, { key: `mine${tank.id}`, gap: 2 });
       }
     }
   }

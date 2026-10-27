@@ -1,5 +1,6 @@
 // Test Harness for Tank.exe AI Navigation & Pathfinding
 import './test_nav.js';
+import './test_ai_log.js';
 import './test_ai_integration.js';
 
 console.log('=== All test suites executed successfully! ===');
