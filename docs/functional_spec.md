@@ -742,7 +742,7 @@ Battlefield hazards can be toggled on/off in the **Options** menu (initial state
 - **Placement:** Randomly generated in the central field (X: 55m to 195m, Y: 18m to 82m), strictly outside gate approaches and initial deployment lines.
 
 ### 13.2 Pits (Water Trenches / Moats / Рвы, Траншеи)
-- **Visuals:** Excavated rectangular trenches filled with vibrant cyan water (`#00e5ff`) and surrounded by dark earthen borders. On the 2D map, drawn with cyan water fill, rippled surface highlights, and dark trench rims.
+- **Visuals:** Excavated rectangular trenches filled with vibrant cyan water (`#00e5ff`) and surrounded by dark earthen borders. In 3D rendering, the water plane and framing dark ground borders reside on the exact same surface level (flush top height at 0.04m above the ground field) without spatial overlap or elevation mismatch, with a recessed dark pit bed underneath the water. On the 2D map, drawn with cyan water fill, rippled surface highlights, and dark trench rims.
 - **Lethal Immersion Mechanic:** When a tank drives into a water pit such that more than 30% of its footprint area overlaps the pit (`tankPitOverlap >= 0.30`), the tank drops into the pit, triggers an aquatic splash explosion (`splash` SFX), and is destroyed.
 - **Shells:** High-velocity shells fly over pits unimpeded.
 - **Placement:** Randomly distributed throughout the central arena with safe clearance from obstacles and central bypass lanes.

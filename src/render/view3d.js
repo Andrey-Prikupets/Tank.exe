@@ -182,6 +182,7 @@ export function createView3D(canvas) {
     });
   }
   const unitSphere = new THREE.SphereGeometry(1, 8, 6);
+  const unitBox = new THREE.BoxGeometry(1, 1, 1);
   const mineGeo = new THREE.CylinderGeometry(C.MINE_RADIUS_M, C.MINE_RADIUS_M, 0.25, 8);
   const mineUnarmed = mat(C.COLOR_MINE_UNARMED);
   const mineArmed = mat(C.COLOR_MINE_ARMED);
@@ -296,22 +297,48 @@ export function createView3D(canvas) {
 
   function makePit() {
     const g = new THREE.Group();
-    const rimMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), pitRimMat);
-    const waterMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), pitWaterMat);
-    g.add(rimMesh, waterMesh);
-    g.userData = { rimMesh, waterMesh };
+    const rimMeshes = [
+      new THREE.Mesh(unitBox, pitRimMat),
+      new THREE.Mesh(unitBox, pitRimMat),
+      new THREE.Mesh(unitBox, pitRimMat),
+      new THREE.Mesh(unitBox, pitRimMat),
+    ];
+    const bedMesh = new THREE.Mesh(unitBox, pitRimMat);
+    const waterMesh = new THREE.Mesh(unitBox, pitWaterMat);
+    g.add(...rimMeshes, bedMesh, waterMesh);
+    g.userData = { rimMeshes, bedMesh, waterMesh };
     return g;
   }
 
   function updatePit(g, pit) {
     g.position.set(pit.x, 0, pit.y);
     g.rotation.y = -pit.h;
-    const { rimMesh, waterMesh } = g.userData;
-    rimMesh.scale.set(pit.l + 1.2, 0.04, pit.w + 1.2);
-    rimMesh.position.set(0, 0.02, 0);
+    const { rimMeshes, bedMesh, waterMesh } = g.userData;
+    const rim = 0.6;
+    const h = 0.04;
+    const y = h / 2;
 
-    waterMesh.scale.set(pit.l, 0.06, pit.w);
-    waterMesh.position.set(0, 0.04, 0);
+    // Top (+Z) and Bottom (-Z) borders span full length including corners
+    rimMeshes[0].scale.set(pit.l + rim * 2, h, rim);
+    rimMeshes[0].position.set(0, y, (pit.w + rim) / 2);
+
+    rimMeshes[1].scale.set(pit.l + rim * 2, h, rim);
+    rimMeshes[1].position.set(0, y, -(pit.w + rim) / 2);
+
+    // Left (-X) and Right (+X) borders span pit width between top and bottom borders
+    rimMeshes[2].scale.set(rim, h, pit.w);
+    rimMeshes[2].position.set(-(pit.l + rim) / 2, y, 0);
+
+    rimMeshes[3].scale.set(rim, h, pit.w);
+    rimMeshes[3].position.set((pit.l + rim) / 2, y, 0);
+
+    // Dark pit floor/bed beneath the water
+    bedMesh.scale.set(pit.l + 0.1, 0.01, pit.w + 0.1);
+    bedMesh.position.set(0, 0.005, 0);
+
+    // Water plane on the exact same level as the rim borders (top face at y + h/2 = 0.04)
+    waterMesh.scale.set(pit.l, h, pit.w);
+    waterMesh.position.set(0, y, 0);
   }
 
   function updateDynamic(world) {
