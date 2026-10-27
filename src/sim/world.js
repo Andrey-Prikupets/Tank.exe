@@ -694,6 +694,7 @@ function updateMines(world, dt) {
       for (const t of field) {
         if (t.status === 'field' && circleTouchesObb(m.x, m.y, C.MINE_TRIGGER_RADIUS_M, body(t))) {
           kill(world, t, null, true);
+          emit(world, m.owner === t.owner ? 'friendlyMineKill' : 'enemyMineKill', t.x, t.owner);
           triggered = true;
         }
       }

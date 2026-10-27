@@ -48,9 +48,9 @@ Each task: implement -> `.\test.cmd` (+ `.\vcr.cmd` log analysis where useful) -
 - [x] Bench (6x120 s HARD): decided matches 2 -> 3 / 6, hit rate 71.7 % -> 73.5 %, pit deaths 0; test suite `test/test_ai_slit.js` added
 
 ## Task 5 - Breach plan and weapon use
-- [ ] Timed assault: smoke screen, flank run to the corner, strike at the gate; mines in the gate lane
+- [ ] Timed assault: flank run to the corner and strike at the gate (smoke part done; rest deferred - few matches finish in 120 s)
 - [ ] Commit rule when enemy is nearly eliminated (Delta)
-- [ ] Offensive smoke/mine usage
+- [x] Offensive smoke (assault run at 50-62 m); mines disabled after bench showed 28/36 mine kills were friendly (HARD 6x120 s: tanks lost/match 21.5 -> 17.7)
 
 ## Task 6 - Movement robustness
 - [ ] `applySafeCruisingTrim`: slow down / steer along the best DWA arc instead of STOP

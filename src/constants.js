@@ -46,6 +46,15 @@ export const AI_SMOKE_LOW_AMMO_DIST_M = 35;
 export const AI_SMOKE_INCOMING_SHELL_DIST_M = 30;
 export const AI_SMOKE_SHELL_DOT_THRESHOLD = 0.8;
 export const AI_MINE_BEHIND_ANGLE_RAD = 0.7;
+// Bench (6x120 s HARD): 28 of 36 mine kills hit the layer's own side (unselected tanks cannot avoid mines),
+// so AI mine laying is off until mine-aware routing exists.
+export const AI_MINES_ENABLED = false;
+export const AI_MINE_FRIENDLY_SAFE_DIST_M = 12;
+export const AI_MINE_GATE_THREAT_DIST_M = 40;
+export const AI_MINE_GATE_KEEPOUT_X_M = 30;
+export const AI_MINE_GATE_KEEPOUT_Y_M = 10;
+export const AI_ASSAULT_SMOKE_MIN_DIST_M = 50;
+export const AI_ASSAULT_SMOKE_MAX_DIST_M = 62;
 
 // ---- AI hull aiming (gun is fixed to the hull) ------------------------------
 export const AI_AIM_GAIN_PER_S = 1.5; // commanded turn rate (deg/s) per degree of heading error

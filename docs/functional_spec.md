@@ -864,6 +864,11 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 - While in slit window view, the commander updates formations and Visual Intelligence tracks targets from the window observer position (`wx, wy`).
 - The `SENTRY` role in base defense (`CHARLIE`) coordinates with the slit gun: it holds an ambush stance offset laterally (`y = 50 ± 16 m`), leaving the gate doorway corridor (`y = 46.5..53.5 m`) open for rearming/deploying units, and guards the opposite flank of the active window (Window 0 North -> Sentry South; Window 1 South -> Sentry North) to avoid friendly fire obstruction and cover the window's traverse blind spot.
 
+### 15.15 Weapon Use (mines, smoke)
+- **AI mines are disabled** (`AI_MINES_ENABLED = false`): benchmarking (6 x 120 s HARD) showed 28 of 36 mine kills hit the side that laid them, because unselected tanks keep their last command and cannot avoid mines. If re-enabled, mines are laid only by base-defence roles during a gate threat (`AI_MINE_GATE_THREAT_DIST_M` = 40 m), never within `AI_MINE_FRIENDLY_SAFE_DIST_M` = 12 m of a friendly tank or inside the own gate lane (`AI_MINE_GATE_KEEPOUT_X_M` = 30 m x `AI_MINE_GATE_KEEPOUT_Y_M` = 10 m).
+- **Offensive smoke:** the first smoke of an assaulting tank (full smoke stock; not a defence/sentry/reloader role) is dropped when it is `AI_ASSAULT_SMOKE_MIN_DIST_M` = 50 .. `AI_ASSAULT_SMOKE_MAX_DIST_M` = 62 m from the enemy gate, screening it from slit guns; the second smoke stays in reserve for defence.
+- The world emits `friendlyMineKill` / `enemyMineKill` events (used by the bench only).
+
 
 ---
 

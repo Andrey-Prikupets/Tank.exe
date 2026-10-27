@@ -307,16 +307,48 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
         }
       }
     }
+    // Offensive smoke: first smoke of an assaulting tank screens it from the enemy slit guns
+    // while it closes on the gate (the second smoke stays in reserve for defence).
+    if (
+      !threat &&
+      tank.smokes >= C.TANK_START_SMOKES &&
+      !assignedRole.includes('DEFENSE') &&
+      assignedRole !== 'RELOADER' &&
+      assignedRole !== 'SENTRY' &&
+      distToEnemyGate >= C.AI_ASSAULT_SMOKE_MIN_DIST_M &&
+      distToEnemyGate <= C.AI_ASSAULT_SMOKE_MAX_DIST_M &&
+      Math.random() < profile.useSmoke
+    ) {
+      applyAction(world, owner, 'SMOKE');
+      ctl.note('SMOKE', `T${tank.number} screens its assault run with smoke`, { key: `smk${tank.id}`, gap: 2 });
+    }
     if (threat) {
       applyAction(world, owner, 'SMOKE');
       ctl.note('SMOKE', `T${tank.number} drops smoke`, { key: `smk${tank.id}`, gap: 2 });
     }
   }
 
-  // 15. Defensive mines
-  if (tank.mines > 0 && (combatTargetDist < 25 || assignedRole.includes('DEFENSE'))) {
+  // 15. Defensive mines (never next to friendly tanks or in our own gate lane: mines kill our own too)
+  const gateThreat = enemyField.some((e) => Math.abs(e.x - gateX(owner)) < C.AI_MINE_GATE_THREAT_DIST_M);
+  if (C.AI_MINES_ENABLED && tank.mines > 0 && assignedRole.includes('DEFENSE') && gateThreat) {
     const behindAngle = normalizeAngle(desiredHeading - (tank.heading + Math.PI));
-    if (Math.abs(behindAngle) < C.AI_MINE_BEHIND_ANGLE_RAD && Math.random() < profile.useMines) {
+    const ownGateX = gateX(owner);
+    const inOwnGateLane =
+      Math.abs(tank.x - ownGateX) < C.AI_MINE_GATE_KEEPOUT_X_M &&
+      Math.abs(tank.y - C.GATE_CENTER_Y_M) < C.AI_MINE_GATE_KEEPOUT_Y_M;
+    const friendlyNear = world.tanks.some(
+      (t) =>
+        t.owner === owner &&
+        t.id !== tank.id &&
+        t.status === 'field' &&
+        Math.hypot(t.x - tank.x, t.y - tank.y) < C.AI_MINE_FRIENDLY_SAFE_DIST_M,
+    );
+    if (
+      !inOwnGateLane &&
+      !friendlyNear &&
+      Math.abs(behindAngle) < C.AI_MINE_BEHIND_ANGLE_RAD &&
+      Math.random() < profile.useMines
+    ) {
       applyAction(world, owner, 'MINE');
       ctl.note('MINE', `T${tank.number} lays a mine`, { key: `mine${tank.id}`, gap: 2 });
     }

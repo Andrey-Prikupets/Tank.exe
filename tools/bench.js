@@ -7,7 +7,7 @@ const seeds = Number(process.argv[2] || 6);
 const seconds = Number(process.argv[3] || 120);
 const level = (process.argv[4] || 'HARD').toUpperCase();
 
-const agg = { matches: 0, decided: 0, lostTotal: 0, shots: 0, hits: 0, pitDeaths: 0, mineBoom: 0, firstKillS: 0, firstKills: 0 };
+const agg = { matches: 0, decided: 0, lostTotal: 0, shots: 0, hits: 0, pitDeaths: 0, mineBoom: 0, friendlyMine: 0, enemyMine: 0, firstKillS: 0, firstKills: 0 };
 const rows = [];
 for (let s = 1; s <= seeds; s++) {
   const r = runVcr({ seconds, level, seed: s });
@@ -19,6 +19,8 @@ for (let s = 1; s <= seeds; s++) {
   agg.hits += hits[0] + hits[1];
   agg.pitDeaths += pitDeaths;
   agg.mineBoom += events.mineBoom || 0;
+  agg.friendlyMine += events.friendlyMineKill || 0;
+  agg.enemyMine += events.enemyMineKill || 0;
   const firstLoss = r.lines.find((l) => l.includes(' LOSS '));
   if (firstLoss) {
     agg.firstKills++;
@@ -40,6 +42,8 @@ console.log(
       avgFirstLossS: agg.firstKills ? +(agg.firstKillS / agg.firstKills).toFixed(1) : null,
       pitDeaths: agg.pitDeaths,
       mineExplosions: agg.mineBoom,
+      friendlyMineKills: agg.friendlyMine,
+      enemyMineKills: agg.enemyMine,
     },
     null,
     2,
