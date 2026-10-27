@@ -53,9 +53,9 @@ Each task: implement -> `.\test.cmd` (+ `.\vcr.cmd` log analysis where useful) -
 - [x] Offensive smoke (assault run at 50-62 m); mines disabled after bench showed 28/36 mine kills were friendly (HARD 6x120 s: tanks lost/match 21.5 -> 17.7)
 
 ## Task 6 - Movement robustness
-- [ ] `applySafeCruisingTrim`: slow down / steer along the best DWA arc instead of STOP
-- [ ] Coarse A* over the cost grid for waypoints blocked by buildings
-- [ ] Better stuck recovery (choose reverse direction by clearance)
+- [x] `applySafeCruisingTrim`: veer away at creep speed instead of STOP (HARD 6x120 s: tanks lost/match 17.7 -> 16.0, hit rate 71.3 % -> 77.5 %, first loss 13 s -> 17 s)
+- [ ] Coarse A* over the cost grid for waypoints blocked by buildings (deferred: 0 freezes / 0 pit deaths in tests)
+- [ ] Better stuck recovery (deferred: 0 stuck events in 120 s VCR)
 
 ## Task 7 - Final verification
 - [ ] Full `.\test.cmd`, VCR comparison before/after, spec/plan doc sync

@@ -869,6 +869,9 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 - **Offensive smoke:** the first smoke of an assaulting tank (full smoke stock; not a defence/sentry/reloader role) is dropped when it is `AI_ASSAULT_SMOKE_MIN_DIST_M` = 50 .. `AI_ASSAULT_SMOKE_MAX_DIST_M` = 62 m from the enemy gate, screening it from slit guns; the second smoke stays in reserve for defence.
 - The world emits `friendlyMineKill` / `enemyMineKill` events (used by the bench only).
 
+### 15.16 Hand-off Trim (hazard veer)
+- Unselected tanks keep their last command, so before handing control to another tank the AI trims the departing tank (`applySafeCruisingTrim`): turn rate straightened, speed set to the cruise speed. If a hazard lies ahead within the look-ahead (boundary, pit, building, mine, friendly tank, enemy slit-gun sector) the tank no longer simply stops in the open: it probes headings offset by `AI_TRIM_ESCAPE_OFFSETS_RAD` = 0.5 / 1.0 rad to either side and, on the first clear one, takes one gentle turn step toward it and creeps at `AI_TRIM_ESCAPE_SPEED_KMH` = 6 km/h (logged as "veers away"). It stops only if no side is clear.
+
 
 ---
 

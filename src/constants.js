@@ -49,6 +49,8 @@ export const AI_MINE_BEHIND_ANGLE_RAD = 0.7;
 // Bench (6x120 s HARD): 28 of 36 mine kills hit the layer's own side (unselected tanks cannot avoid mines),
 // so AI mine laying is off until mine-aware routing exists.
 export const AI_MINES_ENABLED = false;
+export const AI_TRIM_ESCAPE_OFFSETS_RAD = [0.5, 1.0];
+export const AI_TRIM_ESCAPE_SPEED_KMH = 6;
 export const AI_MINE_FRIENDLY_SAFE_DIST_M = 12;
 export const AI_MINE_GATE_THREAT_DIST_M = 40;
 export const AI_MINE_GATE_KEEPOUT_X_M = 30;

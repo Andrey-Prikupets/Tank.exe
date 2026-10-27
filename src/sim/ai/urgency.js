@@ -176,81 +176,83 @@ export function applySafeCruisingTrim(world, owner, tank, targetSpeedKmh = 18) {
   for (let i = 0; i < 6 && tank.cmdTurnDeg > 0; i++) applyAction(world, owner, 'TURN_L');
   for (let i = 0; i < 6 && tank.cmdTurnDeg < 0; i++) applyAction(world, owner, 'TURN_R');
 
-  // 2. Project trajectory forward
+  // 2. Project trajectory forward and look for hazards along the heading
   const lookAheadSec = 3.5;
   const speedMs = (Math.max(tank.cmdSpeedKmh, targetSpeedKmh) * 1000) / 3600;
   const lookAheadDist = Math.max(25, speedMs * lookAheadSec);
 
-  const fx = tank.x + Math.cos(tank.heading) * lookAheadDist;
-  const fy = tank.y + Math.sin(tank.heading) * lookAheadDist;
+  const hazardAlong = (heading) => {
+    const probe = { x: tank.x, y: tank.y, heading };
+    const fx = tank.x + Math.cos(heading) * lookAheadDist;
+    const fy = tank.y + Math.sin(heading) * lookAheadDist;
 
-  let hazardAhead = false;
+    // Boundary checks
+    if (fy < 8 || fy > C.FIELD_WIDTH_M - 8) return true;
+    if (fx < 6 || fx > C.FIELD_LENGTH_M - 6) return true;
 
-  // Boundary checks
-  if (fy < 8 || fy > C.FIELD_WIDTH_M - 8) hazardAhead = true;
-  if (fx < 6 || fx > C.FIELD_LENGTH_M - 6) hazardAhead = true;
-
-  // Pits
-  if (!hazardAhead && world.pits) {
-    for (const pit of world.pits) {
-      const [flx, fly] = toLocal(pit, fx, fy);
-      const [tlx, tly] = toLocal(pit, tank.x, tank.y);
-      const marginL = pit.l / 2 + C.TANK_WIDTH_M + 1.5;
-      const marginW = pit.w / 2 + C.TANK_WIDTH_M + 1.5;
-      if (
-        (Math.abs(flx) < marginL && Math.abs(fly) < marginW) ||
-        (Math.abs(tlx) < marginL + 2 && Math.abs(tly) < marginW + 2)
-      ) {
-        hazardAhead = true;
-        break;
+    // Pits
+    if (world.pits) {
+      for (const pit of world.pits) {
+        const [flx, fly] = toLocal(pit, fx, fy);
+        const [tlx, tly] = toLocal(pit, tank.x, tank.y);
+        const marginL = pit.l / 2 + C.TANK_WIDTH_M + 1.5;
+        const marginW = pit.w / 2 + C.TANK_WIDTH_M + 1.5;
+        if (
+          (Math.abs(flx) < marginL && Math.abs(fly) < marginW) ||
+          (Math.abs(tlx) < marginL + 2 && Math.abs(tly) < marginW + 2)
+        ) {
+          return true;
+        }
       }
     }
-  }
 
-  // Obstacles
-  if (!hazardAhead && world.obstacles) {
-    for (const ob of world.obstacles) {
-      const hit = segmentVsObb(tank.x, tank.y, fx, fy, ob);
-      if (hit != null) {
-        hazardAhead = true;
-        break;
+    // Obstacles
+    if (world.obstacles) {
+      for (const ob of world.obstacles) {
+        if (segmentVsObb(tank.x, tank.y, fx, fy, ob) != null) return true;
       }
     }
-  }
 
-  // Mines
-  if (!hazardAhead && world.mines) {
-    const mineSafetyR = C.TANK_WIDTH_M / 2 + C.MINE_TRIGGER_RADIUS_M + 0.8;
-    for (const m of world.mines) {
-      const [mlx, mly] = toLocal(tank, m.x, m.y);
-      if (mlx > -0.5 && mlx < lookAheadDist && Math.abs(mly) < mineSafetyR) {
-        hazardAhead = true;
-        break;
+    // Mines
+    if (world.mines) {
+      const mineSafetyR = C.TANK_WIDTH_M / 2 + C.MINE_TRIGGER_RADIUS_M + 0.8;
+      for (const m of world.mines) {
+        const [mlx, mly] = toLocal(probe, m.x, m.y);
+        if (mlx > -0.5 && mlx < lookAheadDist && Math.abs(mly) < mineSafetyR) return true;
       }
     }
-  }
 
-  // Friendly tanks ahead (prevent unselected cruising ramming into teammates)
-  if (!hazardAhead) {
-    const friendlies = world.tanks.filter(
-      (o) => o.owner === owner && o.id !== tank.id && o.status === 'field',
-    );
-    for (const f of friendlies) {
-      const [flx, fly] = toLocal(tank, f.x, f.y);
-      if (flx > 0.5 && flx < lookAheadDist && Math.abs(fly) < C.TANK_WIDTH_M + 1.2) {
-        hazardAhead = true;
-        break;
-      }
+    // Friendly tanks ahead (prevent unselected cruising ramming into teammates)
+    for (const f of world.tanks) {
+      if (f.owner !== owner || f.id === tank.id || f.status !== 'field') continue;
+      const [flx, fly] = toLocal(probe, f.x, f.y);
+      if (flx > 0.5 && flx < lookAheadDist && Math.abs(fly) < C.TANK_WIDTH_M + 1.2) return true;
     }
-  }
 
-  // Enemy slit gun hit sector ahead (never cruise blindly into enemy gate slit gun crosshairs)
-  if (!hazardAhead && (isInEnemySlitGunSector(fx, fy, 1 - owner) || isInEnemySlitGunSector(tank.x, tank.y, 1 - owner))) {
-    hazardAhead = true;
-  }
+    // Enemy slit gun hit sector ahead (never cruise blindly into enemy gate slit gun crosshairs)
+    return isInEnemySlitGunSector(fx, fy, 1 - owner) || isInEnemySlitGunSector(tank.x, tank.y, 1 - owner);
+  };
+
+  let hazardAhead = hazardAlong(tank.heading);
 
   if (hazardAhead) {
-    applyAction(world, owner, 'STOP');
+    // Instead of freezing in the open (a stationary tank is an easy target), creep away along the
+    // first clear heading offset to either side; the hand-off cannot steer afterwards, so use the
+    // gentlest turn step and a low speed. Stop only when no side is clear.
+    let turnDir = 0;
+    for (const off of C.AI_TRIM_ESCAPE_OFFSETS_RAD) {
+      if (!hazardAlong(tank.heading + off)) turnDir = 1;
+      else if (!hazardAlong(tank.heading - off)) turnDir = -1;
+      if (turnDir !== 0) break;
+    }
+    if (turnDir === 0) {
+      applyAction(world, owner, 'STOP');
+    } else {
+      applyAction(world, owner, turnDir > 0 ? 'TURN_R' : 'TURN_L');
+      for (let i = 0; i < 6 && tank.cmdSpeedKmh > C.AI_TRIM_ESCAPE_SPEED_KMH; i++) applyAction(world, owner, 'BACK');
+      for (let i = 0; i < 6 && tank.cmdSpeedKmh < C.AI_TRIM_ESCAPE_SPEED_KMH; i++) applyAction(world, owner, 'FORWARD');
+      hazardAhead = 'veer';
+    }
   } else {
     for (let i = 0; i < 6 && tank.cmdSpeedKmh < targetSpeedKmh; i++) applyAction(world, owner, 'FORWARD');
     for (let i = 0; i < 6 && tank.cmdSpeedKmh > targetSpeedKmh; i++) applyAction(world, owner, 'BACK');

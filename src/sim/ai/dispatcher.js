@@ -121,7 +121,12 @@ export function runDispatcher(ctl, world, myField, enemyField, profile, tank) {
 
     // Safe Cruising Course Projection
     const halted = applySafeCruisingTrim(world, owner, tank, cruisingSpeed);
-    if (halted) {
+    if (halted === 'veer') {
+      ctl.note('AVOID', `T${tank.number} veers away from hazard ahead at creep speed before hand-off`, {
+        key: `veer${tank.id}`,
+        gap: 3,
+      });
+    } else if (halted) {
       ctl.note('AVOID', `T${tank.number} halted (hazard ahead) before hand-off`, {
         key: `halt${tank.id}`,
         gap: 3,
