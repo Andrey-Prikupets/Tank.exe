@@ -58,5 +58,5 @@ Each task: implement -> `.\test.cmd` (+ `.\vcr.cmd` log analysis where useful) -
 - [ ] Better stuck recovery (deferred: 0 stuck events in 120 s VCR)
 
 ## Task 7 - Final verification
-- [ ] Full `.\test.cmd`, VCR comparison before/after, spec/plan doc sync
-- [ ] Single `git push`
+- [x] Full `.\test.cmd` green, `.\build.cmd` OK, bench 4x300 s HARD: 27 tanks lost/match, hit rate 67 %, 1/4 matches decided (stalemates remain: ~30 shots per 300 s; real assault logic = open follow-up)
+- [x] Single `git push`
