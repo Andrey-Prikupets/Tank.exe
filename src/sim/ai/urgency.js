@@ -1,9 +1,9 @@
 import * as C from '../../constants.js';
-import { applyAction } from '../world.js';
+import { applyAction, gateX } from '../world.js';
 import { segmentVsObb, toLocal } from '../geometry.js';
 import { isInEnemySlitGunSector } from '../nav.js';
-import { normalizeAngle } from './math.js';
 import { isLineOfSightBlockedBySmoke, getPredictedEnemyState, isLineOfFireBlocked } from './perception.js';
+import { leadPoint, aimError, maxEngageDist } from './aiming.js';
 
 /** Human-readable reason why a tank scored high urgency (for the AI decision log). */
 export function urgencyReason(info) {
@@ -121,8 +121,10 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
     }
   }
 
-  if (tank.shells > 0 && tank.reload <= 0 && enemyField.length > 0) {
-    const maxDist = profile.maxFireDist || C.SHELL_RANGE_M;
+  // Shot allocation: only one gun fires at a time, so give it to the tank that can deliver a
+  // shot soonest (remaining reload vs. time to pivot the fixed gun onto the lead point).
+  if (tank.shells > 0 && enemyField.length > 0) {
+    const enemyGate = gateX(1 - owner);
     for (const e of enemyField) {
       const smokeBlocked = isLineOfSightBlockedBySmoke(world, tank.x, tank.y, e.x, e.y);
       let targetX = e.x;
@@ -135,18 +137,20 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
         targetY = pred.predY;
       }
 
-      const dist = Math.hypot(targetX - tank.x, targetY - tank.y);
-      if (dist <= maxDist) {
-        if (!isLineOfFireBlocked(world, owner, tank.x, tank.y, targetX, targetY, tank.id)) {
-          const aimAngle = Math.atan2(targetY - tank.y, targetX - tank.x);
-          const aimErr = Math.abs(normalizeAngle(aimAngle - tank.heading));
-          if (aimErr <= 0.16) {
-            combatScore = Math.max(combatScore, C.AI_URGENCY_COMBAT_AIMED);
-          } else {
-            combatScore = Math.max(combatScore, C.AI_URGENCY_COMBAT_ENGAGING);
-          }
-        }
-      }
+      const lead = leadPoint(tank, targetX, targetY, e.speed, e.heading, profile.leadFactor);
+      if (lead.dist > maxEngageDist(profile, e.speed)) continue;
+      if (isLineOfFireBlocked(world, owner, tank.x, tank.y, lead.x, lead.y, tank.id)) continue;
+
+      const errDeg = C.radToDeg(Math.abs(aimError(tank, lead.x, lead.y)));
+      const turnS = errDeg / C.TANK_MAX_PIVOT_TURN_DEG_S;
+      const timeToShot = Math.max(tank.reload, turnS);
+      let score =
+        C.AI_URGENCY_COMBAT_AIMED -
+        Math.min(C.AI_URGENCY_SHOT_PENALTY_MAX, timeToShot * C.AI_URGENCY_SHOT_PENALTY_PER_S);
+      const emerging =
+        Math.abs(e.x - enemyGate) <= C.AI_GATE_EMERGE_X_M && Math.abs(e.y - C.GATE_CENTER_Y_M) <= C.AI_GATE_EMERGE_Y_M;
+      if (emerging) score += C.AI_URGENCY_GATE_TARGET_BONUS;
+      combatScore = Math.max(combatScore, score);
     }
   }
 

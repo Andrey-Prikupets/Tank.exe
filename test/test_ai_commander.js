@@ -38,7 +38,18 @@ const res = runVcr({ seconds: 25, level: 'HARD' });
 for (const o of [0, 1]) {
   const ctl = res.ai[o];
   const roleLogs = ctl.decisionLog.filter((e) => e.tag === 'ROLES');
-  assert.ok(roleLogs.length <= 8, `AI ${o} roles should not flap (got ${roleLogs.length} role changes in 25 s)`);
+  const planTimes = ctl.decisionLog.filter((e) => e.tag === 'PLAN').map((e) => e.t);
+  const parse = (m) => new Map([...m.matchAll(/T(\d+)=(\w+)/g)].map((x) => [x[1], x[2]]));
+  for (let i = 1; i < roleLogs.length; i++) {
+    const prev = parse(roleLogs[i - 1].msg);
+    const cur = parse(roleLogs[i].msg);
+    const planChange = planTimes.some((t) => Math.abs(t - roleLogs[i].t) < 0.5);
+    if (planChange) continue;
+    for (const [id, role] of cur) {
+      if (prev.has(id)) assert.strictEqual(role, prev.get(id), `AI ${o} tank ${id} role flapped at ${roleLogs[i].t.toFixed(1)} s`);
+    }
+  }
+
   const planLogs = ctl.decisionLog.filter((e) => e.tag === 'PLAN');
   for (let i = 1; i < planLogs.length; i++) {
     assert.ok(planLogs[i].t - planLogs[i - 1].t >= 0.7, 'plan changes are not instantaneous flapping');

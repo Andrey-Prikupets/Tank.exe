@@ -855,6 +855,11 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 - The gun is fixed to the hull, so the AI aims by steering the whole tank. When the locked target is within the level's effective range with a clear line of fire (`findAimSolution`, `src/sim/ai/aiming.js`) the selected tank **stops and pivots** onto the target's lead point (`leadPoint`: target position advanced by its velocity over the shell flight time x `profile.leadFactor`).
 - Commanded turn rate = heading error (deg) x `AI_AIM_GAIN_PER_S = 1.5`, capped at the stationary pivot limit (30°/s), with a dead band of `AI_AIM_DEADBAND_DEG = 1°`. The fire reflex fires as soon as the heading is within tolerance. Aiming is skipped while rearming, in the gate doorway, or while inside an enemy slit-gun sector (escape has priority). Logged as `AIM`.
 
+### 15.13 Shot Allocation & Effective Range
+- Only one gun fires at a time, so the dispatcher gives combat control to the tank that can deliver a shot soonest. Combat urgency = `AI_URGENCY_COMBAT_AIMED` (85) − min(`AI_URGENCY_SHOT_PENALTY_MAX` = 20, time-to-shot × `AI_URGENCY_SHOT_PENALTY_PER_S` = 8), where time-to-shot = max(remaining reload, time to pivot onto the lead point at 30°/s). Tanks still reloading therefore stay eligible. Targets emerging from the enemy gate (within `AI_GATE_EMERGE_X_M` = 9 m / `AI_GATE_EMERGE_Y_M` = 5 m) add `AI_URGENCY_GATE_TARGET_BONUS` = 5.
+- Effective range: targets moving faster than `AI_MOVING_TARGET_SPEED_MS` = 1.5 m/s are engaged only within `AI_EFFECTIVE_MOVING_RANGE_M` = 38 m (`maxEngageDist`); stationary targets use the full profile range. Applies to aiming, urgency and the fire reflex.
+
+
 ---
 
 ## 16. Constants Summary (initial)

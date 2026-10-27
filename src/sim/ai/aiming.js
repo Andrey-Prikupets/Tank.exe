@@ -3,6 +3,15 @@ import { normalizeAngle } from './math.js';
 import { isLineOfFireBlocked } from './perception.js';
 
 /**
+ * Maximum distance at which the AI engages a target. Moving targets are only engaged inside an
+ * effective range (shell flight time makes long shots at moving tanks mostly wasted ammunition).
+ */
+export function maxEngageDist(profile, targetSpeed) {
+  const max = profile.maxFireDist || C.SHELL_RANGE_M;
+  return Math.abs(targetSpeed || 0) > C.AI_MOVING_TARGET_SPEED_MS ? Math.min(max, C.AI_EFFECTIVE_MOVING_RANGE_M) : max;
+}
+
+/**
  * Hull aiming. The gun is rigidly fixed to the hull (no turret), so aiming means steering the
  * whole tank until its heading points at the lead point of the target.
  */
@@ -39,9 +48,8 @@ export function aimTurnCommandDeg(errRad) {
  */
 export function findAimSolution(world, owner, tank, target, targetPos, profile) {
   if (!target || !targetPos || tank.shells <= 0) return null;
-  const maxDist = profile.maxFireDist || C.SHELL_RANGE_M;
   const lead = leadPoint(tank, targetPos.x, targetPos.y, target.speed, target.heading, profile.leadFactor);
-  if (lead.dist > maxDist) return null;
+  if (lead.dist > maxEngageDist(profile, target.speed)) return null;
   if (isLineOfFireBlocked(world, owner, tank.x, tank.y, lead.x, lead.y, tank.id)) return null;
   const errRad = aimError(tank, lead.x, lead.y);
   return { x: lead.x, y: lead.y, errRad, turnDeg: aimTurnCommandDeg(errRad) };

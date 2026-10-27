@@ -2,13 +2,11 @@ import * as C from '../../constants.js';
 import { applyAction } from '../world.js';
 import { normalizeAngle } from './math.js';
 import { isLineOfSightBlockedBySmoke, getPredictedEnemyState, isLineOfFireBlocked } from './perception.js';
-import { leadPoint } from './aiming.js';
+import { leadPoint, maxEngageDist } from './aiming.js';
 
 /** High-frequency firing reflex: handles direct line of sight as well as blind fire through smoke. */
 export function tryFireWeapon(world, owner, tank, enemyField, profile, enemyTracker, simTime, levelName) {
   if (tank.shells <= 0 || tank.reload > 0 || enemyField.length === 0) return false;
-
-  const maxDist = profile.maxFireDist || C.SHELL_RANGE_M;
 
   for (const e of enemyField) {
     const smokeBlocked = isLineOfSightBlockedBySmoke(world, tank.x, tank.y, e.x, e.y);
@@ -38,7 +36,7 @@ export function tryFireWeapon(world, owner, tank, enemyField, profile, enemyTrac
     const dx = targetX - tank.x;
     const dy = targetY - tank.y;
     const dist = Math.hypot(dx, dy);
-    if (dist > maxDist) continue;
+    if (dist > maxEngageDist(profile, targetSpeed)) continue;
 
     const effectiveLead = profile.leadFactor * (0.9 + Math.random() * 0.2);
     const { x: aimX, y: aimY } = leadPoint(tank, targetX, targetY, targetSpeed, targetHeading, effectiveLead);

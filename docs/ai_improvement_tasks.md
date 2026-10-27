@@ -31,15 +31,15 @@ Each task: implement -> `.\test.cmd` (+ `.\vcr.cmd` log analysis where useful) -
 ## Task 2 - Hull aiming (fixed gun)
 - [x] Aim state for the selected tank: when a visible target is in effective range, stop and pivot the hull toward the lead point
 - [x] Fire reflex fires once heading is within tolerance (hull kept on target while reloading)
-- [ ] Dispatcher "aimed shot ready" urgency uses the real firing tolerance (moved to Task 3)
+- [x] Dispatcher "aimed shot ready" urgency uses real aim error (done in Task 3)
 - [x] `.\bench.cmd` metrics + `test/test_ai_aiming.js`. Bench (6 seeds x 120 s HARD): hit rate 55.0 % -> 56.9 %,
       shots/match 18.5 -> 18.2 (little change; real gains need Task 3 shot allocation, see mine-kill note there)
 
 ## Task 3 - Shot allocation and ammo discipline
-- [ ] Dispatcher scores expected kill value (distance, alignment, target emerging from gate) to choose whose gun fires
-- [ ] Effective-range rule for firing (per level) and hit-probability gate for moving targets
-- [ ] Early rearm at <= 1 shell when the gate is free
-- [ ] Ammo-aware plan inputs (own ammo state feeds plan choice)
+- [x] Dispatcher scores time-to-shot (reload vs pivot) + gate-emerging bonus to choose whose gun fires
+- [x] Effective-range rule for moving targets (38 m). Bench (6x120 s HARD): hit rate 56.9 % -> 71.7 %, shots/match 18.2 -> 16.5
+- [ ] Early rearm at <= 1 shell when the gate is free (deferred to Task 5)
+- [ ] Ammo-aware plan inputs (deferred to Task 5)
 
 ## Task 4 - Slit window continuity and base defence
 - [ ] Keep commander/dispatcher/tracking running while in window view
