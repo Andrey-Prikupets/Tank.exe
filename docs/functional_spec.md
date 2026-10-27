@@ -372,6 +372,7 @@ Tanks are oriented rectangles (OBB). Collision is checked every tick.
 - View is rendered through a **narrow horizontal slit** mask (black above/below) to look like a
   window; crosshair in the center.
 - Default facing: perpendicular to the wall, into the field.
+- **Independent Window Yaw Persistence:** Each player tracks independent yaw angles for both hangar windows (`windowYaws: [0, 0]`). Switching between the Left and Right windows or temporarily returning to tank command retains the exact angular yaw position of each slit gun rather than resetting to center.
 - Turn keys (`A`/`D`, `←`/`→`) **rotate the view** (not a tank) in discrete steps: **15°/s and 30°/s** (`WINDOW_YAW_STEP_DEG_S = 15`, `WINDOW_YAW_RATE_DEG_S = 30`), up to `WINDOW_MAX_YAW_DEG` (45°, i.e. 50 % of the 90° to the wall) each side. Angular acceleration between steps is non-momentary at **0.5s per 15°/s step transition** (`WINDOW_YAW_ACCEL_DEG_S2 = 30 °/s²`). The STOP command zeroes commanded window rotation with 0.5s per step deceleration (30 $\to$ 15 $\to$ 0 in 1.0s).
 - Accelerate/decelerate keys have no effect in window view.
 - Fire key shoots a shell from the window along the view direction. **Unlimited ammo**, limited by
@@ -776,11 +777,13 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 - **LOS Verification:** Targets behind buildings/obstacles (`world.obstacles`) receive a heavy score penalty (`AI_TARGET_LOS_BLOCKED_PENALTY = 70`), preventing tanks from charging blindly into walls or trying to shoot through cover.
 - **Lock Hysteresis:** The currently locked target receives a stickiness bonus (`AI_TARGET_STICKINESS_BONUS = 20`) to eliminate rapid target fluttering/oscillation.
 - **Threat Weighting & Tie-Breaking:** Targets pointing weapons directly at the unit are prioritized (`AI_TARGET_FACING_US_BONUS = 14`), and tie-breaking noise (`AI_TARGET_NOISE_AMPLITUDE = 6`) ensures diverse target distribution across the enemy brigade.
-- **Locked Target Arrow Rendering:** The strategic map displays thin, crisp arrows (`MAP_TARGET_ARROW_WIDTH_PX = 1.5`) from active tanks (or active slit windows) to their locked targets (maximum 2 arrows: Red -> Blue, Blue -> Red).
+- **Locked Target Arrow & Slit Gun Aim Vectors:**
+  - The strategic map displays thin, crisp arrows (`MAP_TARGET_ARROW_WIDTH_PX = 1.5`) from active tanks (or active slit windows) to their locked targets (maximum 2 arrows: Red -> Blue, Blue -> Red).
+  - Slit gun aiming vectors (`DEBUG_VECTOR_LENGTH_M = 32.5m`) are rendered for both windows on both home bases. The currently manned/active window is highlighted in vivid team color with a circular target reticle at its terminus.
 
 ### 15.3 Slit Window Tactical Defense
-- When enemies penetrate within `AI_SLIT_DEFENSE_TRIGGER_DIST_M = 48m` of the home gate and active tanks are distant, the AI can enter a hangar slit window to deliver defensive fire with unlimited ammo.
-- The AI aims through the slit window's angular limits (`WINDOW_MAX_YAW_DEG = 45°`), fires upon alignment, switches to the opposing slit window if enemies cross the gate axis, and returns to tank command once threats subside.
+- When enemies penetrate within `AI_SLIT_DEFENSE_TRIGGER_DIST_M = 40m` of the home gate and active tanks are distant, the AI can enter a hangar slit window to deliver defensive fire with unlimited ammo.
+- The AI aims through the slit window's angular limits (`WINDOW_MAX_YAW_DEG = 45°`), fires upon alignment (within `AI_SLIT_MAX_FIRE_DIST_M = 50m`), switches to the opposing slit window if enemies cross the gate axis, and returns to tank command once threats subside.
 
 ### 15.4 Strategic Brigade Control Architecture
 - For comprehensive multi-tank coordination, urgency-based time-slice dispatching, attack formations (Pincer Envelopment, Wedge Breach), and dynamic plan switching, refer to the full architectural specification in [`docs/ai_strategic_control_plan.md`](./ai_strategic_control_plan.md).
@@ -811,28 +814,30 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
   - **Open Terrain:** Standard movement cost `COST_OPEN = 1`.
 - **Target Maneuver & Curvilinear Intercept:**
   - `predictTargetCurvilinear(target, dt)` models moving enemy units using circular arc dead-reckoning when turning ($\omega \ne 0$), avoiding linear overshoots.
-  - `getAttackStandoffWaypoint(tank, target, world, profile)` calculates tactical attack positions at $20\text{--}30\text{ m}$ standoff outside the target's forward firing cone ($\pm 45^\circ$) with verified line-of-sight past buildings.
+  - `getAttackStandoffWaypoint(tank, target, world, profile)` calculates tactical attack positions at $20\text{--}30\text{ m}$ standoff outside the target's forward firing cone ($\pm 45^\circ$) with verified line-of-sight past buildings, falling back to safe perimeter standoff ($52\text{m}$) outside shell range if no standoff is clear.
 - **Gate Reservation Mutex & Corridor Alignment:**
   - `GateReservationManager` assigns a single-token gate mutex per team so only one tank approaches or transits the 7m gateway at a time. Secondary retreating/deploying tanks hold at lateral staging waypoints ($Y = 32\text{ m}$ or $68\text{ m}$) until the gateway is clear.
   - Two-stage docking corridor: locks speed to $18\text{ km/h}$ and aligns heading to $\pm 4^\circ$ in the approach zone, then locks turn commands to zero (`cmdTurnDeg = 0`) to cruise straight through the doorway at $Y = 50.0\text{ m}$.
 - **Kinematic Dynamic Window Trajectory Rollout (DWA):**
-  - Evaluates 7 reachable steering arcs ($\{-45, -30, -15, 0, 15, 30, 45\}^\circ/\text{s}$) over a $1.8\text{ s}$ horizon (6 simulation steps) adhering to skid-steer acceleration limits.
-  - Hard discard ($-\infty$) for any arc contacting pit overlap or mine trigger radii.
+  - Evaluates reachable steering arcs over a $1.8\text{ s}$ horizon (6 simulation steps) adhering to skid-steer acceleration limits, evaluating forward cruising, zero-speed turns, and reverse ($-6\text{ km/h}$) arcs near targets or inside hazard sectors.
+  - Hard discard ($-\infty$) for any arc contacting pit overlap, mine trigger radii, or entering the enemy slit gun sector when currently outside.
   - Time-to-Collision (TTC) prediction penalizes arcs approaching within $6.0\text{ m}$ of unselected friendly tanks, eliminating team bunching and speed-draining collisions.
   - High-speed bonus maintains full $36\text{ km/h}$ cruising velocity on HARD difficulty by choosing wide, curvature-safe arcs around obstacles rather than jerky pivot stops.
 - **Friendly Safe Cruising Trim:**
-  - Trajectory projection during time-slice selection switching checks for teammates ahead in the lane, issuing a stop command if a teammate is within the forward lookahead distance to prevent unselected tanks from cruising into friendlies.
+  - Trajectory projection during time-slice selection switching checks for teammates ahead in the lane and projects forward hazard clearance ($3.5\text{s}$ horizon), issuing a stop command if a teammate or enemy slit cone intersects the path.
 - **Organic Asymmetry & Bounded Control Iterations:**
   - Trajectory evaluation incorporates per-tank personality bias ($\sin(\text{id} \cdot 1.7 \pm 1.35 + t \cdot 0.45)$) and stochastic tie-breaking noise, breaking CvC mirror symmetry and ensuring over 90% trajectory variance between opposing brigades.
   - Command adjustments (`applyKinematicCommands`, `applySafeCruisingTrim`) clamp target turn rates to speed-dependent vehicle limits and bound execution to at most 6 step iterations, eliminating infinite loops or UI thread freezes.
-- **Lateral Gate Flank Approach & Vertical Map Descent:**
-  - When advancing towards the enemy base, tanks avoid the lethal central frontal corridor ($Y \in [39, 61]$ within $45\text{ m}$ of the enemy wall) covered by the base slit guns (`isInEnemySlitGunSector`).
-  - Attacking units advance along the North ($Y \approx 22\text{--}26\text{ m}$) or South ($Y \approx 74\text{--}78\text{ m}$) flank corridors until within $18\text{ m}$ of the enemy end wall, then execute a 90° vertical maneuver on the map (heading Southward along $+Y$ from North, or Northward along $-Y$ from South) to reach tactical ambush posts.
+- **Lateral Gate Flank Approach & Safe Edge Crawl Corridors:**
+  - When advancing towards the enemy base, tanks avoid the lethal central frontal corridor ($Y \in [36, 64]$ within $45\text{ m}$ of the enemy wall) covered by the base slit guns (`isInEnemySlitGunSector`).
+  - Beyond the $50\text{m}$ shell range (plus $2\text{m}$ safety margin), tanks can operate freely without hazard penalties.
+  - Safe edge crawl corridors along the North ($Y \le 9.0\text{m}$, routing at $Y = 7.5\text{m}$) and South ($Y \ge 91.0\text{m}$, routing at $Y = 92.5\text{m}$) arena walls lie strictly outside the $\pm 45^\circ$ traverse limit of the slit windows, allowing flankers to bypass defensive fire.
 - **Tactical Gate Ambush & Outgoing Intercept:**
-  - Ambush posts are positioned at $X = X_{\text{gate}} \mp 8.5\text{ m}$, $Y = 33.0\text{ m}$ (North post) and $Y = 67.0\text{ m}$ (South post), outside the 45° traverse limit of both hangar slit guns.
-  - Ambush tanks hold position with zero commanded speed and guns pre-aimed across the doorway threshold ($(X_{\text{gate}} \mp 3.0, 50.0)$), prioritizing outgoing enemy tanks to destroy them immediately upon exiting the hangar.
+  - Ambush posts are positioned at $X = X_{\text{gate}} \mp 8.5\text{ m}$, $Y = 30.0\text{ m}$ (North post) and $Y = 70.0\text{ m}$ (South post), outside the 45° traverse limit of both hangar slit guns.
+  - Ambush tanks hold position with zero commanded speed and guns pre-aimed across the doorway threshold ($(X_{\text{gate}} \mp 2.0, 50.0)$), prioritizing outgoing enemy tanks to destroy them immediately upon exiting the hangar.
 - **Asymmetric Brigade Doctrines:**
   - Opposing brigades randomly roll independent tactical doctrines (`NORTH_SWEEP`, `SOUTH_SWEEP`, `PINCER_AMBUSH`, `SPEARHEAD_WEDGE`, `ASYMMETRIC_SPLIT`), assigning varied roles (`NORTH_GATE_AMBUSH`, `SOUTH_GATE_AMBUSH`, `VANGUARD`, flankers, and sentries).
+  - Main offensive formations hold safe standoff at $52\text{m}$ from the enemy gate until a doorway breach is initiated.
   - Individual tank cruising speeds (27 to 36 km/h on HARD) and staggered mobilization delays (0.0 to 2.0s) spread out the brigade into dynamic echelons, completely eliminating mirror symmetry.
 
 ### 15.10 Test Harness (`test.cmd` & `test/run_tests.js`)
@@ -862,7 +867,7 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 | `BORDER_DRAG_FACTOR` / `TANK_CONTACT_TURN_FACTOR` | 0.5 / 0.5 | |
 | `TANK_START_SHELLS` / `MINES` / `SMOKES` | 5 / 2 / 2 | |
 | `GUN_RELOAD_S` / `WINDOW_RELOAD_S` | 1 / 1.5 | s |
-| `SHELL_RANGE_M` / `SHELL_FLIGHT_TIME_S` | 62.5 / 0.4 | m / s |
+| `SHELL_RANGE_M` / `SHELL_FLIGHT_TIME_S` | 50 / 0.4 | m / s |
 | `MINE_DROP_BEHIND_M` / `MINE_ARM_DELAY_S` / `MINE_TRIGGER_RADIUS_M` | 1.5 / 1.5 / 1 | m / s / m |
 | `SMOKE_RADIUS_M` / `SMOKE_LIFETIME_S` / `SMOKE_FADE_S` | 10 / 10 / 2 | m / s / s |
 | `WINDOW_OFFSET_FROM_GATE_M` / `WINDOW_LENGTH_M` | 8 / 5 | m |
@@ -889,9 +894,9 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 | `AI_STANDOFF_JITTER_M` | 3.5 | m |
 | `AI_SPEED_JITTER_KMH` | 3 | km/h |
 | `AI_LANE_OFFSET_MAX_M` | 16 | m |
-| `AI_SLIT_DEFENSE_TRIGGER_DIST_M` | 48 | m |
+| `AI_SLIT_DEFENSE_TRIGGER_DIST_M` | 40 | m |
 | `AI_SLIT_AIM_TOLERANCE_RAD` / `FIRE_TOLERANCE_RAD` | 0.08 / 0.12 | rad |
-| `AI_SLIT_MAX_FIRE_DIST_M` | 60 | m |
+| `AI_SLIT_MAX_FIRE_DIST_M` | 50 | m |
 | `AI_MOBILIZE_CRUISE_KMH` | 18 | km/h |
 | `AI_TRAJECTORY_WEAVE_AMP_M` | 5.0 | m |
 | `AI_TRAJECTORY_WEAVE_FREQ` | 0.65 | Hz |

@@ -58,10 +58,10 @@ export const AI_COORD_JITTER_FRACTION = 0.35;
 export const AI_STANDOFF_JITTER_M = 3.5;
 export const AI_SPEED_JITTER_KMH = 3;
 export const AI_LANE_OFFSET_MAX_M = 16;
-export const AI_SLIT_DEFENSE_TRIGGER_DIST_M = 48;
+export const AI_SLIT_DEFENSE_TRIGGER_DIST_M = 40;
 export const AI_SLIT_AIM_TOLERANCE_RAD = 0.08;
 export const AI_SLIT_FIRE_TOLERANCE_RAD = 0.12;
-export const AI_SLIT_MAX_FIRE_DIST_M = 60;
+export const AI_SLIT_MAX_FIRE_DIST_M = 50;
 
 // ---- AI Strategic Brigade Control & Formations -------------------------------
 export const AI_STRATEGY_PLANS = {
@@ -213,7 +213,7 @@ export const TANK_START_MINES = 2;
 export const TANK_START_SMOKES = 2;
 export const GUN_RELOAD_S = 1;
 export const WINDOW_RELOAD_S = 1.5;
-export const SHELL_RANGE_M = FIELD_LENGTH_M / 4;
+export const SHELL_RANGE_M = 50;
 export const DEBUG_VECTOR_LENGTH_M = SHELL_RANGE_M * 0.65;
 export const SHELL_FLIGHT_TIME_S = 0.4;
 export const SHELL_MUZZLE_OFFSET_M = 0.5;

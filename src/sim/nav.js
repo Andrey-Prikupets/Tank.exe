@@ -220,23 +220,41 @@ export function predictTargetCurvilinear(target, dt) {
  * - 45-degree yaw cones from each window extend to [42 - dx*0.95, 42 + dx*0.95] and [58 - dx*0.95, 58 + dx*0.95].
  * - Lateral positions hugging the wall (dx in [5, 14], y <= 35 or y >= 65) are SAFE outside the traverse arc.
  */
-export function isInEnemySlitGunSector(x, y, enemyOwner) {
+export function isInEnemySlitGunSector(x, y, enemyOwner, marginM = 2.0) {
   const gx = gateX(enemyOwner);
   const dir = enemyOwner === 0 ? 1 : -1;
   const dx = (x - gx) * dir; // distance into field from enemy wall
 
-  if (dx < 1.5 || dx > 55.0) return false;
+  // Behind wall or beyond max physical reach (+ margin) is safe
+  if (dx < 1.0 || dx > C.SHELL_RANGE_M + marginM) return false;
 
-  // Direct frontal gate channel is deadly for any approach
-  if (dx <= 45.0 && y >= 39.0 && y <= 61.0) {
+  // Safe edge crawl corridors along North and South arena boundaries
+  // Slit guns at y=42/58 with +/-45 deg traverse cannot hit y <= 9.0 or y >= 91.0
+  if (y <= 9.0 || y >= C.FIELD_WIDTH_M - 9.0) {
+    return false;
+  }
+
+  // Direct frontal gate channel is deadly
+  if (dx <= 45.0 && y >= 36.0 && y <= 64.0) {
     return true;
   }
 
-  // 45 degree yaw cones from both slit windows (y=42, 58)
-  const inWin0Cone = y >= 42.0 - dx * 0.95 && y <= 42.0 + dx * 0.95;
-  const inWin1Cone = y >= 58.0 - dx * 0.95 && y <= 58.0 + dx * 0.95;
+  // Reach limit
+  const maxReachSq = (C.SHELL_RANGE_M + marginM) ** 2;
 
-  return inWin0Cone || inWin1Cone;
+  // Window 0 (y = 42)
+  const dy0 = Math.abs(y - 42.0);
+  if (dy0 <= dx + 1.0 && dx * dx + dy0 * dy0 <= maxReachSq) {
+    return true;
+  }
+
+  // Window 1 (y = 58)
+  const dy1 = Math.abs(y - 58.0);
+  if (dy1 <= dx + 1.0 && dx * dx + dy1 * dy1 <= maxReachSq) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -257,13 +275,13 @@ export function getGateAmbushPose(tank, owner, preferredFlank = 'AUTO') {
     useNorth = tank.y < C.GATE_CENTER_Y_M;
   }
 
-  // Ambush post: 8.5m into field from enemy wall, y=33.0 (North) or y=67.0 (South)
+  // Ambush post: 8.5m into field from enemy wall, y=30.0 (North) or y=70.0 (South)
   // This is strictly outside the 45-degree traverse cone of both slit guns (y=42, 58)
   const ambushX = gx + dir * 8.5;
-  const ambushY = useNorth ? 33.0 : 67.0;
+  const ambushY = useNorth ? 30.0 : 70.0;
 
-  // Outgoing enemy tanks emerge at gate threshold (gx + dir * 3.0, 50.0)
-  const doorwayAimX = gx + dir * 3.0;
+  // Outgoing enemy tanks emerge at gate threshold (gx + dir * 2.0, 50.0)
+  const doorwayAimX = gx + dir * 2.0;
   const doorwayAimY = C.GATE_CENTER_Y_M;
   const aimHeading = Math.atan2(doorwayAimY - ambushY, doorwayAimX - ambushX);
 
@@ -377,7 +395,15 @@ export function getAttackStandoffWaypoint(tank, target, world, profile, simTime 
     }
   }
 
-  return bestWaypoint || { x: predTarget.x, y: predTarget.y, predTarget };
+  if (!bestWaypoint) {
+    const gx = gateX(enemyOwner);
+    const dir = enemyOwner === 0 ? 1 : -1;
+    const safeX = gx + dir * 52.0;
+    const safeY = tank.y <= C.GATE_CENTER_Y_M ? 7.5 : 92.5;
+    return { x: safeX, y: safeY, predTarget };
+  }
+
+  return bestWaypoint;
 }
 
 // =============================================================================
@@ -507,8 +533,10 @@ export function evaluateKinematicTrajectoryArcs(
 
   // Candidate commands
   const candidateTurns = [-45, -30, -15, 0, 15, 30, 45];
-  const candidateSpeeds = [maxSpeedKmh, Math.min(18, maxSpeedKmh)];
-  if (targetDist < 6.0) candidateSpeeds.push(6, 0);
+  const candidateSpeeds = [maxSpeedKmh, Math.min(18, maxSpeedKmh), 0];
+  if (targetDist < 6.0 || isInEnemySlitGunSector(tank.x, tank.y, 1 - tank.owner)) {
+    candidateSpeeds.push(-6);
+  }
 
   let bestScore = -Infinity;
   let bestSpeedKmh = maxSpeedKmh;
@@ -600,6 +628,14 @@ export function evaluateKinematicTrajectoryArcs(
         continue;
       }
 
+      // Slit gun sector entry rejection: if tank is currently outside enemy slit sector,
+      // never choose a trajectory that drives into it!
+      if (!isDoorwayMode && enemySlitSectorContact > 0) {
+        if (!isInEnemySlitGunSector(tank.x, tank.y, 1 - tank.owner)) {
+          continue;
+        }
+      }
+
       // Friendly tank collision avoidance penalty
       let friendlyPenalty = 0;
       if (minFriendlyDist < 6.0) {
@@ -610,7 +646,7 @@ export function evaluateKinematicTrajectoryArcs(
       const housePenalty = houseContactCount * 18.0;
 
       // Enemy slit gun hit sector avoidance penalty
-      const enemySlitPenalty = enemySlitSectorContact * 45.0;
+      const enemySlitPenalty = enemySlitSectorContact * 600.0;
 
       // Progress to target
       const endDist = Math.hypot(targetWaypoint.x - simX, targetWaypoint.y - simY);

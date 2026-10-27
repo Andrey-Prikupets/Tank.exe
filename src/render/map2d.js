@@ -1,5 +1,5 @@
 import * as C from '../constants.js';
-import { gateX, windowY, slotPos, selectedTank } from '../sim/world.js';
+import { gateX, windowY, slotPos, selectedTank, baseHeading } from '../sim/world.js';
 
 const TEAM = [
   { base: C.COLOR_LEFT_TEAM, sel: C.COLOR_LEFT_SELECTED },
@@ -334,6 +334,44 @@ export function createMap2D(canvas, options = {}) {
         ctx.fill();
 
         ctx.restore();
+      }
+
+      // Slit gun aiming vectors for both windows (0 and 1) for both players (0 and 1)
+      for (const owner of [0, 1]) {
+        const pl = world.players[owner];
+        if (!pl) continue;
+        const yaws = pl.windowYaws || [0, 0];
+        const gx = gateX(owner);
+
+        for (let idx = 0; idx < 2; idx++) {
+          const isActive = pl.view === 'window' && pl.windowIdx === idx;
+          const yaw = isActive ? pl.windowYaw : (yaws[idx] || 0);
+          const heading = baseHeading(owner) + yaw;
+          const color = isActive ? TEAM[owner].sel : TEAM[owner].base;
+          const startX = gx;
+          const startY = windowY(owner, idx);
+          const endX = startX + Math.cos(heading) * C.DEBUG_VECTOR_LENGTH_M;
+          const endY = startY + Math.sin(heading) * C.DEBUG_VECTOR_LENGTH_M;
+
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.fillStyle = color;
+          ctx.lineWidth = isActive ? Math.max(1.8, 0.45 * scale) : Math.max(1.2, 0.35 * scale);
+          ctx.lineCap = 'round';
+
+          // Slit gun aiming vector line
+          ctx.beginPath();
+          ctx.moveTo(px(startX), py(startY));
+          ctx.lineTo(px(endX), py(endY));
+          ctx.stroke();
+
+          // Terminal range indicator
+          ctx.beginPath();
+          ctx.arc(px(endX), py(endY), isActive ? Math.max(3, 0.75 * scale) : Math.max(2, 0.55 * scale), 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.restore();
+        }
       }
     }
 

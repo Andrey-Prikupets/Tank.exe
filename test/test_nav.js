@@ -199,7 +199,7 @@ console.log('Testing Slit Gun Sector Avoidance & Tactical Gate Ambush Posture...
 {
   const enemyOwner = 1; // Blue base at X = 250, gate Y = 50
 
-  // 1. Frontal gate corridor inside firing sector
+  // 1. Frontal gate corridor inside firing sector vs safe standoff & edge crawl
   assert.strictEqual(
     isInEnemySlitGunSector(240, 50, enemyOwner),
     true,
@@ -210,6 +210,21 @@ console.log('Testing Slit Gun Sector Avoidance & Tactical Gate Ambush Posture...
     true,
     'Mid-range frontal position (220, 50) must be inside enemy slit gun sector',
   );
+  assert.strictEqual(
+    isInEnemySlitGunSector(195, 50, enemyOwner),
+    false,
+    'Position past 50m physical shell reach (195, 50, dx=55m) must be outside enemy slit gun sector',
+  );
+  assert.strictEqual(
+    isInEnemySlitGunSector(230, 7.5, enemyOwner),
+    false,
+    'North edge crawl corridor (230, 7.5) must be outside enemy slit gun sector',
+  );
+  assert.strictEqual(
+    isInEnemySlitGunSector(230, 92.5, enemyOwner),
+    false,
+    'South edge crawl corridor (230, 92.5) must be outside enemy slit gun sector',
+  );
 
   // 2. Tactical Gate Ambush Posts (outside 45-degree slit gun traverse cone)
   const ambushNorth = getGateAmbushPose({ x: 200, y: 25 }, 0, 'NORTH');
@@ -218,12 +233,12 @@ console.log('Testing Slit Gun Sector Avoidance & Tactical Gate Ambush Posture...
   assert.strictEqual(
     isInEnemySlitGunSector(ambushNorth.targetX, ambushNorth.targetY, enemyOwner),
     false,
-    'North Gate Ambush post (Y=33) must be outside slit gun firing sector',
+    'North Gate Ambush post (Y=30) must be outside slit gun firing sector',
   );
   assert.strictEqual(
     isInEnemySlitGunSector(ambushSouth.targetX, ambushSouth.targetY, enemyOwner),
     false,
-    'South Gate Ambush post (Y=67) must be outside slit gun firing sector',
+    'South Gate Ambush post (Y=70) must be outside slit gun firing sector',
   );
 
   // 3. Ambush orientation aimed across gate doorway threshold

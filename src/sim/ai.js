@@ -20,9 +20,9 @@ const PROFILES = {
     fireTolerance: 0.18,     // ~10 deg
     leadFactor: 0.0,         // direct aiming, no lead
     maxSpeedKmh: 18,
-    maxFireDist: 30,         // holds fire until within 30m so shots reach and hit reliably
-    standoffDist: 22,        // stops advancing at 22m (within 30m firing range)
-    minDist: 14,             // reverses if closer than 14m to avoid collision
+    maxFireDist: 24,         // holds fire until within 24m
+    standoffDist: 18,        // stops advancing at 18m
+    minDist: 11,             // reverses if closer than 11m to avoid collision
     useSmoke: 0.2,
     useMines: 0.2,
     multiTank: true,
@@ -35,9 +35,9 @@ const PROFILES = {
     fireTolerance: 0.14,     // ~8 deg
     leadFactor: 0.5,         // partial lead
     maxSpeedKmh: 36,
-    maxFireDist: 40,         // holds fire until within 40m
-    standoffDist: 26,        // stops advancing at 26m
-    minDist: 16,             // reverses if closer than 16m
+    maxFireDist: 32,         // holds fire until within 32m
+    standoffDist: 21,        // stops advancing at 21m
+    minDist: 13,             // reverses if closer than 13m
     useSmoke: 0.6,
     useMines: 0.6,
     multiTank: true,
@@ -50,9 +50,9 @@ const PROFILES = {
     fireTolerance: 0.10,     // ~5.7 deg
     leadFactor: 1.0,         // full predictive lead
     maxSpeedKmh: 36,
-    maxFireDist: C.SHELL_RANGE_M, // 62.5m maximum physical shell reach
-    standoffDist: 30,        // stops advancing at 30m
-    minDist: 18,             // reverses if closer than 18m
+    maxFireDist: C.SHELL_RANGE_M, // 50m maximum physical shell reach
+    standoffDist: 25,        // stops advancing at 25m
+    minDist: 15,             // reverses if closer than 15m
     useSmoke: 0.9,
     useMines: 0.9,
     multiTank: true,
@@ -359,114 +359,113 @@ function getRoleWaypoint(tank, role, plan, owner, enemyGateX, simTime = 0) {
 
   switch (role) {
     case 'NORTH_GATE_AMBUSH': {
-      // 1. Advance along North flank highway
-      if (distToEnemyGate > 18.0) {
+      // Advance along safe North edge crawl corridor (y=7.5m) until reaching pre-gate position
+      if (distToEnemyGate > 12.0) {
         return {
           x: enemyGateX + enemyDir * 10.0,
-          y: C.AI_LANE_NORTH_Y + weaveY * 0.5,
+          y: 7.5,
         };
       }
-      // 2. Pre-gate vertical approach: turn vertically South down to North Ambush Post (y=33.0)
+      // Pre-gate vertical approach: turn vertically South into North Ambush Post (y=30.0)
       return {
         x: enemyGateX + enemyDir * 8.5,
-        y: 33.0,
+        y: 30.0,
       };
     }
 
     case 'SOUTH_GATE_AMBUSH': {
-      // 1. Advance along South flank highway
-      if (distToEnemyGate > 18.0) {
+      // Advance along safe South edge crawl corridor (y=92.5m) until reaching pre-gate position
+      if (distToEnemyGate > 12.0) {
         return {
           x: enemyGateX + enemyDir * 10.0,
-          y: C.AI_LANE_SOUTH_Y + weaveY * 0.5,
+          y: 92.5,
         };
       }
-      // 2. Pre-gate vertical approach: turn vertically North up to South Ambush Post (y=67.0)
+      // Pre-gate vertical approach: turn vertically North into South Ambush Post (y=70.0)
       return {
         x: enemyGateX + enemyDir * 8.5,
-        y: 67.0,
+        y: 70.0,
       };
     }
 
     case 'VANGUARD': {
-      // Asymmetric lane offset for center vanguard to prevent head-on collisions at Y=50
       const vanguardLaneY = owner === 0 ? C.AI_LANE_CENTER_Y - 6.0 : C.AI_LANE_CENTER_Y + 6.0;
-      // When approaching enemy gate: deflect laterally away from lethal central slit gun sector!
-      if (distToEnemyGate < 50.0) {
+      // Stop at safe 52m standoff line before enemy slit gun firing zone!
+      if (distToEnemyGate <= 54.0) {
         return {
-          x: enemyGateX + enemyDir * 20.0,
-          y: owner === 0 ? 32.0 : 68.0,
+          x: enemyGateX + enemyDir * 52.0,
+          y: vanguardLaneY,
         };
       }
-      return { x: enemyGateX + enemyDir * 30.0, y: vanguardLaneY + weaveY };
+      return { x: enemyGateX + enemyDir * 52.0, y: vanguardLaneY + weaveY };
     }
 
     case 'NORTH_FLANK_LEAD': {
-      if (distToEnemyGate < 22.0) {
-        return { x: enemyGateX + enemyDir * 10.0, y: 31.0 };
+      if (distToEnemyGate <= 14.0) {
+        return { x: enemyGateX + enemyDir * 8.5, y: 24.0 };
       }
       return {
         x: beforeMid ? midX : enemyGateX + enemyDir * 14.0,
-        y: (beforeMid ? C.AI_LANE_NORTH_Y : C.AI_LANE_NORTH_Y + 4) + weaveY * 0.7,
+        y: 7.5,
       };
     }
 
     case 'NORTH_FLANK_TRAIL': {
-      if (distToEnemyGate < 26.0) {
-        return { x: enemyGateX + enemyDir * 14.0, y: 28.0 };
+      if (distToEnemyGate <= 18.0) {
+        return { x: enemyGateX + enemyDir * 12.0, y: 20.0 };
       }
       return {
         x: beforeMid ? (gateX(owner) + midX) / 2 : enemyGateX + enemyDir * 20.0,
-        y: C.AI_LANE_NORTH_Y + 2 + weaveY * 0.7,
+        y: 7.5,
       };
     }
 
     case 'SOUTH_FLANK_LEAD': {
-      if (distToEnemyGate < 22.0) {
-        return { x: enemyGateX + enemyDir * 10.0, y: 69.0 };
+      if (distToEnemyGate <= 14.0) {
+        return { x: enemyGateX + enemyDir * 8.5, y: 76.0 };
       }
       return {
         x: beforeMid ? midX : enemyGateX + enemyDir * 14.0,
-        y: (beforeMid ? C.AI_LANE_SOUTH_Y : C.AI_LANE_SOUTH_Y - 4) + weaveY * 0.7,
+        y: 92.5,
       };
     }
 
     case 'SOUTH_FLANK_TRAIL': {
-      if (distToEnemyGate < 26.0) {
-        return { x: enemyGateX + enemyDir * 14.0, y: 72.0 };
+      if (distToEnemyGate <= 18.0) {
+        return { x: enemyGateX + enemyDir * 12.0, y: 80.0 };
       }
       return {
         x: beforeMid ? (gateX(owner) + midX) / 2 : enemyGateX + enemyDir * 20.0,
-        y: C.AI_LANE_SOUTH_Y - 2 + weaveY * 0.7,
+        y: 92.5,
       };
     }
 
     case 'SPEARHEAD_N': {
-      if (distToEnemyGate < 45.0) {
-        return { x: enemyGateX + enemyDir * 14.0, y: 33.0 };
+      if (distToEnemyGate <= 54.0) {
+        return { x: enemyGateX + enemyDir * 52.0, y: C.AI_LANE_NORTH_Y };
       }
-      return { x: enemyGateX + enemyDir * 25.0, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
+      return { x: enemyGateX + enemyDir * 52.0, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
     }
 
     case 'SPEARHEAD_S': {
-      if (distToEnemyGate < 45.0) {
-        return { x: enemyGateX + enemyDir * 14.0, y: 67.0 };
+      if (distToEnemyGate <= 54.0) {
+        return { x: enemyGateX + enemyDir * 52.0, y: C.AI_LANE_SOUTH_Y };
       }
-      return { x: enemyGateX + enemyDir * 25.0, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
+      return { x: enemyGateX + enemyDir * 52.0, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
     }
 
     case 'ECHELON_N': {
-      if (distToEnemyGate < 40.0) {
-        return { x: enemyGateX + enemyDir * 18.0, y: 30.0 };
+      if (distToEnemyGate <= 58.0) {
+        return { x: enemyGateX + enemyDir * 56.0, y: C.AI_LANE_NORTH_Y };
       }
-      return { x: enemyGateX + enemyDir * 30.0, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
+      return { x: enemyGateX + enemyDir * 56.0, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
     }
 
     case 'ECHELON_S': {
-      if (distToEnemyGate < 40.0) {
-        return { x: enemyGateX + enemyDir * 18.0, y: 70.0 };
+      if (distToEnemyGate <= 58.0) {
+        return { x: enemyGateX + enemyDir * 56.0, y: C.AI_LANE_SOUTH_Y };
       }
-      return { x: enemyGateX + enemyDir * 30.0, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
+      return { x: enemyGateX + enemyDir * 56.0, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
     }
 
     case 'REARGUARD':
@@ -491,14 +490,16 @@ function getRoleWaypoint(tank, role, plan, owner, enemyGateX, simTime = 0) {
       return { x: gateX(owner) + inwardDir(owner) * C.AI_REARM_STANDOFF_DIST_M, y: C.GATE_CENTER_Y_M };
 
     case 'PURSUER':
-    default:
-      if (distToEnemyGate < 25.0) {
-        return {
-          x: enemyGateX + enemyDir * 8.5,
-          y: tank.y < C.GATE_CENTER_Y_M ? 33.0 : 67.0,
-        };
+    default: {
+      if (distToEnemyGate <= 54.0) {
+        const edgeY = tank.y < C.GATE_CENTER_Y_M ? 7.5 : 92.5;
+        if (Math.abs(tank.y - edgeY) < 5.0) {
+          return { x: enemyGateX + enemyDir * 8.5, y: edgeY };
+        }
+        return { x: enemyGateX + enemyDir * 52.0, y: tank.y < 50 ? 25 : 75 };
       }
-      return { x: enemyGateX + enemyDir * 15.0, y: (tank.y < 50 ? 30 : 70) + weaveY };
+      return { x: enemyGateX + enemyDir * 52.0, y: (tank.y < 50 ? 25 : 75) + weaveY };
+    }
   }
 }
 
@@ -561,6 +562,17 @@ function evaluateTankUrgency(world, owner, tank, enemyField, profile, timeSinceC
         }
       }
     }
+  }
+
+  // Slit gun sector hazard (acute priority: steer away or stop before entering enemy crosshairs)
+  const slitLookAhead = Math.max(18.0, Math.abs(tank.speed) * 3.0);
+  const sfx = tank.x + Math.cos(tank.heading) * slitLookAhead;
+  const sfy = tank.y + Math.sin(tank.heading) * slitLookAhead;
+  if (
+    isInEnemySlitGunSector(tank.x, tank.y, 1 - owner) ||
+    isInEnemySlitGunSector(sfx, sfy, 1 - owner)
+  ) {
+    hazardScore = Math.max(hazardScore, 92);
   }
 
   // 2. Combat
@@ -630,10 +642,10 @@ function applySafeCruisingTrim(world, owner, tank, targetSpeedKmh = 18) {
   for (let i = 0; i < 6 && tank.cmdTurnDeg > 0; i++) applyAction(world, owner, 'TURN_L');
   for (let i = 0; i < 6 && tank.cmdTurnDeg < 0; i++) applyAction(world, owner, 'TURN_R');
 
-  // 2. Project 3.0s trajectory forward
-  const lookAheadSec = C.AI_COURSE_PROJECT_TIME_S;
+  // 2. Project trajectory forward
+  const lookAheadSec = 3.5;
   const speedMs = (Math.max(tank.cmdSpeedKmh, targetSpeedKmh) * 1000) / 3600;
-  const lookAheadDist = Math.max(10, speedMs * lookAheadSec);
+  const lookAheadDist = Math.max(25, speedMs * lookAheadSec);
 
   const fx = tank.x + Math.cos(tank.heading) * lookAheadDist;
   const fy = tank.y + Math.sin(tank.heading) * lookAheadDist;
@@ -699,7 +711,7 @@ function applySafeCruisingTrim(world, owner, tank, targetSpeedKmh = 18) {
   }
 
   // Enemy slit gun hit sector ahead (never cruise blindly into enemy gate slit gun crosshairs)
-  if (!hazardAhead && isInEnemySlitGunSector(fx, fy, 1 - owner)) {
+  if (!hazardAhead && (isInEnemySlitGunSector(fx, fy, 1 - owner) || isInEnemySlitGunSector(tank.x, tank.y, 1 - owner))) {
     hazardAhead = true;
   }
 
@@ -1422,6 +1434,7 @@ export class AiController {
 
     // 11. Navigation waypoint calculation
     const enemyGateX = gateX(1 - owner);
+    const distToEnemyGate = Math.abs(tank.x - enemyGateX);
     const assignedRole = this.tankRoles.get(tank.id) || 'VANGUARD';
     const roleWaypoint = getRoleWaypoint(
       tank,
@@ -1472,12 +1485,21 @@ export class AiController {
         navTargetX = ambushPose.doorwayAimX;
         navTargetY = ambushPose.doorwayAimY;
         maxSpeedOverride = 0; // pivot in place
-      } else {
+      } else if (!isAmbushRole && !assignedRole.includes('FLANK') && distToEnemyGate > 54.0) {
         navTargetY += this.laneOffset * 0.5;
       }
     }
 
     if (!isDoorwayMode) {
+      // Slit gun sector avoidance clamp: ensure no navigation waypoint forces tank into enemy slit gun sector
+      if (isInEnemySlitGunSector(navTargetX, navTargetY, 1 - owner)) {
+        const gx = gateX(1 - owner);
+        const dir = (1 - owner) === 0 ? 1 : -1;
+        navTargetX = gx + dir * 52.0;
+        if (navTargetY > 9.0 && navTargetY < C.FIELD_WIDTH_M - 9.0) {
+          navTargetY = tank.y <= C.GATE_CENTER_Y_M ? 7.5 : 92.5;
+        }
+      }
       navTargetX = Math.max(4, Math.min(C.FIELD_LENGTH_M - 4, navTargetX));
       navTargetY = Math.max(4, Math.min(C.FIELD_WIDTH_M - 4, navTargetY));
     }

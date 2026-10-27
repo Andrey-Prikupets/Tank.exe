@@ -95,6 +95,7 @@ export function createWorld(options = {}) {
       view: 'tank', // 'tank' | 'window'
       windowIdx: 0,
       windowYaw: 0,
+      windowYaws: [0, 0],
       windowReload: 0,
       lost: 0,
       shots: 0,
@@ -282,6 +283,7 @@ export function applyAction(world, p, action, arg) {
     case 'WIN_L':
     case 'WIN_R': {
       const idx = action === 'WIN_L' ? 0 : 1;
+      if (!pl.windowYaws) pl.windowYaws = [0, 0];
       if (pl.view === 'window' && pl.windowIdx === idx) {
         pl.view = 'tank';
         pl.cmdWindowTurnDeg = 0;
@@ -289,7 +291,7 @@ export function applyAction(world, p, action, arg) {
       } else {
         pl.view = 'window';
         pl.windowIdx = idx;
-        pl.windowYaw = 0;
+        pl.windowYaw = pl.windowYaws[idx] || 0;
         pl.cmdWindowTurnDeg = 0;
         pl.windowTurnRate = 0;
       }
@@ -752,6 +754,8 @@ export function step(world, dt, held) {
       const targetRate = C.degToRad(targetDeg);
       pl.windowTurnRate = approach(pl.windowTurnRate || 0, targetRate, C.degToRad(C.WINDOW_YAW_ACCEL_DEG_S2) * dt);
       pl.windowYaw = clamp(pl.windowYaw + pl.windowTurnRate * dt, -lim, lim);
+      if (!pl.windowYaws) pl.windowYaws = [0, 0];
+      pl.windowYaws[pl.windowIdx] = pl.windowYaw;
     } else {
       pl.cmdWindowTurnDeg = 0;
       pl.windowTurnRate = 0;
