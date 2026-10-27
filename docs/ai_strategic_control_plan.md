@@ -1,8 +1,21 @@
 # AI Strategic Brigade Control in Tank.exe
 
-> Source of truth for the AI hierarchy. Implementation: `src/sim/ai.js` (controller),
-> `src/sim/nav.js` (navigation). Planned improvements are tracked in
+> Source of truth for the AI hierarchy. Implementation lives in `src/sim/ai/` (`src/sim/ai.js` is a
+> re-export facade) and `src/sim/nav.js` (navigation). Planned improvements are tracked in
 > [`ai_improvement_tasks.md`](./ai_improvement_tasks.md).
+
+| Module (`src/sim/ai/`) | Responsibility |
+|---|---|
+| `controller.js` | `AiController`: state, per-frame `update` orchestration, window/tank selection |
+| `commander.js` | Tier 1: casualties, plan transitions, role (re)assignment |
+| `dispatcher.js` | Tier 2: urgency evaluation, selection switching, reserve deployment |
+| `executor.js` | Tier 3: fire reflex, slit trigger, stuck recovery, targeting, navigation, smoke/mines |
+| `slit.js` | Hangar slit-window defence |
+| `roles.js` | Doctrines, role assignment, role waypoints |
+| `urgency.js` | Urgency scoring, safe cruising trim |
+| `perception.js` | Smoke LOS, line of fire, enemy tracking/prediction |
+| `weapons.js` | Fire decision |
+| `profiles.js`, `math.js`, `decision_log.js` | Difficulty profiles, helpers, decision log |
 
 ## 1. Hard game constraints the AI must respect
 

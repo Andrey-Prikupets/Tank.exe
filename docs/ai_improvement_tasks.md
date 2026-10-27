@@ -14,11 +14,11 @@ Each task: implement -> `.\test.cmd` (+ `.\vcr.cmd` log analysis where useful) -
 - [x] Spec section 15.11 (log panel) + tests for the log
 
 ## Task 0.5 - Restructure `ai.js` (god object -> modules under `src/sim/ai/`)
-- [ ] `profiles.js` (difficulty profiles), `perception.js` (smoke LOS, line of fire, prediction, tracking)
-- [ ] `weapons.js` (fire reflex), `roles.js` (doctrines, role assignment, role waypoints)
-- [ ] `urgency.js` (urgency scoring, safe cruising trim), `decision_log.js` (log class)
-- [ ] `controller.js` split into commander / dispatcher / executor / slit modules; `ai.js` re-exports
-- [ ] Behaviour unchanged: `.\test.cmd` + identical `.\vcr.cmd` output for the same seed
+- [x] `profiles.js` (difficulty profiles), `perception.js` (smoke LOS, line of fire, prediction, tracking)
+- [x] `weapons.js` (fire reflex), `roles.js` (doctrines, role assignment, role waypoints)
+- [x] `urgency.js` (urgency scoring, safe cruising trim), `decision_log.js` (log class)
+- [x] `controller.js` split into commander / dispatcher / executor / slit modules; `ai.js` re-exports
+- [x] Behaviour unchanged: `.\test.cmd` + identical `.\vcr.cmd` output for the same seed (byte-identical 40 s log)
 
 ## Task 1 - Commander correctness (doctrine, roles, plan hysteresis)
 - [ ] Pass `doctrine` and `owner` to every `assignBrigadeRoles` call (doctrine bug)
