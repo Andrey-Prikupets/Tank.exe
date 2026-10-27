@@ -859,6 +859,11 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 - Only one gun fires at a time, so the dispatcher gives combat control to the tank that can deliver a shot soonest. Combat urgency = `AI_URGENCY_COMBAT_AIMED` (85) − min(`AI_URGENCY_SHOT_PENALTY_MAX` = 20, time-to-shot × `AI_URGENCY_SHOT_PENALTY_PER_S` = 8), where time-to-shot = max(remaining reload, time to pivot onto the lead point at 30°/s). Tanks still reloading therefore stay eligible. Targets emerging from the enemy gate (within `AI_GATE_EMERGE_X_M` = 9 m / `AI_GATE_EMERGE_Y_M` = 5 m) add `AI_URGENCY_GATE_TARGET_BONUS` = 5.
 - Effective range: targets moving faster than `AI_MOVING_TARGET_SPEED_MS` = 1.5 m/s are engaged only within `AI_EFFECTIVE_MOVING_RANGE_M` = 38 m (`maxEngageDist`); stationary targets use the full profile range. Applies to aiming, urgency and the fire reflex.
 
+### 15.14 Slit Window Defense & Sentry Coordination
+- Slit window entry occurs deterministically when enemy units penetrate within `AI_SLIT_DEFENSE_TRIGGER_DIST_M` = 40 m of the gate while friendly selected tank is beyond `AI_SLIT_ENTRY_MIN_TANK_DIST_M` = 60 m. Window exit occurs when no targets remain and a field tank requires control (`urgency >= AI_SLIT_EXIT_URGENCY` = 80), after `AI_SLIT_EXIT_IDLE_S` = 1.5 s of inactivity, or immediately if a field unit faces a lethal pit hazard (`hazardScore >= AI_URGENCY_HAZARD_PIT` = 95). Re-entry is throttled by `AI_SLIT_REENTRY_COOLDOWN_S` = 4 s.
+- While in slit window view, the commander updates formations and Visual Intelligence tracks targets from the window observer position (`wx, wy`).
+- The `SENTRY` role in base defense (`CHARLIE`) coordinates with the slit gun: it holds an ambush stance offset laterally (`y = 50 ± 16 m`), leaving the gate doorway corridor (`y = 46.5..53.5 m`) open for rearming/deploying units, and guards the opposite flank of the active window (Window 0 North -> Sentry South; Window 1 South -> Sentry North) to avoid friendly fire obstruction and cover the window's traverse blind spot.
+
 
 ---
 

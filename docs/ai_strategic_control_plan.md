@@ -120,11 +120,16 @@ holds an 18 km/h cruise (36 on Delta / spearhead) or issues STOP when a hazard l
    behind the tank when engaging closely or defending.
 5. Rearm: empty tanks use the gate corridor with a one-token gate mutex per team.
 
-## 6. Slit window defense
+## 6. Slit window defense & Sentry coordination
 
 When an enemy is within 40 m of the home gate **and the selected tank is farther than 60 m from it**,
-the AI enters a slit window (random trigger, ~18 % per update), aims within the 45° yaw limit and
-fires with unlimited ammunition. After 2.5 s without a target it returns to a field tank.
+the AI enters a slit window deterministically (no random trigger; 4 s re-entry cooldown), aims within the 45° yaw limit and
+fires with unlimited ammunition. Commander decisions and visual tracking continue during window view.
+When no targets remain in coverage, the AI leaves the window if a field unit requires control (urgency ≥ 80)
+or after 1.5 s of inactivity, or immediately if a field unit faces a lethal pit hazard.
+In base defense (`CHARLIE`), the `SENTRY` tank coordinates with the slit gun: holding a flanking ambush position
+at `y = 50 ± 16 m` (guarding the flank opposite to the active window) so the gate doorway corridor remains completely
+unobstructed for rearming and deploying units.
 
 ## 7. Status
 

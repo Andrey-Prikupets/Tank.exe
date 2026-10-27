@@ -31,29 +31,26 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
     });
   }
 
-  // Tactical slit defense: if an enemy has penetrated close to gate and our tank is distant
-  if (enemyField.length > 0 && profile.rearm) {
-    const closestEnemyDist = enemyField.reduce((min, e) => {
-      const dg = Math.abs(e.x - gateX(owner));
-      return dg < min ? dg : min;
-    }, Infinity);
-    if (
-      closestEnemyDist < C.AI_SLIT_DEFENSE_TRIGGER_DIST_M &&
-      Math.abs(tank.x - gateX(owner)) > 60
-    ) {
-      if (Math.random() < 0.18) {
-        const threat = enemyField.find(
-          (e) => Math.abs(e.x - gateX(owner)) < C.AI_SLIT_DEFENSE_TRIGGER_DIST_M,
-        );
-        const slitAction = threat && threat.y < C.GATE_CENTER_Y_M ? 'WIN_L' : 'WIN_R';
-        ctl.note(
-          'SLIT',
-          `Enemy ${closestEnemyDist.toFixed(0)} m from gate, field tanks far - manning slit window`,
-          { key: 'slit-enter', gap: 3 },
-        );
-        applyAction(world, owner, slitAction);
-        return;
-      }
+  // Tactical slit defense: if an enemy has penetrated close to gate and our tank is distant.
+  // Deterministic: an enemy must actually be inside the slit gun's coverage, and a cooldown after
+  // leaving the window prevents ping-pong between the tank and the window view.
+  if (enemyField.length > 0 && profile.rearm && ctl.simTime >= (ctl.slitCooldownUntil || 0)) {
+    const threat = enemyField
+      .filter(
+        (e) =>
+          Math.abs(e.x - gateX(owner)) < C.AI_SLIT_DEFENSE_TRIGGER_DIST_M &&
+          Math.hypot(e.x - gateX(owner), e.y - C.GATE_CENTER_Y_M) <= C.AI_SLIT_MAX_FIRE_DIST_M,
+      )
+      .sort((a, b) => Math.abs(a.x - gateX(owner)) - Math.abs(b.x - gateX(owner)))[0];
+    if (threat && Math.abs(tank.x - gateX(owner)) > C.AI_SLIT_ENTRY_MIN_TANK_DIST_M) {
+      const slitAction = threat.y < C.GATE_CENTER_Y_M ? 'WIN_L' : 'WIN_R';
+      ctl.note(
+        'SLIT',
+        `Enemy ${Math.abs(threat.x - gateX(owner)).toFixed(0)} m from gate, field tanks far - manning slit window`,
+        { key: 'slit-enter', gap: 3 },
+      );
+      applyAction(world, owner, slitAction);
+      return;
     }
   }
 
@@ -191,6 +188,7 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
     owner,
     enemyGateX,
     ctl.simTime,
+    world,
   );
 
   const outOfShells = tank.shells === 0;

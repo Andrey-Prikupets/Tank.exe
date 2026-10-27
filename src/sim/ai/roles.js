@@ -98,7 +98,7 @@ export function updateBrigadeRoles(prevRoles, myField, plan, planChanged, doctri
  * Ensures tanks approach enemy gates laterally via flanks and vertically on the map along the wall,
  * never directly from the front into the lethal slit gun hit sector.
  */
-export function getRoleWaypoint(tank, role, plan, owner, enemyGateX, simTime = 0) {
+export function getRoleWaypoint(tank, role, plan, owner, enemyGateX, simTime = 0, world = null) {
   const dir = owner === 0 ? 1 : -1;
   const enemyDir = -dir;
   const distToEnemyGate = Math.abs(tank.x - enemyGateX);
@@ -224,8 +224,21 @@ export function getRoleWaypoint(tank, role, plan, owner, enemyGateX, simTime = 0
     case 'REARGUARD':
       return { x: (gateX(owner) + midX) / 2, y: C.AI_LANE_CENTER_Y + (owner === 0 ? -12 : 12) + weaveY * 0.5 };
 
-    case 'SENTRY':
-      return { x: gateX(owner) + inwardDir(owner) * 14, y: C.GATE_CENTER_Y_M };
+    case 'SENTRY': {
+      // Coordinate with hangar slit windows:
+      // Slit windows are at y=42 (Window 0, North) and y=58 (Window 1, South) with +/-45 deg traverse.
+      // Sentry must NOT block the gate center corridor (y=46.5..53.5) used by deploying/rearming tanks.
+      // If a slit window is active, sentry guards the opposite flank (covering blind spot and avoiding line of fire).
+      const pl = world && world.players ? world.players[owner] : null;
+      let sentryFlank = tank.y < C.GATE_CENTER_Y_M ? -16.0 : 16.0;
+      if (pl && pl.view === 'window') {
+        sentryFlank = pl.windowIdx === 0 ? 16.0 : -16.0;
+      }
+      return {
+        x: gateX(owner) + inwardDir(owner) * 14.0,
+        y: C.GATE_CENTER_Y_M + sentryFlank,
+      };
+    }
 
     case 'DEFENSE_ARC_N':
       return {

@@ -42,9 +42,10 @@ Each task: implement -> `.\test.cmd` (+ `.\vcr.cmd` log analysis where useful) -
 - [ ] Ammo-aware plan inputs (deferred to Task 5)
 
 ## Task 4 - Slit window continuity and base defence
-- [ ] Keep commander/dispatcher/tracking running while in window view
-- [ ] Smarter window entry/exit (no random trigger; leave when no target and field tank needs control)
-- [ ] Sentry role actually coordinates with the slit gun
+- [x] Keep commander and visual intelligence tracking running while in window view
+- [x] Smarter window entry/exit (deterministic entry on threat < 40 m with 4 s cooldown; urgency-aware exit at U >= 80 or idle 1.5 s; emergency rescue on pit hazard)
+- [x] Sentry role actually coordinates with the slit gun (flanks at y = 50 +/- 16 m opposite active window; keeps gate corridor clear)
+- [x] Bench (6x120 s HARD): decided matches 2 -> 3 / 6, hit rate 71.7 % -> 73.5 %, pit deaths 0; test suite `test/test_ai_slit.js` added
 
 ## Task 5 - Breach plan and weapon use
 - [ ] Timed assault: smoke screen, flank run to the corner, strike at the gate; mines in the gate lane

@@ -1,5 +1,5 @@
 import * as C from '../../constants.js';
-import { applyAction, selectedTank, isSpawnClear } from '../world.js';
+import { applyAction, selectedTank, isSpawnClear, gateX, inwardDir, windowY } from '../world.js';
 import { NavigationGrid, gateReservationManager } from '../nav.js';
 import { PROFILES } from './profiles.js';
 import { updateEnemyTracking } from './perception.js';
@@ -102,6 +102,7 @@ export class AiController {
     this.lockedTargetId = null;
     this.windowTurn = 0;
     this.slitTimer = 0;
+    this.slitCooldownUntil = 0;
     this.deadTankIds.clear();
     this.casualtyTimestamps.length = 0;
     this.lastCommandedTime.clear();
@@ -134,8 +135,14 @@ export class AiController {
       this.navGridTimer = 0;
     }
 
-    // 1. Slit window view
+    // 1. Slit window view (commander & visual tracking continue while we man the window)
     if (pl.view === 'window') {
+      const myField = world.tanks.filter((t) => t.owner === owner && t.status === 'field');
+      const enemyField = world.tanks.filter((t) => t.owner !== owner && t.status === 'field');
+      updateCommander(this, world, dt, myField, enemyField, profile);
+      const wx = gateX(owner) + inwardDir(owner) * C.WINDOW_CAMERA_INSET_M;
+      const wy = windowY(owner, pl.windowIdx);
+      updateEnemyTracking(this, world, { x: wx, y: wy, id: null }, enemyField);
       updateSlit(this, world, dt, profile);
       return;
     }
