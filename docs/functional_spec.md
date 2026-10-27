@@ -849,7 +849,7 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 - **Spawn Area Clearance Verification:** The AI verifies that the gate exit corridor is unblocked (`isSpawnClear(world, owner)`) before issuing deployment commands, ensuring departing reserves enter cleanly without jamming returning units.
 
 ### 15.7 Whole-Brigade Rollout & Initial Mobilization
-- **Simultaneous Brigade Advance:** At match start, instead of only moving the selected tank while the remaining 4 units remain stationary, the AI immediately mobilizes all field tanks (`t.status === 'field'`) into their assigned tactical roles (Vanguard, Flanks, Echelons). Each tank is given its initial cruising speed (`AI_MOBILIZE_CRUISE_KMH = 18` or up to 36 km/h on HARD) and heading, so the entire brigade sweeps across the battlefield simultaneously.
+- **Simultaneous Brigade Advance:** At match start, instead of only moving the selected tank while the remaining 4 units remain stationary, the AI mobilizes all field tanks (`t.status === 'field'`) into their assigned tactical roles (Vanguard, Flanks, Echelons). Mobilization is applied strictly once per tank (`ctl.mobilizedTankIds`), driving each tank with natural physical linear and rotational commands (`cmdSpeedKmh`, `cmdTurnDeg`) rather than instantaneous heading/speed overrides. This respects physical vehicle inertia (`TANK_TURN_ACCEL_DEG_S2`, linear acceleration) and prevents heading snapping, 180° direction mirroring, or oscillation when field tanks stop to aim, hold ambush posts, or rearm.
 - **Urgency-Weighted Dispatcher:** The selected unit's commanded timestamp (`lastCommandedTime`) is updated each tick so starvation grows for unselected tanks. Selection switches to the most urgent tank after `AI_MIN_SLICE_S = 0.22s` if it leads by `AI_DISPATCH_THRESHOLD_DELTA = 15`, or after `AI_MAX_SLICE_S = 0.85s` if it is strictly more urgent; hazard emergencies switch immediately. It is not round-robin.
 
 ### 15.8 Dynamic Organic Trajectories & Oblique Combat Maneuvers
@@ -879,6 +879,8 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 - **Organic Asymmetry & Bounded Control Iterations:**
   - Trajectory evaluation incorporates per-tank personality bias ($\sin(\text{id} \cdot 1.7 \pm 1.35 + t \cdot 0.45)$) and stochastic tie-breaking noise, breaking CvC mirror symmetry and ensuring over 90% trajectory variance between opposing brigades.
   - Command adjustments (`applyKinematicCommands`, `applySafeCruisingTrim`) clamp target turn rates to speed-dependent vehicle limits and bound execution to at most 6 step iterations, eliminating infinite loops or UI thread freezes.
+  - Action ordering executes speed adjustments (including `STOP`) prior to turn rate adjustments so that `STOP` does not wipe commanded turn rates on transition ticks.
+  - Tank heading angles are normalized to $[-\pi, \pi]$ during simulation physics and replay recording serialization, ensuring smooth continuous rotations without 16-bit integer overflows.
 - **Lateral Gate Flank Approach & Safe Edge Crawl Corridors:**
   - When advancing towards the enemy base, tanks avoid the lethal central frontal corridor ($Y \in [36, 64]$ within $45\text{ m}$ of the enemy wall) covered by the base slit guns (`isInEnemySlitGunSector`).
   - Beyond the $50\text{m}$ shell range (plus $2\text{m}$ safety margin), tanks can operate freely without hazard penalties.
@@ -903,7 +905,8 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 
 ### 15.12 Hull Aiming (fixed gun)
 - The gun is fixed to the hull, so the AI aims by steering the whole tank. When the locked target is within the level's effective range with a clear line of fire (`findAimSolution`, `src/sim/ai/aiming.js`) the selected tank **stops and pivots** onto the target's lead point (`leadPoint`: target position advanced by its velocity over the shell flight time x `profile.leadFactor`).
-- Commanded turn rate = heading error (deg) x `AI_AIM_GAIN_PER_S = 1.5`, capped at the stationary pivot limit (30°/s), with a dead band of `AI_AIM_DEADBAND_DEG = 1°`. The fire reflex fires as soon as the heading is within tolerance. Aiming is skipped while rearming, in the gate doorway, or while inside an enemy slit-gun sector (escape has priority). Logged as `AIM`.
+- Commanded turn rate = heading error (deg) x `AI_AIM_GAIN_PER_S = 1.5`, capped at the stationary pivot limit (45°/s), with a dead band of `AI_AIM_DEADBAND_DEG = 1°`.
+- Turn rate hysteresis around the $180^\circ$ meridian preserves the current turn direction when $|error| > 170^\circ$, preventing direction flapping and oscillation when acquiring targets directly behind. The fire reflex fires as soon as the heading is within tolerance. Aiming is skipped while rearming, in the gate doorway, or while inside an enemy slit-gun sector (escape has priority). Logged as `AIM`.
 
 ### 15.13 Shot Allocation & Effective Range
 - Only one gun fires at a time, so the dispatcher gives combat control to the tank that can deliver a shot soonest. Combat urgency = `AI_URGENCY_COMBAT_AIMED` (85) − min(`AI_URGENCY_SHOT_PENALTY_MAX` = 20, time-to-shot × `AI_URGENCY_SHOT_PENALTY_PER_S` = 8), where time-to-shot = max(remaining reload, time to pivot onto the lead point at 30°/s). Tanks still reloading therefore stay eligible. Targets emerging from the enemy gate (within `AI_GATE_EMERGE_X_M` = 9 m / `AI_GATE_EMERGE_Y_M` = 5 m) add `AI_URGENCY_GATE_TARGET_BONUS` = 5.

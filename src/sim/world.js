@@ -1,5 +1,5 @@
 import * as C from '../constants.js';
-import { satOverlap, segmentVsObb, circleTouchesObb } from './geometry.js';
+import { satOverlap, segmentVsObb, circleTouchesObb, normalizeAngle } from './geometry.js';
 import { generateObstacles, generatePits, tankPitOverlap } from './terrain.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -418,6 +418,7 @@ function moveTank(t, dt) {
   if (wall) turnFactor = Math.min(turnFactor, C.BORDER_DRAG_FACTOR);
   if (any) turnFactor = Math.min(turnFactor, wall ? C.BORDER_DRAG_FACTOR : C.TANK_CONTACT_TURN_FACTOR);
   t.heading += t.turn * turnFactor * dt;
+  t.heading = normalizeAngle(t.heading);
 
   const sp = t.speed * (wall ? C.BORDER_DRAG_FACTOR : 1);
   let dx = Math.cos(t.heading) * sp * dt;

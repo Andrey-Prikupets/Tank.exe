@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import * as C from '../src/constants.js';
 import { createWorld, step } from '../src/sim/world.js';
 import { AiController } from '../src/sim/ai.js';
+import { normalizeAngle } from '../src/sim/geometry.js';
 
 console.log('\n--- Running AI CvC Long-Run Integration Test (45s Simulation, 2700 ticks) ---');
 
@@ -17,6 +18,8 @@ let maxRedSpeed = 0;
 let maxBlueSpeed = 0;
 let pitsEntered = 0;
 let asymmetricTicks = 0;
+const prevHeadings = new Map();
+let maxHeadingStepDeg = 0;
 
 for (let s = 0; s < totalSteps; s++) {
   // Update AI controllers
@@ -40,6 +43,20 @@ for (let s = 0; s < totalSteps; s++) {
 
       if (t.owner === 0 && t.cmdSpeedKmh > maxRedSpeed) maxRedSpeed = t.cmdSpeedKmh;
       if (t.owner === 1 && t.cmdSpeedKmh > maxBlueSpeed) maxBlueSpeed = t.cmdSpeedKmh;
+
+      if (prevHeadings.has(t.id)) {
+        const prevH = prevHeadings.get(t.id);
+        const diffRad = Math.abs(normalizeAngle(t.heading - prevH));
+        const diffDeg = C.radToDeg(diffRad);
+        if (diffDeg > maxHeadingStepDeg) maxHeadingStepDeg = diffDeg;
+        assert.ok(
+          diffDeg <= 1.5,
+          `Tank ${t.id} heading jumped discretely by ${diffDeg.toFixed(1)}° in a single tick (must respect rotational inertia <= 1.5°/tick)`,
+        );
+      }
+      prevHeadings.set(t.id, t.heading);
+    } else {
+      prevHeadings.delete(t.id);
     }
   }
 

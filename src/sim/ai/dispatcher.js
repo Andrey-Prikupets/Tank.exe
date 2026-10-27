@@ -106,6 +106,7 @@ export function runDispatcher(ctl, world, myField, enemyField, profile, tank) {
           gap: 1,
         });
         ctl.lastCommandedTime.set(reserveToDeploy.id, ctl.simTime);
+        if (ctl.mobilizedTankIds) ctl.mobilizedTankIds.add(reserveToDeploy.id);
         return { tank, done: true };
       }
     }

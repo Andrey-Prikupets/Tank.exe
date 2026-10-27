@@ -1,5 +1,6 @@
 import * as C from '../../constants.js';
 import { gateX } from '../world.js';
+import { normalizeAngle } from './math.js';
 import { assignBrigadeRoles, updateBrigadeRoles, getRoleWaypoint } from './roles.js';
 
 /** Tier 1: Brigade Commander Strategic State Machine. */
@@ -27,12 +28,14 @@ export function updateCommander(ctl, world, dt, myField, enemyField, profile) {
     ctl.noteRoles(myField, ctl.tankRoles);
   }
 
-  // Mobilize brigade tanks into formation with organic stagger and speed diversity
+  // Mobilize brigade tanks into formation with organic stagger and speed diversity (only once per tank)
+  if (!ctl.mobilizedTankIds) ctl.mobilizedTankIds = new Set();
   for (const t of myField) {
-    if (t.status === 'field' && t.cmdSpeedKmh === 0 && Math.abs(t.speed) < 0.2) {
+    if (t.status === 'field' && !ctl.mobilizedTankIds.has(t.id)) {
       const deployDelay = ctl.tankDeployDelay.get(t.id) || 0;
       if (ctl.simTime < deployDelay) continue;
 
+      ctl.mobilizedTankIds.add(t.id);
       const role = ctl.tankRoles.get(t.id) || 'VANGUARD';
       const roleWaypoint = getRoleWaypoint(
         t,
@@ -43,7 +46,10 @@ export function updateCommander(ctl, world, dt, myField, enemyField, profile) {
         ctl.simTime,
       );
       const wpAngle = Math.atan2(roleWaypoint.y - t.y, roleWaypoint.x - t.x);
-      t.heading = wpAngle;
+      const errRad = normalizeAngle(wpAngle - t.heading);
+      const desiredTurn = Math.round(C.radToDeg(errRad) / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S;
+      t.cmdTurnDeg = Math.max(-C.TANK_MAX_TURN_DEG_S, Math.min(C.TANK_MAX_TURN_DEG_S, desiredTurn));
+
       const individualCruise = ctl.tankCruiseSpeeds.get(t.id) || (
         profile.maxSpeedKmh > 18 ? 36 : C.AI_MOBILIZE_CRUISE_KMH
       );
@@ -54,7 +60,6 @@ export function updateCommander(ctl, world, dt, myField, enemyField, profile) {
           ? profile.maxSpeedKmh
           : Math.min(individualCruise, profile.maxSpeedKmh);
       t.cmdSpeedKmh = cruiseSpeed;
-      t.speed = C.kmhToMs(C.SPEED_STEP_KMH); // immediate forward roll
       ctl.lastCommandedTime.set(t.id, ctl.simTime - (t.id % 5) * 0.18);
     }
   }

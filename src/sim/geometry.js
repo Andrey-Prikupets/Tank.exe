@@ -1,5 +1,13 @@
 // Oriented-box (OBB) and segment helpers. Bodies: {x, y, h (heading, rad), l, w}.
 
+export function normalizeAngle(a) {
+  if (!Number.isFinite(a)) return 0;
+  a = a % (2 * Math.PI);
+  if (a > Math.PI) a -= 2 * Math.PI;
+  if (a < -Math.PI) a += 2 * Math.PI;
+  return a;
+}
+
 export function obbCorners(b) {
   const c = Math.cos(b.h);
   const s = Math.sin(b.h);

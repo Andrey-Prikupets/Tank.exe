@@ -32,6 +32,7 @@ export class AiController {
     this.speedJitter = 0;
     this.laneOffset = 0;
     this.deadTankIds = new Set();
+    this.mobilizedTankIds = new Set();
     this.casualtyTimestamps = [];
     this.lastCommandedTime = new Map();
     this.tankRoles = new Map();
@@ -197,6 +198,7 @@ export class AiController {
         this.note('DEPLOY', `Armed reserve tank ${armedReserve.number} leaves hangar`, { key: 'deploy', gap: 1 });
         this.sliceTimer = 0;
         this.reserveDeployTimer = 0;
+        this.mobilizedTankIds.add(armedReserve.id);
         this.lastCommandedTime.set(armedReserve.id, this.simTime);
         return;
       }
@@ -231,6 +233,7 @@ export class AiController {
         applyAction(world, owner, 'FORWARD');
         this.sliceTimer = 0;
         this.reserveDeployTimer = 0;
+        this.mobilizedTankIds.add(reserve.id);
         this.lastCommandedTime.set(reserve.id, this.simTime);
         return;
       }

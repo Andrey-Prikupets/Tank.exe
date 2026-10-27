@@ -703,18 +703,7 @@ export function evaluateKinematicTrajectoryArcs(
 export function applyKinematicCommands(world, owner, tank, targetSpeedKmh, targetTurnDeg) {
   if (!tank || tank.status !== 'field') return;
 
-  const maxLimit = tank.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
-  const clampedTurn = Math.max(-maxLimit, Math.min(maxLimit, Math.round(targetTurnDeg / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S));
-
-  // Turn rate adjustments (bounded to at most 6 step iterations)
-  for (let i = 0; i < 6 && tank.cmdTurnDeg < clampedTurn; i++) {
-    applyAction(world, owner, 'TURN_R');
-  }
-  for (let i = 0; i < 6 && tank.cmdTurnDeg > clampedTurn; i++) {
-    applyAction(world, owner, 'TURN_L');
-  }
-
-  // Speed adjustments (bounded to at most 6 step iterations)
+  // Speed adjustments first (including STOP) so STOP does not wipe out turn command
   if (targetSpeedKmh === 0 && tank.cmdSpeedKmh > 0) {
     applyAction(world, owner, 'STOP');
   } else {
@@ -724,5 +713,16 @@ export function applyKinematicCommands(world, owner, tank, targetSpeedKmh, targe
     for (let i = 0; i < 6 && tank.cmdSpeedKmh > targetSpeedKmh; i++) {
       applyAction(world, owner, 'BACK');
     }
+  }
+
+  // Turn rate adjustments after speed adjustment
+  const maxLimit = tank.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
+  const clampedTurn = Math.max(-maxLimit, Math.min(maxLimit, Math.round(targetTurnDeg / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S));
+
+  for (let i = 0; i < 6 && tank.cmdTurnDeg < clampedTurn; i++) {
+    applyAction(world, owner, 'TURN_R');
+  }
+  for (let i = 0; i < 6 && tank.cmdTurnDeg > clampedTurn; i++) {
+    applyAction(world, owner, 'TURN_L');
   }
 }

@@ -1,5 +1,6 @@
 import * as C from '../constants.js';
 import { slotPos } from './world.js';
+import { normalizeAngle } from './geometry.js';
 
 // ---------------------------------------------------------------------------
 // Binary Stream Encoding / Decoding Helpers
@@ -345,7 +346,7 @@ export function createRecorder(initialWorld, options = {}) {
         w.writeUint8(t.id);
         w.writeInt16(Math.round(t.x * 100));
         w.writeInt16(Math.round(t.y * 100));
-        w.writeInt16(Math.round(t.heading * 10000));
+        w.writeInt16(Math.round(normalizeAngle(t.heading) * 10000));
         w.writeInt16(Math.round(t.speed * 100));
         w.writeUint8((t.shells & 0x0f) | ((t.mines & 0x03) << 4) | ((t.smokes & 0x03) << 6));
         w.writeUint8(t.reload ? 1 : 0);
@@ -768,7 +769,7 @@ export function createPlayback(decodedReplay, targetWorld, sfx) {
         if (t2) {
           t.x = lerp(t1.x, t2.x, alpha);
           t.y = lerp(t1.y, t2.y, alpha);
-          t.heading = angleLerp(t1.heading, t2.heading, alpha);
+          t.heading = normalizeAngle(angleLerp(t1.heading, t2.heading, alpha));
           t.speed = lerp(t1.speed, t2.speed, alpha);
         } else {
           t.x = t1.x;

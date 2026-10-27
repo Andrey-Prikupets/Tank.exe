@@ -34,9 +34,13 @@ export function aimError(tank, aimX, aimY) {
 }
 
 /** Turn-rate command (deg/s, positive = right) that drives the heading error to zero without hunting. */
-export function aimTurnCommandDeg(errRad) {
-  const errDeg = C.radToDeg(errRad);
+export function aimTurnCommandDeg(errRad, currentTurnDeg = 0) {
+  let errDeg = C.radToDeg(errRad);
   if (Math.abs(errDeg) <= C.AI_AIM_DEADBAND_DEG) return 0;
+  // Hysteresis around the 180-degree blind spot to prevent rapid +/- flipping
+  if (Math.abs(errDeg) > 170 && Math.abs(currentTurnDeg) > 0) {
+    errDeg = currentTurnDeg > 0 ? 180 : -180;
+  }
   const limit = C.TANK_MAX_PIVOT_TURN_DEG_S; // aiming is done while stopped: pivot limit
   return Math.max(-limit, Math.min(limit, errDeg * C.AI_AIM_GAIN_PER_S));
 }
@@ -52,5 +56,5 @@ export function findAimSolution(world, owner, tank, target, targetPos, profile) 
   if (lead.dist > maxEngageDist(profile, target.speed)) return null;
   if (isLineOfFireBlocked(world, owner, tank.x, tank.y, lead.x, lead.y, tank.id)) return null;
   const errRad = aimError(tank, lead.x, lead.y);
-  return { x: lead.x, y: lead.y, errRad, turnDeg: aimTurnCommandDeg(errRad) };
+  return { x: lead.x, y: lead.y, errRad, turnDeg: aimTurnCommandDeg(errRad, tank.cmdTurnDeg || 0) };
 }
