@@ -19,6 +19,7 @@ export class AiController {
     this.planSince = 0;
     this.simTime = 0;
     this.sliceTimer = 0;
+    this.lastFiredTime = 0;
     this.commanderTimer = Math.random() * 0.4;
     this.reserveDeployTimer = 0;
     this.decisionTimer = Math.random() * 0.05;
@@ -94,6 +95,7 @@ export class AiController {
     this.planSince = 0;
     this.simTime = 0;
     this.sliceTimer = 0;
+    this.lastFiredTime = 0;
     this.commanderTimer = Math.random() * 0.4;
     this.reserveDeployTimer = 0;
     this.decisionTimer = Math.random() * 0.05;

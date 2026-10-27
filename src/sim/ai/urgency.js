@@ -154,6 +154,11 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
       const emerging =
         Math.abs(e.x - enemyGate) <= C.AI_GATE_EMERGE_X_M && Math.abs(e.y - C.GATE_CENTER_Y_M) <= C.AI_GATE_EMERGE_Y_M;
       if (emerging) score += C.AI_URGENCY_GATE_TARGET_BONUS;
+
+      // Opportunity target boost: unblocked enemy within reach requiring short turn
+      if (!smokeBlocked && lead.dist <= C.AI_TARGET_OPPORTUNITY_MAX_DIST_M && errDeg <= 75) {
+        score = Math.max(score, C.AI_URGENCY_COMBAT_OPPORTUNITY - turnS * 4);
+      }
       combatScore = Math.max(combatScore, score);
     }
     // Armed combatant engagement/advance baseline when enemies are on the field

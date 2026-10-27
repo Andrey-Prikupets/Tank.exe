@@ -22,8 +22,11 @@ export function tryFireWeapon(world, owner, tank, enemyField, profile, enemyTrac
         // Cannot see through smoke cloud and prediction quality too low -> do not fire blindly
         continue;
       }
-      targetX = pred.predX;
-      targetY = pred.predY;
+      // Apply blind-fire dispersion: shooter knows general location in cloud, but not exact hull center
+      const dispRadius = Math.min(C.AI_SMOKE_BLIND_FIRE_DISPERSION_M, 1.5 + pred.timeSinceSeen * 1.0);
+      const dispAngle = Math.random() * Math.PI * 2;
+      targetX = pred.predX + Math.cos(dispAngle) * dispRadius;
+      targetY = pred.predY + Math.sin(dispAngle) * dispRadius;
       targetSpeed = pred.speed;
       targetHeading = pred.heading;
 

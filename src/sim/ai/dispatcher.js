@@ -5,8 +5,11 @@ import { urgencyReason, evaluateTankUrgency, applySafeCruisingTrim } from './urg
 export function runDispatcher(ctl, world, myField, enemyField, profile, tank) {
   const owner = ctl.owner;
   // 6. Tier 2: Urgency-Weighted Time-Slice Dispatcher
-  const canSwitch = ctl.sliceTimer >= C.AI_MIN_SLICE_S;
-  const forceSwitch = ctl.sliceTimer >= C.AI_MAX_SLICE_S;
+  const timeSinceFire = ctl.simTime - (ctl.lastFiredTime || 0);
+  const postFireHoldMet = timeSinceFire >= C.AI_POST_FIRE_HOLD_S;
+  const minHoldMet = ctl.sliceTimer >= C.AI_MIN_SLICE_S;
+  const canSwitch = minHoldMet && postFireHoldMet;
+  const forceSwitch = ctl.sliceTimer >= C.AI_MAX_SLICE_S && postFireHoldMet;
 
   let bestTank = null;
   let maxUrgency = -Infinity;
@@ -51,7 +54,7 @@ export function runDispatcher(ctl, world, myField, enemyField, profile, tank) {
 
   let shouldSwitch = false;
   if (bestTank && bestTank.id !== tank.id) {
-    if (acuteHazardEmergency) {
+    if (acuteHazardEmergency && canSwitch) {
       shouldSwitch = true;
     } else if (
       forceSwitch &&

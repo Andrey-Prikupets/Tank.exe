@@ -19,20 +19,26 @@ export function updateSlit(ctl, world, dt, profile) {
   const enemyField = world.tanks.filter((t) => t.owner !== owner && t.status === 'field');
   const fieldTanks = ownFieldTanks(world, owner);
 
+  ctl.slitTimer += dt;
+  const timeSinceFire = ctl.simTime - (ctl.lastFiredTime || 0);
+  const canExitSlit = ctl.slitTimer >= C.AI_SLIT_MIN_HOLD_S && timeSinceFire >= C.AI_POST_FIRE_HOLD_S;
+
   // Critical hazard rescue: even if firing from window, save a field unit from lethal pit/mine
-  for (const t of fieldTanks) {
-    if (!t.number) continue;
-    const timeSince = ctl.simTime - (ctl.lastCommandedTime.get(t.id) || 0);
-    const evalU = evaluateTankUrgency(world, owner, t, enemyField, profile, timeSince, ctl.enemyTracker, ctl.simTime);
-    if (evalU.hazardScore >= C.AI_URGENCY_HAZARD_PIT) {
-      ctl.slitTimer = 0;
-      ctl.slitCooldownUntil = ctl.simTime + C.AI_SLIT_REENTRY_COOLDOWN_S;
-      ctl.note('AVOID', `T${t.number} critical hazard - leaving window to rescue`, {
-        key: 'slit-rescue',
-        gap: 2,
-      });
-      applyAction(world, owner, 'SELECT', t.number);
-      return;
+  if (canExitSlit) {
+    for (const t of fieldTanks) {
+      if (!t.number) continue;
+      const timeSince = ctl.simTime - (ctl.lastCommandedTime.get(t.id) || 0);
+      const evalU = evaluateTankUrgency(world, owner, t, enemyField, profile, timeSince, ctl.enemyTracker, ctl.simTime);
+      if (evalU.hazardScore >= C.AI_URGENCY_HAZARD_PIT) {
+        ctl.slitTimer = 0;
+        ctl.slitCooldownUntil = ctl.simTime + C.AI_SLIT_REENTRY_COOLDOWN_S;
+        ctl.note('AVOID', `T${t.number} critical hazard - leaving window to rescue`, {
+          key: 'slit-rescue',
+          gap: 2,
+        });
+        applyAction(world, owner, 'SELECT', t.number);
+        return;
+      }
     }
   }
 
@@ -108,6 +114,7 @@ export function updateSlit(ctl, world, dt, profile) {
 
     if (Math.abs(yawErr) <= C.AI_SLIT_FIRE_TOLERANCE_RAD && pl.windowReload <= 0) {
       applyAction(world, owner, 'FIRE');
+      ctl.lastFiredTime = ctl.simTime;
       ctl.note('SLIT', `Slit gun fires at enemy #${bestEnemy.id}`, { key: 'slit-fire', gap: 1.5 });
     }
   } else {
@@ -139,7 +146,6 @@ export function updateSlit(ctl, world, dt, profile) {
       return;
     }
 
-    ctl.slitTimer += dt;
     // Leave the window early when a field tank faces a hazard / ready shot, otherwise after idling.
     let needy = null;
     let needyU = -Infinity;
@@ -153,7 +159,7 @@ export function updateSlit(ctl, world, dt, profile) {
       }
     }
     const urgent = needy && needyU >= C.AI_SLIT_EXIT_URGENCY;
-    if (needy && (urgent || ctl.slitTimer > C.AI_SLIT_EXIT_IDLE_S)) {
+    if (needy && canExitSlit && (urgent || ctl.slitTimer > C.AI_SLIT_EXIT_IDLE_S)) {
       ctl.slitTimer = 0;
       ctl.slitCooldownUntil = ctl.simTime + C.AI_SLIT_REENTRY_COOLDOWN_S;
       ctl.note('SLIT', `No targets in window - back to tank ${needy.number}`, {
@@ -166,7 +172,7 @@ export function updateSlit(ctl, world, dt, profile) {
     if (!needy) {
       const reserves = world.tanks.filter((t) => t.owner === owner && t.status === 'hangar' && t.number != null);
       const armedReserve = reserves.find((t) => t.shells > 0) || reserves[0];
-      if (armedReserve && (ctl.slitTimer > C.AI_SLIT_EXIT_IDLE_S || enemyField.length === 0)) {
+      if (armedReserve && canExitSlit && (ctl.slitTimer > C.AI_SLIT_EXIT_IDLE_S || enemyField.length === 0)) {
         ctl.slitTimer = 0;
         ctl.slitCooldownUntil = ctl.simTime + C.AI_SLIT_REENTRY_COOLDOWN_S;
         ctl.note('SLIT', `No field tanks - leaving window to deploy reserve ${armedReserve.number}`, {

@@ -99,6 +99,9 @@ export const AI_TARGET_STICKINESS_BONUS = 20;
 export const AI_TARGET_LOS_BLOCKED_PENALTY = 70;
 export const AI_TARGET_THREAT_ANGLE_WEIGHT = 18;
 export const AI_TARGET_FACING_US_BONUS = 14;
+export const AI_TARGET_OPPORTUNITY_BONUS = 35;
+export const AI_TARGET_OPPORTUNITY_MAX_DIST_M = 38;
+export const AI_TARGET_OPPORTUNITY_MAX_ANGLE_RAD = 1.3; // ~75 degrees
 export const AI_TARGET_NOISE_AMPLITUDE = 6;
 export const AI_TICK_JITTER_FRACTION = 0.25;
 export const AI_COORD_JITTER_FRACTION = 0.35;
@@ -131,15 +134,18 @@ export const AI_PURSUIT_OUTNUMBERED_RATIO = 3.0;
 export const AI_COMMANDER_EVAL_INTERVAL_S = 0.8;
 
 // Dispatcher & Urgency
-export const AI_MIN_SLICE_S = 0.22;
-export const AI_MAX_SLICE_S = 0.85;
+export const AI_MIN_SLICE_S = 2.0;
+export const AI_MAX_SLICE_S = 4.0;
+export const AI_POST_FIRE_HOLD_S = 0.5;
 export const AI_DISPATCH_THRESHOLD_DELTA = 15;
 export const AI_URGENCY_HAZARD_PIT = 95;
 export const AI_URGENCY_HAZARD_MINE = 90;
 export const AI_URGENCY_HAZARD_OBSTACLE = 80;
 export const AI_URGENCY_COMBAT_AIMED = 85;
+export const AI_URGENCY_COMBAT_OPPORTUNITY = 88;
 export const AI_SLIT_ENTRY_MIN_TANK_DIST_M = 60;
-export const AI_SLIT_EXIT_IDLE_S = 1.5;
+export const AI_SLIT_MIN_HOLD_S = 2.0;
+export const AI_SLIT_EXIT_IDLE_S = 2.0;
 export const AI_SLIT_REENTRY_COOLDOWN_S = 4;
 export const AI_SLIT_EXIT_URGENCY = 80;
 export const AI_URGENCY_SHOT_PENALTY_PER_S = 8;
@@ -176,13 +182,14 @@ export const AI_OBLIQUE_ENGAGE_LATERAL_M = 10.0;
 
 // Smoke Line of Sight & Blind Fire Prediction
 export const AI_SMOKE_MAX_TRACK_AGE_S = 10.0;
-export const AI_SMOKE_PREDICT_DECAY_PER_S = 0.22;
-export const AI_SMOKE_STATIONARY_DECAY_PER_S = 0.04;
+export const AI_SMOKE_PREDICT_DECAY_PER_S = 0.25;
+export const AI_SMOKE_STATIONARY_DECAY_PER_S = 0.12;
 export const AI_SMOKE_BLIND_FIRE_MIN_PROB_EASY = 0.65;
 export const AI_SMOKE_BLIND_FIRE_MIN_PROB_MEDIUM = 0.45;
 export const AI_SMOKE_BLIND_FIRE_MIN_PROB_HARD = 0.30;
-export const AI_SMOKE_INITIAL_CONFIDENCE_MOVING = 0.85;
-export const AI_SMOKE_INITIAL_CONFIDENCE_STATIONARY = 0.95;
+export const AI_SMOKE_INITIAL_CONFIDENCE_MOVING = 0.50;
+export const AI_SMOKE_INITIAL_CONFIDENCE_STATIONARY = 0.65;
+export const AI_SMOKE_BLIND_FIRE_DISPERSION_M = 4.0;
 
 // Mine Maneuvering Avoidance
 export const AI_MINE_LOOKAHEAD_MIN_M = 16.0;
@@ -277,7 +284,7 @@ export const TANK_START_SMOKES = 2;
 export const GUN_RELOAD_S = 1;
 export const WINDOW_RELOAD_S = 1.5;
 export const SHELL_RANGE_M = 50;
-export const DEBUG_VECTOR_LENGTH_M = SHELL_RANGE_M * 0.65;
+export const DEBUG_VECTOR_LENGTH_M = SHELL_RANGE_M;
 export const SHELL_FLIGHT_TIME_S = 0.4;
 export const SHELL_MUZZLE_OFFSET_M = 0.5;
 export const SHELL_RADIUS_M = 0.5;

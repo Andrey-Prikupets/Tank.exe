@@ -23,6 +23,7 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
     levelName,
   );
   if (firedAt) {
+    ctl.lastFiredTime = ctl.simTime;
     const fd = Math.hypot(firedAt.x - tank.x, firedAt.y - tank.y);
     ctl.note('FIRE', `T${tank.number} fires at enemy #${firedAt.id} (${fd.toFixed(0)} m)`, {
       key: `fire${tank.id}`,
@@ -42,7 +43,9 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
           Math.hypot(e.x - gateX(owner), e.y - C.GATE_CENTER_Y_M) <= C.AI_SLIT_MAX_FIRE_DIST_M,
       )
       .sort((a, b) => Math.abs(a.x - gateX(owner)) - Math.abs(b.x - gateX(owner)))[0];
-    if (threat && Math.abs(tank.x - gateX(owner)) > C.AI_SLIT_ENTRY_MIN_TANK_DIST_M) {
+    const timeSinceFire = ctl.simTime - (ctl.lastFiredTime || 0);
+    const canSwitchToSlit = ctl.sliceTimer >= C.AI_MIN_SLICE_S && timeSinceFire >= C.AI_POST_FIRE_HOLD_S;
+    if (threat && Math.abs(tank.x - gateX(owner)) > C.AI_SLIT_ENTRY_MIN_TANK_DIST_M && canSwitchToSlit) {
       const slitAction = threat.y < C.GATE_CENTER_Y_M ? 'WIN_L' : 'WIN_R';
       ctl.note(
         'SLIT',
@@ -50,6 +53,7 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
         { key: 'slit-enter', gap: 3 },
       );
       applyAction(world, owner, slitAction);
+      ctl.slitTimer = 0;
       return;
     }
   }
@@ -140,13 +144,25 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
         Math.abs(e.x - enemyGate) <= 9.0 && Math.abs(e.y - C.GATE_CENTER_Y_M) <= 5.0;
       const emergingBonus = isEmergingFromGate ? 70.0 : 0;
 
+      const isOpportunity =
+        !blocked &&
+        !smokeBlocked &&
+        d <= C.AI_TARGET_OPPORTUNITY_MAX_DIST_M &&
+        ang <= C.AI_TARGET_OPPORTUNITY_MAX_ANGLE_RAD &&
+        tank.shells > 0;
+
+      const anglePenalty = isOpportunity
+        ? ang * (C.AI_TARGET_THREAT_ANGLE_WEIGHT * 0.4)
+        : ang * C.AI_TARGET_THREAT_ANGLE_WEIGHT;
+
       const score =
         d +
-        ang * C.AI_TARGET_THREAT_ANGLE_WEIGHT +
+        anglePenalty +
         (blocked ? C.AI_TARGET_LOS_BLOCKED_PENALTY : 0) +
         smokePenalty -
         emergingBonus -
         (facingUs ? C.AI_TARGET_FACING_US_BONUS : 0) -
+        (isOpportunity ? C.AI_TARGET_OPPORTUNITY_BONUS : 0) -
         (isLocked ? C.AI_TARGET_STICKINESS_BONUS : 0) +
         noise;
 
@@ -228,10 +244,20 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
       (combatTargetDist <= profile.maxFireDist + 8 ||
         ctl.currentPlan === C.AI_STRATEGY_PLANS.DELTA)
     ) {
-      // High-level tactical attack standoff waypoint outside enemy front gun arc
-      const attackWp = getAttackStandoffWaypoint(tank, combatTarget, world, profile, ctl.simTime);
-      navTargetX = attackWp.x;
-      navTargetY = attackWp.y;
+      const isOpportunityTarget =
+        !isLineOfFireBlocked(world, owner, tank.x, tank.y, combatTargetPos.x, combatTargetPos.y, tank.id) &&
+        combatTargetDist <= C.AI_TARGET_OPPORTUNITY_MAX_DIST_M;
+
+      if (isOpportunityTarget) {
+        // Opportunity fire diversion: divert directly toward target to line up and shoot
+        navTargetX = combatTargetPos.x;
+        navTargetY = combatTargetPos.y;
+      } else {
+        // High-level tactical attack standoff waypoint outside enemy front gun arc
+        const attackWp = getAttackStandoffWaypoint(tank, combatTarget, world, profile, ctl.simTime);
+        navTargetX = attackWp.x;
+        navTargetY = attackWp.y;
+      }
     } else if (isAmbushRole && ambushPose && ambushPose.isAtAmbush) {
       ctl.note('AMBUSH', `T${tank.number} holds gate ambush post`, { key: `amb${tank.id}`, gap: 30 });
       // Hold position in ambush post, pre-aim gun directly across gate doorway threshold

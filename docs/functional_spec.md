@@ -515,7 +515,7 @@ The application supports URL query string parameters on startup to configure set
 - **`recording` (or `record`):** Toggles automatic game recording (`Y` / `N`).
 - **`lang`:** Pre-selects history language (`EN`, `ES`, `RU`).
 - **`mobile`:** When set to `Y`, forces mobile mode on even on desktop (activates on-screen touch controls, analog joystick, and mouse click/drag interaction while omitting the keyboard layout menu).
-- **`debugVectors`:** When set to `Y`, renders aiming vectors for each tank deployed on the battlefield on the 2D strategic/tactical radar map view, with vector color matching the tank color (bright for active/selected tank, dark for passive/unselected tanks: `#ff7060`/`#b5372b` for Red, `#6fa0ff`/`#2c55b8` for Blue), and vector length equal to 65% of the ammo flight distance (`DEBUG_VECTOR_LENGTH_M` = `65%` of `SHELL_RANGE_M` = `40.625m`). Vectors are not shown for tanks parked in the hangar, nor in the 3D first-person viewport.
+- **`debugVectors`:** When set to `Y`, renders aiming vectors for each tank deployed on the battlefield on the 2D strategic/tactical radar map view, with vector color matching the tank color (bright for active/selected tank, dark for passive/unselected tanks: `#ff7060`/`#b5372b` for Red, `#6fa0ff`/`#2c55b8` for Blue), and vector length equal to 100% of the physical shell flight distance (`DEBUG_VECTOR_LENGTH_M` = `SHELL_RANGE_M` = `50m`). Terminal range indicator circles mark the exact maximum ammo flight reach ($50\text{ m}$). Vectors are not shown for tanks parked in the hangar, nor in the 3D first-person viewport.
 - **`start`:** When set to `Y`, immediately starts a new game with the configured options, bypassing the title menu.
 
 *Example:* `http://localhost:5174/?mode=HvC&recording=Y&start=Y` launches directly into combat with match recording enabled.
@@ -664,10 +664,12 @@ Replaces fixed round-robin cycling with continuous priority evaluation across al
   - **Combat Opportunities ($C_i$):** Gun aimed within $8.5^\circ$ with clear LOS = 85; incoming hostile shell requiring evasion/smoke = 75; engaging enemy in range = 65.
   - **Rearm ($R_i$):** 0 shells remaining = 50.
   - **Starvation ($S_i$):** $+5\text{ points/second}$ since unit was last commanded (capped at 40), ensuring no tank is neglected.
-- **Micro-Slice Scheduling:**
-  - Minimum slice duration: $220\text{ ms}$ (`AI_MIN_SLICE_S`) to prevent thrashing.
-  - Maximum slice duration: $850\text{ ms}$ (`AI_MAX_SLICE_S`) to force re-evaluation.
-  - Switch threshold: switches to tank $t^*$ if $\max(U_i) - U_{\text{curr}} \ge 15$ (`AI_DISPATCH_THRESHOLD_DELTA`), or if $t^*$ faces an acute hazard ($H \ge 90$).
+- **Micro-Slice Scheduling & Switching Pacing:**
+  - Minimum slice holding time: $2.0\text{ s}$ (`AI_MIN_SLICE_S`) for both tanks and hangar slit windows to prevent rapid, jittery subsecond unit switching.
+  - Maximum slice duration: $4.0\text{ s}$ (`AI_MAX_SLICE_S`) before `forceSwitch` yields control to neglected field tanks.
+  - Post-fire holding delay: switching is prohibited for $\ge 0.5\text{ s}$ (`AI_POST_FIRE_HOLD_S`) after a tank or slit gun fires, allowing the player and AI to observe shell flight ($0.4\text{ s}$) and target impact before switching.
+  - Slit window minimum hold time: $\ge 2.0\text{ s}$ (`AI_SLIT_MIN_HOLD_S`) before exiting back to tank view.
+  - Switch threshold: switches to tank $t^*$ if $\max(U_i) - U_{\text{curr}} \ge 15$ (`AI_DISPATCH_THRESHOLD_DELTA`), or if $t^*$ faces an acute hazard ($H \ge 90$), provided minimum slice and post-fire holds are met.
 
 ### 12.4 Safe Cruising Course Projection (Tier 3)
 
@@ -677,10 +679,14 @@ Because unselected tanks preserve their last commanded linear speed and turn rat
   - If clear: locks stable forward cruising speed ($18$ or $36\text{ km/h}$) along its tactical lane.
   - If a boundary, pit, building, or mine is ahead: issues an emergency stop (`STOP`, $0\text{ km/h}$) so the unattended tank waits safely until re-selected.
 
-### 12.5 Tactical Target Selection & 2D Map UI
+### 12.5 Tactical Target Selection, Opportunity Fire & 2D Map UI
 
 - **LOS Obstacle & Friendly Checking:** Raycasts verify that shells will not hit buildings (`segmentVsObb`) or friendly tanks before firing.
-- **Threat Weighting & Lock Hysteresis:** Target scoring evaluates distance, gun deflection angle, incoming facing threat, and applies a $+20$ stickiness bonus (`AI_TARGET_STICKINESS_BONUS`) to prevent rapid target oscillation.
+- **Opportunity Fire & Short Maneuver Diversion:**
+  - When an enemy enters vulnerable position within effective firing range ($d \le 38\text{ m}$, `AI_TARGET_OPPORTUNITY_MAX_DIST_M`) requiring only a short turn ($|\Delta \theta| \le 75^\circ$, `AI_TARGET_OPPORTUNITY_MAX_ANGLE_RAD`) with clear line of fire, it is prioritized as an **opportunity target** with a $+35$ score bonus (`AI_TARGET_OPPORTUNITY_BONUS`) and reduced deflection angle weighting.
+  - Urgency for units with an opportunity target elevates to $88$ (`AI_URGENCY_COMBAT_OPPORTUNITY`), prompting the dispatcher to quickly select the unit.
+  - Instead of continuing along distant role waypoints or circling $26\text{ m}$ around to standoff positions, the tank diverts its course directly toward the opportunity target's position to line up its fixed gun and execute the shot.
+- **Threat Weighting & Lock Hysteresis:** Target scoring evaluates distance, gun deflection angle, incoming facing threat, and applies a $+20$ stickiness bonus (`AI_TARGET_STICKINESS_BONUS`) to prevent rapid target oscillation when no opportunity target is present.
 - **Organic Asymmetry & Personality Jitter:** Random phase desynchronization, decision interval jitter ($\pm 25\%$), standoff jitter ($\pm 3.5\text{ m}$), and tie-breaking noise ensure left and right AI forces behave organically without symmetric mirroring.
 - **Strategic Map Directional Target Arrows:**
   - Thin colored arrows (`1.5px` width) drawn on the 2D map from each active unit to its locked target:
@@ -698,21 +704,12 @@ Because unselected tanks preserve their last commanded linear speed and turn rat
 
 ### 12.7 Smoke Cloud Line of Sight & Blind Fire Prediction
 
-- **Smoke Obscuration:** Active smoke clouds (`world.smokes`, radius $10\text{ m}$) completely obstruct direct line-of-sight for both tank crews and hangar slit window sentries. Any target inside or behind a smoke cloud cannot be seen directly if the observer is $> 2.0\text{ m}$ away (`SMOKE_VISIBLE_DISTANCE_M`).
+- **Fair Smoke Obscuration (No Wallhack):** Active smoke clouds (`world.smokes`, radius $10\text{ m}$) completely obstruct direct line-of-sight for both tank crews and hangar slit window sentries (`isLineOfSightBlockedBySmoke`). The AI does not cheat or see through smoke.
 - **Visual Intelligence & Memory Tracker:** AI controllers maintain memory (`enemyTracker`) recording each enemy's last-known coordinates, heading, linear speed, and stationary state when visible.
-- **Stationary Target Blind Fire:**
-  - If the enemy was stationary (`speed < 0.35 m/s`) when entering/obscured by smoke, its position is known to remain fixed.
-  - Initial hit probability remains high ($\ge 0.95$, decaying slowly at only $0.04/\text{s}$).
-  - AI tanks actively fire blindly into the smoke at the known coordinates.
-- **Moving Target Dead-Reckoning & Uncertainty Decay:**
-  - If the enemy was moving, the AI extrapolates its position using dead-reckoning vector projection:
-    $$\text{predPos} = \text{lastPos} + \vec{v} \cdot \Delta t$$
-  - With each passing second in smoke, uncertainty accumulates and hit probability decays rapidly ($0.22/\text{s}$, `AI_SMOKE_PREDICT_DECAY_PER_S`):
-    - $t = 0\text{s}$: $P_{\text{hit}} \approx 0.85$ (high blind-fire probability)
-    - $t = 1\text{s}$: $P_{\text{hit}} \approx 0.63$ (medium blind-fire probability)
-    - $t = 2\text{s}$: $P_{\text{hit}} \approx 0.41$ (low blind-fire probability)
-    - $t \ge 3\text{s}$: $P_{\text{hit}} \le 0.19$ (estimate quality too degraded)
-  - When hit probability drops below the difficulty profile threshold (`EASY: 0.65`, `MEDIUM: 0.45`, `HARD: 0.30`), the AI decides **not to fire blindly**, conserving munitions and redirecting focus to visible targets or tactical lane maneuvering.
+- **Blind Fire Dispersion & Uncertainty Decay:**
+  - When line of sight is blocked by smoke, the AI relies on dead-reckoning extrapolation (`getPredictedEnemyState`).
+  - **Aim Dispersion:** Blind-fire shots into smoke clouds apply realistic spatial dispersion ($\pm 1.5\text{ m} \dots 4.0\text{ m}$, `AI_SMOKE_BLIND_FIRE_DISPERSION_M`), ensuring shots scatter across the cloud rather than striking with laser precision.
+  - **Confidence Decay:** Initial confidence is bounded ($0.65$ stationary, $0.50$ moving) and decays rapidly over time ($0.12/\text{s}$ stationary, $0.25/\text{s}$ moving). When confidence drops below difficulty thresholds (`EASY: 0.65`, `MEDIUM: 0.45`, `HARD: 0.30`), the AI ceases blind firing.
 
 ### 12.8 Hangar Slit Window Tactical Defense
 
@@ -852,7 +849,7 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 ### 15.7 Whole-Brigade Rollout, Combat Progression & Dispatching
 - **Simultaneous Brigade Advance & Formation Maintenance:** At match start, the AI mobilizes all field tanks (`t.status === 'field'`) into their assigned tactical roles (Vanguard, Flanks, Echelons) using linear and rotational commands (`cmdSpeedKmh`, `cmdTurnDeg`). Additionally, the strategic Commander (`updateCommander`) periodically monitors unselected field units: any armed unit that has stopped outside an ambush post is re-mobilized along its formation role waypoint, ensuring armed tanks advance and attack continuously rather than stalling.
 - **Combat Engagement Urgency:** Armed units (`shells > 0`) facing living enemies maintain a baseline combat desire (`AI_URGENCY_COMBAT_ENGAGING = 65` scaled by distance across the field, $\ge 45$) even when enemies are outside direct firing range. This ensures armed tanks actively advance to engage rather than being starved of control slices.
-- **Urgency-Weighted Dispatcher:** Selection switches to the most urgent tank after `AI_MIN_SLICE_S = 0.22s` if it leads by `AI_DISPATCH_THRESHOLD_DELTA = 15`. After `AI_MAX_SLICE_S = 0.85s`, `forceSwitch` yields control to neglected field tanks (provided the active unit is not dodging an acute hazard or firing an aimed shot), preventing single-tank monopolies and enabling smooth multi-tank coordination.
+- **Urgency-Weighted Dispatcher:** Selection switches to the most urgent tank after `AI_MIN_SLICE_S = 2.0s` if it leads by `AI_DISPATCH_THRESHOLD_DELTA = 15`. Units that fire hold their selection for $\ge 0.5\text{ s}$ (`AI_POST_FIRE_HOLD_S`) to observe shell flight and impact. After `AI_MAX_SLICE_S = 4.0s`, `forceSwitch` yields control to neglected field tanks (provided the active unit is not dodging an acute hazard or within the post-fire hold window), preventing single-tank monopolies and enabling smooth multi-tank coordination.
 
 ### 15.8 Dynamic Organic Trajectories & Oblique Combat Maneuvers
 - **Organic S-Curve Weaving:** Rather than advancing down identical straight lines, each role waypoint applies an organic sinusoidal lateral weave (`AI_TRAJECTORY_WEAVE_AMP_M = 5.0m`, `AI_TRAJECTORY_WEAVE_FREQ = 0.65Hz`) parameterized by simulation time and individual tank ID. Center Vanguard units apply an asymmetric lane bias ($Y \approx 45\text{ m}$ for Red, $Y \approx 55\text{ m}$ for Blue), eliminating head-on central collisions along $Y = 50.0\text{ m}$.
