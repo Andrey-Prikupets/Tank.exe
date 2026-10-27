@@ -469,9 +469,10 @@ The game launches into the **Tank.exe Title Menu**:
   2. **Load game** (choose slot 1..10)
   3. **Players: Human vs Human | Human vs Computer | Computer vs Human | Computer vs Computer** (1st is left player, 2nd is right)
   4. **Level: HARD | MEDIUM | EASY** (visible only when Computer mode is selected)
-  5. **Options** (opens the Options submenu)
-  6. **Help** (opens a scrollable modal detailing game concept, initial status, controls table with remapping note, arsenal & defense, base hangars, and victory conditions with multilingual support for English, Spanish, and Russian (`src/help/help_en.html`, `src/help/help_es.html`, `src/help/help_ru.html`). Features an in-header language switcher (`[ EN | ES | RU ]`) and keyboard shortcut (`L`), default locale detection from the browser (`navigator.language`), and `localStorage` persistence)
-  7. **History** (opens a scrollable modal displaying the game's origins and lore with multilingual support for English, Spanish, and Russian (`src/history/history_en.html`, `src/history/history_es.html`, `src/history/history_ru.html`). Features an in-header language switcher (`[ EN | ES | RU ]`) and keyboard shortcut (`L`), default locale detection from the browser (`navigator.language`), and `localStorage` persistence)
+  5. **Game Playback** (opens the recorded matches grid modal; details in §11.6)
+  6. **Options** (opens the Options submenu)
+  7. **Help** (opens a scrollable modal detailing game concept, initial status, controls table with remapping note, arsenal & defense, base hangars, and victory conditions with multilingual support for English, Spanish, and Russian (`src/help/help_en.html`, `src/help/help_es.html`, `src/help/help_ru.html`). Features an in-header language switcher (`[ EN | ES | RU ]`) and keyboard shortcut (`L`), default locale detection from the browser (`navigator.language`), and `localStorage` persistence)
+  8. **History** (opens a scrollable modal displaying the game's origins and lore with multilingual support for English, Spanish, and Russian (`src/history/history_en.html`, `src/history/history_es.html`, `src/history/history_ru.html`). Features an in-header language switcher (`[ EN | ES | RU ]`) and keyboard shortcut (`L`), default locale detection from the browser (`navigator.language`), and `localStorage` persistence)
 
 **In-Game Pause Menu (`Esc`):**
 - Pauses the fixed-step simulation immediately.
@@ -480,11 +481,12 @@ The game launches into the **Tank.exe Title Menu**:
   2. **Save game** (choose slot 1..10)
   3. **Load game** (choose slot 1..10)
   4. **New game** (with loss confirmation)
-  5. **Players: Human vs Human | Human vs Computer | Computer vs Human | Computer vs Computer** (1st is left player, 2nd is right)
-  6. **Level: HARD | MEDIUM | EASY** (visible only when Computer mode is selected)
-  7. **Options** (opens the Options submenu)
-  8. **Help** (opens the scrollable game manual modal with in-header language switcher)
-  9. **History** (opens the scrollable game history and lore modal with in-header language switcher)
+  5. **Main menu** (with loss confirmation)
+  6. **Players: Human vs Human | Human vs Computer | Computer vs Human | Computer vs Computer** (1st is left player, 2nd is right)
+  7. **Level: HARD | MEDIUM | EASY** (visible only when Computer mode is selected)
+  8. **Options** (opens the Options submenu)
+  9. **Help** (opens the scrollable game manual modal with in-header language switcher)
+  10. **History** (opens the scrollable game history and lore modal with in-header language switcher)
 
 **Options Submenu (`Options`):**
 - Title: `OPTIONS`
@@ -494,8 +496,9 @@ The game launches into the **Tank.exe Title Menu**:
   2. **Obstacles: ON | OFF** (toggles building obstacles generator; initial default: `OFF`)
   3. **Pits: ON | OFF** (toggles water pit / trench hazard generator; initial default: `OFF`)
   4. **Touch controls: AUTO | ON | OFF** (toggles mobile on-screen virtual joystick and tactical combat overlays)
-  5. **Keyboard layout** (opens the interactive desktop keyboard layout configuration screen; dynamically hidden on mobile touch devices when no hardware keyboard is plugged in)
-  6. **Back** (returns to previous menu)
+  5. **Recording: ON | OFF** (toggles automatic binary compressed recording of matches into `localStorage`; initial default: `OFF`)
+  6. **Keyboard layout** (opens the interactive desktop keyboard layout configuration screen; dynamically hidden on mobile touch devices when no hardware keyboard is plugged in)
+  7. **Back** (returns to previous menu)
 
 **Menu Navigation & Layout Behavior:**
 - **Click-Only Selection:** Menu selection highlight is controlled strictly by mouse clicks or keyboard arrow keys; moving the mouse cursor over items does not shift the active selection.
@@ -509,12 +512,13 @@ The application supports URL query string parameters on startup to configure set
 - **`sound`:** Toggles procedural sound output (`Y` / `N`).
 - **`obstacles`:** Toggles building obstacles (`Y` / `N`).
 - **`pits`:** Toggles water pit / moat hazard trenches (`Y` / `N`).
+- **`recording` (or `record`):** Toggles automatic game recording (`Y` / `N`).
 - **`lang`:** Pre-selects history language (`EN`, `ES`, `RU`).
 - **`mobile`:** When set to `Y`, forces mobile mode on even on desktop (activates on-screen touch controls, analog joystick, and mouse click/drag interaction while omitting the keyboard layout menu).
 - **`debugVectors`:** When set to `Y`, renders aiming vectors for each tank deployed on the battlefield on the 2D strategic/tactical radar map view, with vector color matching the tank color (bright for active/selected tank, dark for passive/unselected tanks: `#ff7060`/`#b5372b` for Red, `#6fa0ff`/`#2c55b8` for Blue), and vector length equal to 65% of the ammo flight distance (`DEBUG_VECTOR_LENGTH_M` = `65%` of `SHELL_RANGE_M` = `40.625m`). Vectors are not shown for tanks parked in the hangar, nor in the 3D first-person viewport.
 - **`start`:** When set to `Y`, immediately starts a new game with the configured options, bypassing the title menu.
 
-*Example:* `http://localhost:5174/?mode=HvC&debugVectors=Y&start=Y` launches directly into combat with live aiming vectors displayed on the map for all deployed field tanks.
+*Example:* `http://localhost:5174/?mode=HvC&recording=Y&start=Y` launches directly into combat with match recording enabled.
 
 ### 11.5 Keyboard Layout Configuration (`Options` → `Keyboard layout`)
 
@@ -546,6 +550,52 @@ The game provides a full visual desktop keyboard layout configuration tool:
   - **OK:** Persists custom layout to `localStorage` (`tank.exe.keys`), updates the active input controller, and returns to Options.
   - **CANCEL:** Discards uncommitted modifications and returns to Options.
   - **Dynamic In-Game Help Table:** The Controls table in the Help manual dynamically reflects whatever custom layout is actively configured.
+
+### 11.6 Game Recording & Playback System (`Game Playback`)
+
+The game provides a deterministic match recording and playback system:
+
+- **Options Toggle (`Recording: ON | OFF`):**
+  - Configurable in the `OPTIONS` menu (default: `OFF`) or via startup query string parameter (`?recording=Y`).
+  - When enabled, combat matches are recorded in real-time into `localStorage`.
+- **High-Performance Binary Format & Deflate Compression:**
+  - Dynamic entities (active field tanks, shells, mines, smokes, explosions, gate doors, player views and slit angles) are sampled at $10\text{ Hz}$ (`C.REPLAY_SAMPLE_HZ = 10`, $dt = 0.1\text{s}$) into an expandable binary `ArrayBuffer` via `DataView`.
+  - On match conclusion, the binary stream is compressed using the browser's native `CompressionStream('deflate-raw')` and serialized to Base64.
+  - Matches compress to $\approx 20\text{--}30\text{ KB}$ per $90\text{s}$ game, enabling $100+$ saved matches without exhausting storage.
+- **Dynamic Quota & Pin Protection:**
+  - Recording capacity scales dynamically with available `localStorage` space.
+  - When a `QuotaExceededError` occurs, the system automatically prunes the oldest unpinned recording and retries saving.
+  - **Pinning (`📌`):** Players can pin any recording to protect it from automatic overwriting. Pinned matches are never pruned.
+- **Replays Grid Modal (`Game Playback`):**
+  - Accessed directly from the Title Menu (positioned above `Options`).
+  - Displays recorded games strictly sorted by **datetime descending** (newest first).
+  - **Filter Bar:** Includes a `[ ] Show only pinned recordings` checkbox toggle to instantly filter for pinned matches.
+  - **Columns:**
+    - **PIN:** Interactive pin toggle button (`📌` bright active vs muted outline).
+    - **DATE & TIME:** Formatted timestamp (e.g. `2026-10-27 19:42`).
+    - **DURATION:** Match length (`MM:SS`, e.g. `01:34`).
+    - **MODE:** Full human-readable mode names (`Human vs. Human`, `Human vs. Computer (MEDIUM)`, `Computer vs. Human (EASY)`, `Computer vs. Computer (HARD)`).
+    - **OUTCOME & SCORE:** Colored team victory badge with final tank destruction score (e.g. `RED WINS (15 - 8)`).
+    - **ACTIONS:** `▶ Play` button and trash bin icon button (`🗑`).
+  - **Safety Delete Confirmations:** Deleting a match prompts inline confirmation; pinned matches require explicit confirmation (`This recording is PINNED. Delete anyway?`).
+- **Playback View & Floating Toolbar:**
+  - Renders the recorded match with live interpolation (Lerp for position and speed, analytical angular slerp for heading and slit turret yaw) across both 3D viewports and the 2D strategic radar map at full display frame rate.
+  - **Floating Toolbar:** Anchored at the bottom center of the 3D viewport.
+  - **Horizontal Seek Slider:** Continuous horizontal track for instant seeking and scrubbing forward and backward across the match timeline without resimulation lag.
+  - **Toolbar Controls:**
+    - Play / Pause toggle (`Space` hotkey).
+    - Timestamp counter (`MM:SS / MM:SS`).
+    - Seek slider track.
+    - Playback speed multiplier toggle (`1x` $\to$ `2x` $\to$ `0.5x`).
+    - Quick pin toggle (`📌`).
+    - Trash bin delete button (`🗑`) with confirmation.
+    - Exit playback button (`✕` / `Esc` hotkey).
+  - **Auto-Hide & Jitter Tolerance:**
+    - Toolbar is visible upon entering playback mode.
+    - Automatically slides down offscreen after $3\text{ seconds}$ (`C.REPLAY_AUTO_HIDE_S = 3`) of mouse inactivity.
+    - **Jitter Filter:** Mouse movements $< 4\text{px}$ (`C.REPLAY_JITTER_THRESHOLD_PX = 4`) are ignored to prevent unintentional display on slight table or sensor jitter.
+    - Noticeable mouse movements ($\ge 4\text{px}$) immediately bring the toolbar back into view.
+    - Hovering the mouse over the toolbar or dragging the seek slider locks the toolbar in view.
 
 ---
 

@@ -10,6 +10,16 @@ import { createHud } from './render/hud.js';
 import { createMenu } from './ui/menu.js';
 import { createKeyboardScreen } from './ui/keyboard_screen.js';
 import { createTouchControls, enterFullscreen, exitFullscreen } from './ui/touch.js';
+import { createReplaysModal } from './ui/replays_modal.js';
+import { createPlaybackToolbar } from './ui/playback_toolbar.js';
+import {
+  createRecorder,
+  decodeRecording,
+  createPlayback,
+  saveRecording,
+  loadRecording,
+  listRecordings,
+} from './sim/recording.js';
 import { Sfx } from './audio/sfx.js';
 import { AiController } from './sim/ai.js';
 import historyRu from './history/history_ru.html?raw';
@@ -122,6 +132,14 @@ try {
   if (val !== null) savedPits = JSON.parse(val);
 } catch {}
 
+let savedRecording = false;
+try {
+  const val = localStorage.getItem(C.RECORDING_SETTINGS_KEY);
+  if (val !== null) savedRecording = JSON.parse(val);
+} catch {}
+
+let recordingEnabled = savedRecording;
+
 const options = {
   obstacles: savedObstacles,
   pits: savedPits,
@@ -177,6 +195,12 @@ if (pitsBool !== null) {
   options.pits = pitsBool;
 }
 
+// 6. Recording: ?recording=Y | N or ?record=Y | N (case-insensitive)
+const recordingBool = parseBoolParam('recording') ?? parseBoolParam('record');
+if (recordingBool !== null) {
+  recordingEnabled = recordingBool;
+}
+
 // 6. Language: ?lang=EN | ES | RU (case-insensitive)
 const langVal = urlParams.get('lang');
 if (langVal) {
@@ -203,10 +227,29 @@ let gameOverShown = false;
 
 const menu = createMenu(document.getElementById('menu'));
 const kbScreen = createKeyboardScreen(document.getElementById('keyboardScreen'));
+const replaysModal = createReplaysModal(document.getElementById('replaysScreen'));
+const playbackToolbar = createPlaybackToolbar(document.getElementById('playbackToolbar'));
 const map = createMap2D(document.getElementById('map'), { debugVectors });
 const aiLog = createAiLog(document.getElementById('mapWrap'));
 const view = createView3D(document.getElementById('gl'));
 const hud = createHud();
+
+let activeRecorder = null;
+let activePlayback = null;
+let playbackWorld = null;
+
+function saveActiveRecording() {
+  if (activeRecorder && activeRecorder.frameCount >= 5) {
+    activeRecorder.sample(world);
+    const rec = activeRecorder;
+    activeRecorder = null;
+    rec.finalize(world).then(({ metadata, base64Payload }) => {
+      saveRecording(metadata, base64Payload);
+    });
+  } else {
+    activeRecorder = null;
+  }
+}
 
 // Hardware keyboard detection: desktop defaults to true; mobile/touch defaults to false until a physical key is pressed
 const isTouchCapable =
@@ -312,6 +355,14 @@ const touchSettingItem = () => ({
   },
 });
 
+const recordingItem = () => ({
+  label: () => `Recording: ${recordingEnabled ? 'ON' : 'OFF'}`,
+  action: () => {
+    recordingEnabled = !recordingEnabled;
+    localStorage.setItem(C.RECORDING_SETTINGS_KEY, JSON.stringify(recordingEnabled));
+  },
+});
+
 function optionsScreen() {
   return {
     title: 'OPTIONS',
@@ -322,6 +373,7 @@ function optionsScreen() {
         obstaclesItem(),
         pitsItem(),
         touchSettingItem(),
+        recordingItem(),
       ];
       if (hasKeyboard) {
         list.push({
@@ -499,6 +551,7 @@ function confirmScreen(text, onYes) {
 }
 
 function newGame() {
+  saveActiveRecording();
   if (touch.isEnabled()) {
     enterFullscreen();
   }
@@ -511,9 +564,69 @@ function newGame() {
   menu.clear();
   dirty = true;
   hud.update(world, performance.now(), true);
+
+  if (recordingEnabled) {
+    activeRecorder = createRecorder(world, {
+      mode: currentMode().id,
+      modeLabel: currentMode().label,
+      aiLevel: currentAiLevel(),
+    });
+  } else {
+    activeRecorder = null;
+  }
+}
+
+async function startPlayback(id) {
+  const base64 = loadRecording(id);
+  if (!base64) return;
+  const replays = listRecordings();
+  const metadata = replays.find((r) => r.id === id) || { id, duration: 0, mode: 'HvH' };
+
+  try {
+    const decoded = await decodeRecording(base64);
+    playbackWorld = createWorld({ obstacles: decoded.obstacles, pits: decoded.pits });
+    playbackWorld.isAiPlayer = () => false;
+
+    activePlayback = createPlayback(decoded, playbackWorld, sfx);
+    appState = 'PLAYBACK';
+    document.getElementById('menu').classList.add('hidden');
+    menu.clear();
+    input.clear();
+    dirty = true;
+
+    playbackToolbar.open(activePlayback, metadata, {
+      onExit: () => {
+        stopPlayback();
+      },
+      onDelete: () => {
+        stopPlayback();
+      },
+    });
+  } catch (err) {
+    console.error('Error starting playback:', err);
+  }
+}
+
+function stopPlayback() {
+  if (appState !== 'PLAYBACK') return;
+  appState = 'TITLE';
+  activePlayback = null;
+  playbackWorld = null;
+  playbackToolbar.close();
+  dirty = true;
+  openTitle();
+  document.getElementById('menu').classList.add('hidden');
+  replaysModal.open({
+    onPlay: (id) => startPlayback(id),
+    onClose: () => {
+      document.getElementById('menu').classList.remove('hidden');
+      if (appState === 'TITLE') menu.refresh();
+    },
+  });
 }
 
 function openTitle() {
+  saveActiveRecording();
   if (touch.isEnabled()) {
     exitFullscreen();
   }
@@ -528,6 +641,19 @@ function openTitle() {
       { label: 'Load game', action: () => menu.push(loadScreen()) },
       playersItem(),
       ...(currentMode().id !== 'HvH' ? [levelItem()] : []),
+      {
+        label: 'Game Playback',
+        action: () => {
+          document.getElementById('menu').classList.add('hidden');
+          replaysModal.open({
+            onPlay: (id) => startPlayback(id),
+            onClose: () => {
+              document.getElementById('menu').classList.remove('hidden');
+              if (appState === 'TITLE') menu.refresh();
+            },
+          });
+        },
+      },
       { label: 'Options', action: () => menu.push(optionsScreen()) },
       { label: 'Help', action: () => menu.push(helpScreen()) },
       { label: 'History', action: () => menu.push(historyScreen()) },
@@ -561,6 +687,10 @@ function openPause() {
         label: 'New game',
         action: () => menu.push(confirmScreen('Current game will be lost.', newGame)),
       },
+      {
+        label: 'Main menu',
+        action: () => menu.push(confirmScreen('Current game will be lost.', openTitle)),
+      },
       playersItem(),
       ...(currentMode().id !== 'HvH' ? [levelItem()] : []),
       { label: 'Options', action: () => menu.push(optionsScreen()) },
@@ -572,6 +702,7 @@ function openPause() {
 }
 
 function openGameOver() {
+  saveActiveRecording();
   const [a, b] = world.players;
   const winner = world.winner === 'draw' ? 'DRAW' : world.winner === 0 ? 'RED WINS' : 'BLUE WINS';
   const redAcc = a.shots ? Math.round((a.hits / a.shots) * 100) : 0;
@@ -612,6 +743,14 @@ function openGameOver() {
 
 // ----------------------------------------------------------------- input ----
 window.addEventListener('keydown', (e) => {
+  if (replaysModal.isOpen()) {
+    if (replaysModal.handleKey(e)) e.preventDefault();
+    return;
+  }
+  if (appState === 'PLAYBACK') {
+    if (playbackToolbar.handleKey(e)) e.preventDefault();
+    return;
+  }
   if (kbScreen.isOpen()) {
     if (kbScreen.handleKey(e)) e.preventDefault();
     return;
@@ -667,6 +806,13 @@ function frame(now) {
 
   const dtFrame = Math.min((now - last) / 1000, C.SIM_MAX_FRAME_S);
   last = now;
+  const isPlayback = appState === 'PLAYBACK' && activePlayback && playbackWorld;
+  if (isPlayback) {
+    activePlayback.update(dtFrame);
+    playbackToolbar.update();
+    dirty = true;
+  }
+
   const playing = appState === 'PLAYING' && !menu.isOpen() && !world.over;
   if (playing) {
     input.update(now);
@@ -692,6 +838,9 @@ function frame(now) {
       });
       acc -= C.SIM_TICK_S;
     }
+    if (activeRecorder) {
+      activeRecorder.sample(world);
+    }
     dirty = true;
   } else {
     acc = 0;
@@ -712,11 +861,12 @@ function frame(now) {
   lastRender = now;
   dirty = false;
 
-  map.render(world);
+  const renderWorld = isPlayback ? playbackWorld : world;
+  map.render(renderWorld);
   aiLog.update(aiControllers, isAiPlayer, map.sideWidthPx(), appState === 'PLAYING');
-  view.render(world);
-  hud.update(world, now, false);
-  touch.update(world, appState, menu.isOpen());
+  view.render(renderWorld);
+  hud.update(renderWorld, now, false);
+  touch.update(renderWorld, appState, menu.isOpen());
 }
 
 if (autoStart) {
