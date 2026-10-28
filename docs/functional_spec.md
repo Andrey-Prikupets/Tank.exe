@@ -1,7 +1,6 @@
 # Tank.exe — Functional Specification
 
-> Status: **DRAFT v0.3**. Incorporating **Tank.exe** branding, in-viewport rounded inventory HUD
-> with graphical shell/mine/smoke icons, dual 1..5 numbering, scrollable Help modal, and Quit flow.
+> Status: **DRAFT v0.4**. Incorporating serverless P2P network multiplayer via WebRTC (QR code and messenger signaling), dual Split-Screen vs Network keyboard layouts with configuration screen switch, authoritative host synchronization, and consolidated landscape & audio event streams.
 
 ---
 
@@ -201,9 +200,19 @@ Uses `KeyboardEvent.code` (layout-independent). All game keys call `preventDefau
 - **Key ghosting**: cheap keyboards may drop simultaneous keys. Not solvable in software; noted
   in the help screen.
 
-### 5.2 Keyboard Layout Configuration Screen
+### 5.2 Keyboard Layout Modes & Configuration Screen
+- **Dual Keyboard Layout Support:**
+  - **Split-Screen Layout (`tank.exe.keys.splitscreen`):** Default layout designed for two humans sharing a single physical keyboard. Left player uses WASD/Tab/ZX/QE; Right player uses Arrows/Enter/,./[].
+  - **Network Layout (`tank.exe.keys.network`):** Designed for single-player full keyboard control in Network Multiplayer matches.
+    - Tank selection: `1`, `2`, `3`, `4`, `5` (`Digit1`..`Digit5`)
+    - Speed and steering: `↑` forward/accelerate, `↓` reverse/decelerate, `←` turn left, `→` turn right (`ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`)
+    - Hangar observation slit: `Q` left window, `E` right window (`KeyQ`, `KeyE`)
+    - Main cannon fire: `Tab` (`Tab`)
+    - Tactical weapons: `Z` drop mine, `X` smoke cloud (`KeyZ`, `KeyX`)
+- **Layout Switch:** A prominent segmented toggle at the top of the Keyboard Configuration screen allows players to switch between **[ SPLIT-SCREEN LAYOUT ]** and **[ NETWORK LAYOUT ]**, customizing and resetting each layout independently.
+- **Automatic Layout Activation:** Entering a Network Multiplayer match automatically activates the Network Layout for the local player's assigned team. Returning to local play or splitscreen immediately restores the Split-Screen layout.
 - Accessible via **Options → Keyboard Layout**.
-- **Non-colliding Function Overlays:** Mapped key overlays use rich team-colored shading with bottom-aligned, compact function badges (`8px`, single-line nowrap) shifted downward, while base key labels (letters, digits, modifiers) remain crisp and prominently visible at the top without visual collision (e.g., `ACCEL` cleanly under `W`).
+- **Non-colliding Function Overlays:** Mapped key overlays use rich team-colored shading (Red/Blue for split-screen, Emerald Green for Network) with bottom-aligned, compact function badges (`8px`, single-line nowrap) shifted downward, while base key labels (letters, digits, modifiers) remain crisp and prominently visible at the top without visual collision.
 - **Immediate Drag-and-Drop:** Keys can be dragged immediately on first mousedown drag from either the bottom function palettes or from already mapped keyboard keycaps without requiring a prior selection click.
 - **Click-to-Bind:** Alternatively, clicking a function badge and then clicking a virtual keycap or pressing any physical keyboard key binds the action.
 
@@ -1039,3 +1048,41 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 - **[A10]** Gun reload delay `GUN_RELOAD_S` = 1 s.
 - **[A16]** Tanks 1 and 6 are selected at game start.
 - All numeric values in §16 are starting points for play-testing.
+
+---
+
+## 19. Serverless P2P Network Multiplayer
+
+### 19.1 Architecture
+- **Zero Backend / 100% Static & Serverless:** Peer-to-peer gameplay connects two web browsers directly using WebRTC `RTCDataChannel` over UDP.
+- **NAT Traversal:** Leverages standard ICE gathering with Google's free public STUN servers (`stun:stun.l.google.com:19302`) for remote play, or operates completely offline over local LAN / Mobile Hotspot (`iceServers: []`) without any internet access.
+- **Air-Gapped Signaling:** The initial 2-step WebRTC handshake (Offer $\leftrightarrow$ Answer) is conducted without central servers:
+  1. **QR Code Scanning:** Rendered directly to an HTML5 `<canvas>` via a self-contained pure JS QR matrix encoder. Scanned instantly using the device's camera via the browser's hardware `BarcodeDetector` API.
+  2. **Messenger Copy & Web Share:** Single-click clipboard copy (`navigator.clipboard.writeText`) on PC and native OS share dialog (`navigator.share`) on mobile devices.
+- **SDP Compression:** Raw SDP descriptors (~1.5 KB) are compacted and compressed with LZ-string base64 encoding (`TANK:...`) to ensure small, high-contrast, fast-scanning QR codes.
+
+### 19.2 Connection & Role Negotiation Flow
+- **Multiplayer Modal Dialog (`#networkScreen`):** Accessible directly from the main Title Menu via **Multiplayer (Network)**.
+- **Host Role:**
+  - Selects Squadron Team color: **Blue Team (P1 / Player 0)** or **Red Team (P2 / Player 1)**.
+  - Automatically initializes WebRTC offer and renders Offer QR Code (+ Copy Offer / Share buttons).
+  - Provides **Scan Client QR** (camera overlay with viewfinder crosshairs) and **Paste Answer Code** buttons to ingest the client's answer.
+- **Joiner Role:**
+  - Provides **Scan Host QR Code** and **Paste Host Offer** to ingest the host's offer.
+  - Automatically generates the answer and displays Answer QR Code (+ Copy Answer / Share buttons) for the host to scan.
+
+### 19.3 State & Battlefield Synchronization
+To ensure both players experience the exact same picture without desynchronization:
+1. **Landscape & Rules Consolidation:**
+   - On connection establishment, Host transmits an `INIT` message containing exact obstacle structures (`world.obstacles`), pit positions (`world.pits`), projectile ranges (`world.shellRange`), and match options.
+   - Client adopts the identical landscape geometry and calls `syncWorldTerrain(world)` so obstacle walls, water plane levels, and craters match to the millimeter.
+2. **Authoritative Simulation & Physics:**
+   - Host is the authoritative simulation master, executing the fixed-timestep `step(world, dt, ...)` loop and computing all collisions, pit traps, projectile impacts, gate door kinematics, and victories.
+   - Client sends local inputs (`{ type: 'INPUT', action, arg }`) and continuous observation slit steering (`{ type: 'STEER', windowTurn }`) over the DataChannel.
+3. **Snapshot Replication:**
+   - Host broadcasts regular state snapshots (~30 Hz) streaming tank coordinates, headings, velocities, ammunition inventories (shells, mines, smokes), reload states, and hangar gate statuses.
+   - Client seamlessly applies these snapshots to its local world model, rendering the 3D views, strategic 2D map, and Cockpit Inventory HUD identically.
+4. **Synchronized Hits, Kills & Audio SFX:**
+   - Host streams simulation event records (`'shot'`, `'hit'`, `'kill'`, `'mine_drop'`, `'smoke'`, `'gate_open'`, `'hangar_exit'`, `'hangar_enter'`).
+   - Client immediately pipes received events into the Web Audio synthesizer (`sfx.play(e)`), ensuring audio cues, gate sound effects, and explosion feedback trigger simultaneously on both players' machines.
+

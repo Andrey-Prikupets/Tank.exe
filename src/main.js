@@ -12,6 +12,8 @@ import { createKeyboardScreen } from './ui/keyboard_screen.js';
 import { createTouchControls, enterFullscreen, exitFullscreen } from './ui/touch.js';
 import { createReplaysModal } from './ui/replays_modal.js';
 import { createPlaybackToolbar } from './ui/playback_toolbar.js';
+import { createNetworkModal } from './ui/network_modal.js';
+import { createInitPayload, serializeWorldSnapshot, applyWorldSnapshot } from './net/sync.js';
 import {
   createRecorder,
   decodeRecording,
@@ -245,10 +247,17 @@ const menu = createMenu(document.getElementById('menu'));
 const kbScreen = createKeyboardScreen(document.getElementById('keyboardScreen'));
 const replaysModal = createReplaysModal(document.getElementById('replaysScreen'));
 const playbackToolbar = createPlaybackToolbar(document.getElementById('playbackToolbar'));
+const networkModal = createNetworkModal(document.getElementById('networkScreen'));
 const map = createMap2D(document.getElementById('map'), { debugVectors });
 const aiLog = createAiLog(document.getElementById('mapWrap'));
 const view = createView3D(document.getElementById('gl'));
 const hud = createHud();
+
+let networkSession = null; // { isHost, p2p, localPlayer, remotePlayer }
+let remoteWindowTurn = 0;
+let lastSentWindowTurn = 0;
+let lastNetworkSync = 0;
+const networkSyncInterval = 33; // ~30 snapshots per second
 
 let activeRecorder = null;
 let activePlayback = null;
@@ -398,8 +407,11 @@ function optionsScreen() {
             document.getElementById('menu').classList.add('hidden');
             kbScreen.open({
               getKeys: () => input.getKeys(),
-              onSave: (k) => {
+              getNetworkKeys: () => input.getNetworkKeys(),
+              initialTab: input.getLayoutMode() === 'network' ? 'network' : 'splitscreen',
+              onSave: (k, nk) => {
                 input.setKeys(k);
+                if (nk) input.setNetworkKeys(nk);
               },
               onClose: () => {
                 document.getElementById('menu').classList.remove('hidden');
@@ -566,6 +578,94 @@ function confirmScreen(text, onYes) {
   };
 }
 
+function leaveNetworkGame() {
+  if (networkSession) {
+    try {
+      networkSession.p2p.close();
+    } catch {}
+    networkSession = null;
+  }
+  input.setLayoutMode('splitscreen');
+  openTitle();
+}
+
+function handleHostNetworkMessage(msg) {
+  if (!networkSession || !networkSession.isHost) return;
+  if (msg.type === 'INPUT') {
+    applyAction(world, networkSession.remotePlayer, msg.action, msg.arg);
+    dirty = true;
+  } else if (msg.type === 'STEER') {
+    remoteWindowTurn = msg.windowTurn || 0;
+    dirty = true;
+  }
+}
+
+function handleClientNetworkMessage(msg) {
+  if (!networkSession || networkSession.isHost) return;
+  if (msg.type === 'INIT') {
+    options.obstacles = msg.options.obstacles;
+    options.pits = msg.options.pits;
+    if (msg.options.shootDist) options.shootDist = msg.options.shootDist;
+    world = createWorld(options);
+    world.obstacles = msg.obstacles;
+    world.pits = msg.pits;
+    world.shellRange = msg.shellRange;
+    syncWorldTerrain(world);
+    world.isAiPlayer = () => false;
+
+    networkSession.localPlayer = msg.joinerPlayer;
+    networkSession.remotePlayer = msg.hostPlayer;
+    input.setLayoutMode('network', networkSession.localPlayer);
+
+    appState = 'PLAYING';
+    gameOverShown = false;
+    input.clear();
+    menu.clear();
+    dirty = true;
+    hud.update(world, performance.now(), true);
+  } else if (msg.type === 'STATE') {
+    applyWorldSnapshot(world, msg);
+    dirty = true;
+  } else if (msg.type === 'EVENTS') {
+    if (Array.isArray(msg.events)) {
+      for (const e of msg.events) {
+        sfx.play(e);
+      }
+    }
+  }
+}
+
+function startNetworkGame(session) {
+  saveActiveRecording();
+  if (touch.isEnabled()) {
+    enterFullscreen();
+  }
+  networkSession = session;
+  remoteWindowTurn = 0;
+  lastSentWindowTurn = 0;
+  lastNetworkSync = 0;
+
+  if (session.isHost) {
+    world = createWorld(options);
+    world.isAiPlayer = () => false;
+    input.setLayoutMode('network', session.localPlayer);
+    session.p2p.onMessage = handleHostNetworkMessage;
+    // Send INIT to client with identical landscape and match rules
+    session.p2p.send(createInitPayload(world, session.localPlayer, session.remotePlayer, options));
+    appState = 'PLAYING';
+    gameOverShown = false;
+    input.clear();
+    menu.clear();
+    dirty = true;
+    hud.update(world, performance.now(), true);
+  } else {
+    // Client joins: listener will wait for INIT packet
+    session.p2p.onMessage = handleClientNetworkMessage;
+    menu.clear();
+    dirty = true;
+  }
+}
+
 function newGame() {
   saveActiveRecording();
   if (touch.isEnabled()) {
@@ -663,6 +763,21 @@ function openTitle() {
     text: '<div class="center">Two players · one keyboard · 90s split-screen tank combat</div>',
     items: () => [
       { label: 'Start game', action: newGame },
+      {
+        label: 'Multiplayer (Network)',
+        action: () => {
+          document.getElementById('menu').classList.add('hidden');
+          networkModal.open({
+            onStartGame: (session) => {
+              startNetworkGame(session);
+            },
+            onClose: () => {
+              document.getElementById('menu').classList.remove('hidden');
+              if (appState === 'TITLE') menu.refresh();
+            },
+          });
+        },
+      },
       { label: 'Load game', action: () => menu.push(loadScreen()) },
       playersItem(),
       ...(currentMode().id !== 'HvH' ? [levelItem()] : []),
@@ -704,24 +819,33 @@ function openPause() {
   menu.push({
     title: C.GAME_NAME,
     text: '<div class="center">Game is paused</div>',
-    items: () => [
-      { label: 'Resume game', action: resume },
-      { label: 'Save game', action: () => menu.push(saveScreen()) },
-      { label: 'Load game', action: () => menu.push(loadScreen()) },
-      {
-        label: 'New game',
-        action: () => menu.push(confirmScreen('Current game will be lost.', newGame)),
-      },
-      {
-        label: 'Main menu',
-        action: () => menu.push(confirmScreen('Current game will be lost.', openTitle)),
-      },
-      playersItem(),
-      ...(currentMode().id !== 'HvH' ? [levelItem()] : []),
-      { label: 'Options', action: () => menu.push(optionsScreen()) },
-      { label: 'Help', action: () => menu.push(helpScreen()) },
-      { label: 'History', action: () => menu.push(historyScreen()) },
-    ],
+    items: () => {
+      const items = [{ label: 'Resume game', action: resume }];
+      if (networkSession) {
+        items.push({ label: 'Leave network match', action: leaveNetworkGame });
+      } else {
+        items.push(
+          { label: 'Save game', action: () => menu.push(saveScreen()) },
+          { label: 'Load game', action: () => menu.push(loadScreen()) },
+          {
+            label: 'New game',
+            action: () => menu.push(confirmScreen('Current game will be lost.', newGame)),
+          },
+          {
+            label: 'Main menu',
+            action: () => menu.push(confirmScreen('Current game will be lost.', openTitle)),
+          }
+        );
+      }
+      items.push(
+        playersItem(),
+        ...(currentMode().id !== 'HvH' ? [levelItem()] : []),
+        { label: 'Options', action: () => menu.push(optionsScreen()) },
+        { label: 'Help', action: () => menu.push(helpScreen()) },
+        { label: 'History', action: () => menu.push(historyScreen()) }
+      );
+      return items;
+    },
     onEsc: resume,
   });
 }
@@ -759,8 +883,20 @@ function openGameOver() {
       </div>
     `,
     items: [
-      { label: 'New game', action: newGame },
-      { label: 'Main menu', action: openTitle },
+      {
+        label: 'New game',
+        action: () => {
+          if (networkSession) leaveNetworkGame();
+          else newGame();
+        },
+      },
+      {
+        label: 'Main menu',
+        action: () => {
+          if (networkSession) leaveNetworkGame();
+          else openTitle();
+        },
+      },
     ],
     onEsc: null,
   });
@@ -768,6 +904,13 @@ function openGameOver() {
 
 // ----------------------------------------------------------------- input ----
 window.addEventListener('keydown', (e) => {
+  if (networkModal.isOpen()) {
+    if (e.code === 'Escape') {
+      networkModal.close();
+      e.preventDefault();
+    }
+    return;
+  }
   if (replaysModal.isOpen()) {
     if (replaysModal.handleKey(e)) e.preventDefault();
     return;
@@ -841,32 +984,76 @@ function frame(now) {
   const playing = appState === 'PLAYING' && !menu.isOpen() && !world.over;
   if (playing) {
     input.update(now);
-    for (const a of input.drain()) {
-      if (!isAiPlayer(a.player)) {
-        applyAction(world, a.player, a.action, a.arg);
+    const drainedActions = input.drain();
+
+    if (networkSession) {
+      if (networkSession.isHost) {
+        for (const a of drainedActions) {
+          applyAction(world, networkSession.localPlayer, a.action, a.arg);
+        }
+      } else {
+        for (const a of drainedActions) {
+          if (a.action === 'SELECT' || a.action === 'WIN_L' || a.action === 'WIN_R') {
+            applyAction(world, networkSession.localPlayer, a.action, a.arg);
+          }
+          networkSession.p2p.send({ type: 'INPUT', action: a.action, arg: a.arg });
+        }
+        const wTurn = touchSteer[networkSession.localPlayer] !== 0 ? touchSteer[networkSession.localPlayer] : input.windowTurn(networkSession.localPlayer);
+        if (wTurn !== lastSentWindowTurn) {
+          lastSentWindowTurn = wTurn;
+          networkSession.p2p.send({ type: 'STEER', windowTurn: wTurn });
+        }
+      }
+    } else {
+      for (const a of drainedActions) {
+        if (!isAiPlayer(a.player)) {
+          applyAction(world, a.player, a.action, a.arg);
+        }
       }
     }
 
-    for (let p = 0; p < 2; p++) {
-      if (isAiPlayer(p)) {
-        aiControllers[p].update(world, dtFrame, currentAiLevel());
+    if (!networkSession) {
+      for (let p = 0; p < 2; p++) {
+        if (isAiPlayer(p)) {
+          aiControllers[p].update(world, dtFrame, currentAiLevel());
+        }
       }
     }
 
-    acc += dtFrame;
-    while (acc >= C.SIM_TICK_S) {
-      step(world, C.SIM_TICK_S, {
-        windowTurn: [
-          isAiPlayer(0) ? aiControllers[0].windowTurn : (touchSteer[0] !== 0 ? touchSteer[0] : input.windowTurn(0)),
-          isAiPlayer(1) ? aiControllers[1].windowTurn : (touchSteer[1] !== 0 ? touchSteer[1] : input.windowTurn(1)),
-        ],
-      });
-      acc -= C.SIM_TICK_S;
+    if (!networkSession || networkSession.isHost) {
+      acc += dtFrame;
+      while (acc >= C.SIM_TICK_S) {
+        step(world, C.SIM_TICK_S, {
+          windowTurn: [
+            networkSession
+              ? (networkSession.localPlayer === 0 ? input.windowTurn(0) : remoteWindowTurn)
+              : (isAiPlayer(0) ? aiControllers[0].windowTurn : (touchSteer[0] !== 0 ? touchSteer[0] : input.windowTurn(0))),
+            networkSession
+              ? (networkSession.localPlayer === 1 ? input.windowTurn(1) : remoteWindowTurn)
+              : (isAiPlayer(1) ? aiControllers[1].windowTurn : (touchSteer[1] !== 0 ? touchSteer[1] : input.windowTurn(1))),
+          ],
+        });
+        acc -= C.SIM_TICK_S;
+      }
+
+      if (networkSession && networkSession.isHost) {
+        if (now - lastNetworkSync >= networkSyncInterval) {
+          lastNetworkSync = now;
+          networkSession.p2p.send(serializeWorldSnapshot(world));
+        }
+        if (world.events.length > 0) {
+          networkSession.p2p.send({ type: 'EVENTS', events: [...world.events] });
+        }
+      }
+
+      if (activeRecorder) {
+        activeRecorder.sample(world);
+      }
+      dirty = true;
+    } else {
+      acc = 0;
+      dirty = true;
     }
-    if (activeRecorder) {
-      activeRecorder.sample(world);
-    }
-    dirty = true;
   } else {
     acc = 0;
   }

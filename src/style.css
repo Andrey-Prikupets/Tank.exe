@@ -1977,3 +1977,318 @@ html, body {
   gap: 10px;
 }
 
+/* Keyboard dual layout tabs */
+.kb-tab-switch {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 6px 0;
+}
+.kb-tab-btn {
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  padding: 6px 14px;
+  border-radius: 4px;
+  border: 1px solid #3c4854;
+  background: #1e242b;
+  color: #9cb0c3;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.kb-tab-btn:hover {
+  border-color: #ffd54a;
+  color: #fff;
+}
+.kb-tab-btn.active {
+  background: #1c3827;
+  border-color: #00ff66;
+  color: #00ff66;
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(0, 255, 100, 0.35);
+}
+.kb-shade.net {
+  background: rgba(38, 166, 91, 0.52);
+  border: 1px solid #2ecc71;
+  box-shadow: inset 0 0 6px rgba(46, 204, 113, 0.45);
+}
+
+/* Network Multiplayer Modal */
+#networkScreen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 12, 10, 0.88);
+  backdrop-filter: blur(4px);
+  z-index: 50;
+}
+#networkScreen.hidden {
+  display: none;
+}
+
+.net-modal {
+  max-width: 600px;
+  width: 94vw;
+  max-height: 92vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: linear-gradient(165deg, rgba(16, 24, 20, 0.98), rgba(9, 13, 11, 0.98));
+  border: 1px solid #3b5a44;
+  border-radius: 12px;
+  padding: 18px 22px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85), 0 0 40px rgba(80, 200, 120, 0.12);
+  color: #e2ece5;
+}
+
+.net-header {
+  text-align: center;
+}
+.net-title {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+  text-shadow: 0 0 14px rgba(255, 213, 74, 0.4);
+}
+.net-subtitle {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #8e9a90;
+}
+
+.net-tab-switch {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 4px 0;
+}
+.net-tab-btn {
+  flex: 1;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid #3c4854;
+  background: #17201c;
+  color: #9cb0c3;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.net-tab-btn:hover {
+  border-color: #ffd54a;
+  color: #fff;
+}
+.net-tab-btn.active {
+  background: #1e3a29;
+  border-color: #00ff66;
+  color: #00ff66;
+  box-shadow: 0 0 10px rgba(0, 255, 100, 0.35);
+}
+
+.net-status-bar {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid #28362d;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  text-align: center;
+  color: #a4ceb2;
+  min-height: 20px;
+}
+
+.net-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.net-team-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.net-label {
+  font-size: 13px;
+  color: #8e9a90;
+}
+.net-team-btn {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+}
+.net-team-btn.blue {
+  background: #172740;
+  color: #8cb9ff;
+  border-color: #2b4975;
+}
+.net-team-btn.blue.selected {
+  background: #204175;
+  border-color: #5a96ff;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(90, 150, 255, 0.5);
+}
+.net-team-btn.red {
+  background: #401a17;
+  color: #ff9d8c;
+  border-color: #752e2b;
+}
+.net-team-btn.red.selected {
+  background: #752520;
+  border-color: #ff5a4a;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(255, 90, 74, 0.5);
+}
+
+.net-step-block {
+  background: rgba(20, 30, 25, 0.6);
+  border: 1px solid #2e4435;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.net-step-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #ffd54a;
+  text-transform: uppercase;
+}
+
+.net-qr-wrap {
+  background: #fff;
+  padding: 8px;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.net-qr-canvas {
+  display: block;
+  max-width: 200px;
+  max-height: 200px;
+  image-rendering: pixelated;
+}
+
+.net-btn-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.net-action-btn {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 8px 14px;
+  border-radius: 4px;
+  border: 1px solid #3c5444;
+  background: #1c2b21;
+  color: #b8e0c6;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.net-action-btn:hover {
+  background: #253d2d;
+  border-color: #00ff66;
+  color: #fff;
+}
+.net-action-btn.highlight {
+  background: #244b31;
+  border-color: #00ff66;
+  color: #00ff66;
+  box-shadow: 0 0 8px rgba(0, 255, 100, 0.3);
+}
+
+.net-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 6px;
+}
+.net-cancel-btn {
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  padding: 6px 14px;
+  border-radius: 4px;
+  border: 1px solid #552a26;
+  background: #2a1514;
+  color: #e59088;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.net-cancel-btn:hover {
+  background: #441e1c;
+  border-color: #ff5a4a;
+  color: #fff;
+}
+
+/* Camera Scanner Overlay */
+.net-scanner-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  border-radius: 12px;
+}
+.net-scanner-overlay.hidden {
+  display: none;
+}
+.net-scanner-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #121a15;
+  border: 1px solid #3b5a44;
+  border-radius: 8px;
+}
+.net-scanner-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+}
+.net-video-wrap {
+  position: relative;
+  width: 280px;
+  height: 280px;
+  overflow: hidden;
+  border: 2px solid #00ff66;
+  border-radius: 6px;
+  background: #000;
+}
+.net-scanner-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.net-crosshair {
+  position: absolute;
+  inset: 20px;
+  border: 2px dashed rgba(255, 255, 255, 0.75);
+  pointer-events: none;
+}
+
+

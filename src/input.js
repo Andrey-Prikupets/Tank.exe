@@ -2,9 +2,12 @@ import * as C from './constants.js';
 
 const REPEATABLE = new Set(['FORWARD', 'BACK', 'TURN_L', 'TURN_R']);
 
-export function loadSavedKeys() {
+export function loadSavedKeys(layout = 'splitscreen') {
+  if (layout === 'network') {
+    return loadSavedNetworkKeys();
+  }
   try {
-    const raw = localStorage.getItem(C.KEYS_SETTINGS_KEY);
+    const raw = localStorage.getItem(C.KEYS_SPLITSCREEN_SETTINGS_KEY) || localStorage.getItem(C.KEYS_SETTINGS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.LEFT && parsed.RIGHT) {
@@ -15,14 +18,45 @@ export function loadSavedKeys() {
   return JSON.parse(JSON.stringify(C.DEFAULT_KEYS));
 }
 
+export function loadSavedNetworkKeys() {
+  try {
+    const raw = localStorage.getItem(C.KEYS_NETWORK_SETTINGS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.SELECT && parsed.FORWARD) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return JSON.parse(JSON.stringify(C.DEFAULT_NETWORK_KEYS));
+}
+
 export class Input {
-  constructor(keys = loadSavedKeys()) {
+  constructor(keys = loadSavedKeys(), networkKeys = loadSavedNetworkKeys()) {
     this.keys = keys;
+    this.networkKeys = networkKeys;
+    this.mode = 'splitscreen'; // 'splitscreen' | 'network'
+    this.localPlayer = 0; // 0 (Left/Blue) | 1 (Right/Red)
     this.map = new Map();
     this.down = new Set();
     this.held = new Map();
     this.queue = [];
     this.rebuildMap();
+  }
+
+  setLayoutMode(mode, localPlayer = 0) {
+    this.mode = mode;
+    this.localPlayer = localPlayer;
+    this.clear();
+    this.rebuildMap();
+  }
+
+  getLayoutMode() {
+    return this.mode;
+  }
+
+  getLocalPlayer() {
+    return this.localPlayer;
   }
 
   setKeys(keys) {
@@ -34,8 +68,31 @@ export class Input {
     return this.keys;
   }
 
+  setNetworkKeys(keys) {
+    this.networkKeys = JSON.parse(JSON.stringify(keys));
+    this.rebuildMap();
+  }
+
+  getNetworkKeys() {
+    return this.networkKeys;
+  }
+
   rebuildMap() {
     this.map.clear();
+    if (this.mode === 'network') {
+      const player = this.localPlayer;
+      const side = this.networkKeys;
+      (side.SELECT || []).forEach((code, i) => {
+        if (code) this.map.set(code, { player, action: 'SELECT', arg: C.TANK_NUMBERS[player][i] });
+      });
+      for (const action of ['FORWARD', 'BACK', 'TURN_L', 'TURN_R', 'WIN_L', 'WIN_R', 'FIRE', 'MINE', 'SMOKE']) {
+        [].concat(side[action] || []).forEach((code) => {
+          if (code) this.map.set(code, { player, action });
+        });
+      }
+      return;
+    }
+
     [[0, this.keys.LEFT], [1, this.keys.RIGHT]].forEach(([player, side]) => {
       (side.SELECT || []).forEach((code, i) => {
         if (code) this.map.set(code, { player, action: 'SELECT', arg: C.TANK_NUMBERS[player][i] });
@@ -80,6 +137,12 @@ export class Input {
   }
 
   windowTurn(p) {
+    if (this.mode === 'network') {
+      if (p !== this.localPlayer) return 0;
+      const l = [].concat(this.networkKeys.TURN_L || []).some((c) => this.down.has(c));
+      const r = [].concat(this.networkKeys.TURN_R || []).some((c) => this.down.has(c));
+      return (r ? 1 : 0) - (l ? 1 : 0);
+    }
     const side = p === 0 ? this.keys.LEFT : this.keys.RIGHT;
     const l = [].concat(side.TURN_L || []).some((c) => this.down.has(c));
     const r = [].concat(side.TURN_R || []).some((c) => this.down.has(c));

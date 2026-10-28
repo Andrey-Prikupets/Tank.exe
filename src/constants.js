@@ -329,6 +329,8 @@ export const MAX_PIXEL_RATIO = 1.0;
 export const KEY_REPEAT_DELAY_MS = 300;
 export const KEY_REPEAT_MS = 150;
 export const KEYS_SETTINGS_KEY = 'tank.exe.keys';
+export const KEYS_SPLITSCREEN_SETTINGS_KEY = 'tank.exe.keys.splitscreen';
+export const KEYS_NETWORK_SETTINGS_KEY = 'tank.exe.keys.network';
 export const DEFAULT_KEYS = {
   MENU: 'Escape',
   LEFT: {
@@ -355,6 +357,19 @@ export const DEFAULT_KEYS = {
     MINE: 'Comma',
     SMOKE: 'Period',
   },
+};
+export const DEFAULT_NETWORK_KEYS = {
+  MENU: 'Escape',
+  SELECT: ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'],
+  FORWARD: 'ArrowUp',
+  BACK: 'ArrowDown',
+  TURN_L: 'ArrowLeft',
+  TURN_R: 'ArrowRight',
+  WIN_L: 'KeyQ',
+  WIN_R: 'KeyE',
+  FIRE: 'Tab',
+  MINE: 'KeyZ',
+  SMOKE: 'KeyX',
 };
 export const KEYS = DEFAULT_KEYS;
 export const MENU_KEYS = {
