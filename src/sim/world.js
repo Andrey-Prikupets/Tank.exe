@@ -84,11 +84,13 @@ function placeInHangar(t, row, i) {
 }
 
 export function createWorld(options = {}) {
+  const shellRange = options.shootDist || options.shellRange || C.SHELL_RANGE_M;
   const world = {
     version: C.SAVE_FORMAT_VERSION,
     time: 0,
     over: false,
     winner: null, // 0 | 1 | 'draw'
+    shellRange,
     players: [0, 1].map((id) => ({
       id,
       selected: C.TANK_NUMBERS[id][0],
@@ -614,11 +616,12 @@ function tryDeploys(world, wants) {
 }
 
 function updateShells(world, dt) {
-  const speed = C.SHELL_RANGE_M / C.SHELL_FLIGHT_TIME_S;
+  const range = world.shellRange || C.SHELL_RANGE_M;
+  const speed = range / C.SHELL_FLIGHT_TIME_S;
   const L = C.FIELD_LENGTH_M;
   const keep = [];
   for (const s of world.shells) {
-    const stepLen = Math.min(speed * dt, C.SHELL_RANGE_M - s.dist);
+    const stepLen = Math.min(speed * dt, range - s.dist);
     let x1 = s.x + s.dx * stepLen;
     let y1 = s.y + s.dy * stepLen;
 
@@ -674,7 +677,7 @@ function updateShells(world, dt) {
     s.x = x1;
     s.y = y1;
     s.dist += stepLen;
-    if (s.dist >= C.SHELL_RANGE_M - 1e-6) continue;
+    if (s.dist >= range - 1e-6) continue;
     const inField = s.x >= 0 && s.x <= L && s.y >= 0 && s.y <= C.FIELD_WIDTH_M;
     const inHangar =
       ((s.x < 0 && s.x >= -C.HANGAR_DEPTH_M) || (s.x > L && s.x <= L + C.HANGAR_DEPTH_M)) &&

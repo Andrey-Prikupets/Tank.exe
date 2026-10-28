@@ -14,9 +14,9 @@ console.log('\n--- Running AI Opportunity Targeting, Hold Times & Vector Tests -
   assert.strictEqual(
     C.DEBUG_VECTOR_LENGTH_M,
     C.SHELL_RANGE_M,
-    'DEBUG_VECTOR_LENGTH_M must match SHELL_RANGE_M (50m) so vector indicator shows exact max flight range',
+    'DEBUG_VECTOR_LENGTH_M must match SHELL_RANGE_M (32m) so vector indicator shows exact max flight range',
   );
-  assert.strictEqual(C.DEBUG_VECTOR_LENGTH_M, 50);
+  assert.strictEqual(C.DEBUG_VECTOR_LENGTH_M, 32);
 }
 
 // 2. Minimum 2.0s hold time and 0.5s post-fire hold time in Dispatcher

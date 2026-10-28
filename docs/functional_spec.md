@@ -338,8 +338,8 @@ Tanks are oriented rectangles (OBB). Collision is checked every tick.
 ### 8.1 Gun / shells
 - Fire key fires one shell if the tank has shells and is not reloading (`GUN_RELOAD_S` = 1). **[A10]**
 - Shell starts at the muzzle and flies straight along the gun heading.
-- Range `SHELL_RANGE_M` = 62.5 (¼ of field length); flight time `SHELL_FLIGHT_TIME_S` = 0.4
-  → speed ≈ 156 m/s. Deliberately slow so a quick maneuver can dodge it.
+- Range `SHELL_RANGE_M` = 32 (default, configurable via `?shootDist=NN` startup query parameter); flight time `SHELL_FLIGHT_TIME_S` = 0.4
+  → speed = 80 m/s (or `world.shellRange / 0.4`). Deliberately slow so a quick maneuver can dodge it.
 - Shell is visible in both 3D views and on the map.
 - Shell disappears when it: reaches max range, hits the border or a **closed** gate door, or hits a tank
   (including tanks inside a hangar through an open gate).
@@ -574,9 +574,11 @@ The game provides a deterministic match recording and playback system:
     - **PIN:** Interactive pin toggle button (`📌` bright active vs muted outline).
     - **DATE & TIME:** Formatted timestamp (e.g. `2026-10-27 19:42`).
     - **DURATION:** Match length (`MM:SS`, e.g. `01:34`).
-    - **MODE:** Full human-readable mode names (`Human vs. Human`, `Human vs. Computer (MEDIUM)`, `Computer vs. Human (EASY)`, `Computer vs. Computer (HARD)`).
+    - **MODE:** Full human-readable mode names (`Human vs. Human`, `Human vs. Computer (MEDIUM)`, `Computer vs. Human (EASY)`, `Computer vs. Computer (HARD)`). If the match was played with a customized maximum shooting distance differing from the default ($32\text{m}$), small text is displayed below the mode: `"This game has customized maximum shooting distance = NN m"`. Default $32\text{m}$ distance is not shown in the grid.
     - **OUTCOME & SCORE:** Colored team victory badge with final tank destruction score (e.g. `RED WINS (15 - 8)`).
     - **ACTIONS:** `▶ Play` button and trash bin icon button (`🗑`).
+  - **Compact Grid Presentation:** Grid line gaps and row cell padding are compact (`padding: 4px 10px`) to maximize match visibility without vertical scrolling.
+  - **Custom Shooting Distance Persistence:** Each recording saves `shootDist` in its JSON metadata (`metadata.shootDist`). When loaded into playback, the simulation world recreates the exact maximum shell range and aiming vector reach used during the recorded match.
   - **Safety Delete Confirmations:** Deleting a match prompts inline confirmation; pinned matches require explicit confirmation (`This recording is PINNED. Delete anyway?`).
 - **Playback View & Floating Toolbar:**
   - Renders the recorded match with live interpolation (Lerp for position and speed, analytical angular slerp for heading and slit turret yaw) across both 3D viewports and the 2D strategic radar map at full display frame rate.
@@ -826,12 +828,12 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 - **Threat Weighting & Tie-Breaking:** Targets pointing weapons directly at the unit are prioritized (`AI_TARGET_FACING_US_BONUS = 14`), and tie-breaking noise (`AI_TARGET_NOISE_AMPLITUDE = 6`) ensures diverse target distribution across the enemy brigade.
 - **Locked Target Arrow & Slit Gun Aim Vectors:**
   - The strategic map displays thin, crisp arrows (`MAP_TARGET_ARROW_WIDTH_PX = 1.5`) from active tanks (or active slit windows) to their locked targets (maximum 2 arrows: Red -> Blue, Blue -> Red).
-  - Slit gun aiming vectors (`DEBUG_VECTOR_LENGTH_M = 32.5m`) are rendered for both windows on both home bases. The currently manned/active window is highlighted in vivid team color with a circular target reticle at its terminus.
+  - Slit gun and tank aiming vectors (`DEBUG_VECTOR_LENGTH_M = 32m`, dynamically matching configured `world.shellRange`) are rendered on the strategic map. The currently manned/active unit is highlighted in vivid team color with a circular target reticle at its terminus.
 
 ### 15.3 Slit Window Tactical Defense
 - **Fixed gun rule:** every tank's gun is rigidly fixed to the hull; the turret never rotates and the firing vector always equals the body heading. The AI aims by steering/pivoting the whole tank (turn limits in §16).
-- When enemies penetrate within `AI_SLIT_DEFENSE_TRIGGER_DIST_M = 40m` of the home gate and the selected tank is farther than 60 m from the gate, the AI can enter a hangar slit window to deliver defensive fire with unlimited ammo.
-- The AI aims through the slit window's angular limits (`WINDOW_MAX_YAW_DEG = 45°`), fires upon alignment (within `AI_SLIT_MAX_FIRE_DIST_M = 50m`), switches to the opposing slit window if enemies cross the gate axis, and returns to tank command once threats subside.
+- When enemies penetrate within `AI_SLIT_DEFENSE_TRIGGER_DIST_M = 26m` of the home gate and the selected tank is farther than 38 m from the gate (`AI_SLIT_ENTRY_MIN_TANK_DIST_M = 38m`), the AI can enter a hangar slit window to deliver defensive fire with unlimited ammo.
+- The AI aims through the slit window's angular limits (`WINDOW_MAX_YAW_DEG = 45°`), fires upon alignment (within `AI_SLIT_MAX_FIRE_DIST_M = 32m`), switches to the opposing slit window if enemies cross the gate axis, and returns to tank command once threats subside.
 
 ### 15.4 Strategic Brigade Control Architecture
 - For multi-tank coordination, urgency-based dispatching, doctrines/roles, plans (Alpha/Bravo/Charlie/Delta) and plan switching, see [`docs/ai_strategic_control_plan.md`](./ai_strategic_control_plan.md) (source of truth). Planned improvements: [`docs/ai_improvement_tasks.md`](./ai_improvement_tasks.md).
@@ -864,7 +866,7 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
   - **Open Terrain:** Standard movement cost `COST_OPEN = 1`.
 - **Target Maneuver & Curvilinear Intercept:**
   - `predictTargetCurvilinear(target, dt)` models moving enemy units using circular arc dead-reckoning when turning ($\omega \ne 0$), avoiding linear overshoots.
-  - `getAttackStandoffWaypoint(tank, target, world, profile)` calculates tactical attack positions at $20\text{--}30\text{ m}$ standoff outside the target's forward firing cone ($\pm 45^\circ$) with verified line-of-sight past buildings, falling back to safe perimeter standoff ($52\text{m}$) outside shell range if no standoff is clear.
+  - `getAttackStandoffWaypoint(tank, target, world, profile)` calculates tactical attack positions at $12\text{--}22\text{ m}$ standoff outside the target's forward firing cone ($\pm 45^\circ$) with verified line-of-sight past buildings, falling back to safe perimeter standoff ($34\text{m}$) outside shell range if no standoff is clear.
 - **Gate Reservation Mutex & Corridor Alignment:**
   - `GateReservationManager` assigns a single-token gate mutex per team so only one tank approaches or transits the 7m gateway at a time. Secondary retreating/deploying tanks hold at lateral staging waypoints ($Y = 32\text{ m}$ or $68\text{ m}$) until the gateway is clear.
   - Two-stage docking corridor: locks speed to $18\text{ km/h}$ and aligns heading to $\pm 4^\circ$ in the approach zone, then locks turn commands to zero (`cmdTurnDeg = 0`) to cruise straight through the doorway at $Y = 50.0\text{ m}$.
@@ -881,15 +883,15 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
   - Action ordering executes speed adjustments (including `STOP`) prior to turn rate adjustments so that `STOP` does not wipe commanded turn rates on transition ticks.
   - Tank heading angles are normalized to $[-\pi, \pi]$ during simulation physics and replay recording serialization, ensuring smooth continuous rotations without 16-bit integer overflows.
 - **Lateral Gate Flank Approach & Safe Edge Crawl Corridors:**
-  - When advancing towards the enemy base, tanks avoid the lethal central frontal corridor ($Y \in [36, 64]$ within $45\text{ m}$ of the enemy wall) covered by the base slit guns (`isInEnemySlitGunSector`).
-  - Beyond the $50\text{m}$ shell range (plus $2\text{m}$ safety margin), tanks can operate freely without hazard penalties.
+  - When advancing towards the enemy base, tanks avoid the lethal central frontal corridor ($Y \in [36, 64]$ within $28\text{ m}$ of the enemy wall) covered by the base slit guns (`isInEnemySlitGunSector`).
+  - Beyond the $32\text{m}$ shell range (plus $2\text{m}$ safety margin), tanks can operate freely without hazard penalties.
   - Safe edge crawl corridors along the North ($Y \le 9.0\text{m}$, routing at $Y = 7.5\text{m}$) and South ($Y \ge 91.0\text{m}$, routing at $Y = 92.5\text{m}$) arena walls lie strictly outside the $\pm 45^\circ$ traverse limit of the slit windows, allowing flankers to bypass defensive fire.
 - **Tactical Gate Ambush & Outgoing Intercept:**
   - Ambush posts are positioned at $X = X_{\text{gate}} \mp 8.5\text{ m}$, $Y = 30.0\text{ m}$ (North post) and $Y = 70.0\text{ m}$ (South post), outside the 45° traverse limit of both hangar slit guns.
   - Ambush tanks hold position with zero commanded speed and guns pre-aimed across the doorway threshold ($(X_{\text{gate}} \mp 2.0, 50.0)$), prioritizing outgoing enemy tanks to destroy them immediately upon exiting the hangar.
 - **Asymmetric Brigade Doctrines:**
   - Opposing brigades randomly roll independent tactical doctrines (`NORTH_SWEEP`, `SOUTH_SWEEP`, `PINCER_AMBUSH`, `SPEARHEAD_WEDGE`, `ASYMMETRIC_SPLIT`), assigning varied roles (`NORTH_GATE_AMBUSH`, `SOUTH_GATE_AMBUSH`, `VANGUARD`, flankers, and sentries).
-  - Main offensive formations hold safe standoff at $52\text{m}$ from the enemy gate until a doorway breach is initiated.
+  - Main offensive formations hold safe standoff at $34\text{m}$ from the enemy gate until a doorway breach is initiated.
   - Individual tank cruising speeds (27 to 36 km/h on HARD) and staggered mobilization delays (0.0 to 2.0s) spread out the brigade into dynamic echelons, completely eliminating mirror symmetry.
 
 ### 15.10 Test Harness (`test.cmd` & `test/run_tests.js`)
@@ -909,16 +911,16 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 
 ### 15.13 Shot Allocation & Effective Range
 - Only one gun fires at a time, so the dispatcher gives combat control to the tank that can deliver a shot soonest. Combat urgency = `AI_URGENCY_COMBAT_AIMED` (85) − min(`AI_URGENCY_SHOT_PENALTY_MAX` = 20, time-to-shot × `AI_URGENCY_SHOT_PENALTY_PER_S` = 8), where time-to-shot = max(remaining reload, time to pivot onto the lead point at 30°/s). Tanks still reloading therefore stay eligible. Targets emerging from the enemy gate (within `AI_GATE_EMERGE_X_M` = 9 m / `AI_GATE_EMERGE_Y_M` = 5 m) add `AI_URGENCY_GATE_TARGET_BONUS` = 5.
-- Effective range: targets moving faster than `AI_MOVING_TARGET_SPEED_MS` = 1.5 m/s are engaged only within `AI_EFFECTIVE_MOVING_RANGE_M` = 38 m (`maxEngageDist`); stationary targets use the full profile range. Applies to aiming, urgency and the fire reflex.
+- Effective range: targets moving faster than `AI_MOVING_TARGET_SPEED_MS` = 1.5 m/s are engaged only within `AI_EFFECTIVE_MOVING_RANGE_M` = 24 m (`maxEngageDist`); stationary targets use the full profile range. Applies to aiming, urgency and the fire reflex.
 
 ### 15.14 Slit Window Defense & Sentry Coordination
-- Slit window entry occurs deterministically when enemy units penetrate within `AI_SLIT_DEFENSE_TRIGGER_DIST_M` = 40 m of the gate while friendly selected tank is beyond `AI_SLIT_ENTRY_MIN_TANK_DIST_M` = 60 m. Window exit occurs when no targets remain and a field tank requires control (`urgency >= AI_SLIT_EXIT_URGENCY` = 80), after `AI_SLIT_EXIT_IDLE_S` = 1.5 s of inactivity, or immediately if a field unit faces a lethal pit hazard (`hazardScore >= AI_URGENCY_HAZARD_PIT` = 95). Re-entry is throttled by `AI_SLIT_REENTRY_COOLDOWN_S` = 4 s.
+- Slit window entry occurs deterministically when enemy units penetrate within `AI_SLIT_DEFENSE_TRIGGER_DIST_M` = 26 m of the gate while friendly selected tank is beyond `AI_SLIT_ENTRY_MIN_TANK_DIST_M` = 38 m. Window exit occurs when no targets remain and a field tank requires control (`urgency >= AI_SLIT_EXIT_URGENCY` = 80), after `AI_SLIT_EXIT_IDLE_S` = 1.5 s of inactivity, or immediately if a field unit faces a lethal pit hazard (`hazardScore >= AI_URGENCY_HAZARD_PIT` = 95). Re-entry is throttled by `AI_SLIT_REENTRY_COOLDOWN_S` = 4 s.
 - While in slit window view, the commander updates formations and Visual Intelligence tracks targets from the window observer position (`wx, wy`).
 - The `SENTRY` role in base defense (`CHARLIE`) coordinates with the slit gun: it holds an ambush stance offset laterally (`y = 50 ± 16 m`), leaving the gate doorway corridor (`y = 46.5..53.5 m`) open for rearming/deploying units, and guards the opposite flank of the active window (Window 0 North -> Sentry South; Window 1 South -> Sentry North) to avoid friendly fire obstruction and cover the window's traverse blind spot.
 
 ### 15.15 Weapon Use (mines, smoke)
 - **AI mines are disabled** (`AI_MINES_ENABLED = false`): benchmarking (6 x 120 s HARD) showed 28 of 36 mine kills hit the side that laid them, because unselected tanks keep their last command and cannot avoid mines. If re-enabled, mines are laid only by base-defence roles during a gate threat (`AI_MINE_GATE_THREAT_DIST_M` = 40 m), never within `AI_MINE_FRIENDLY_SAFE_DIST_M` = 12 m of a friendly tank or inside the own gate lane (`AI_MINE_GATE_KEEPOUT_X_M` = 30 m x `AI_MINE_GATE_KEEPOUT_Y_M` = 10 m).
-- **Offensive smoke:** the first smoke of an assaulting tank (full smoke stock; not a defence/sentry/reloader role) is dropped when it is `AI_ASSAULT_SMOKE_MIN_DIST_M` = 50 .. `AI_ASSAULT_SMOKE_MAX_DIST_M` = 62 m from the enemy gate, screening it from slit guns; the second smoke stays in reserve for defence.
+- **Offensive smoke:** the first smoke of an assaulting tank (full smoke stock; not a defence/sentry/reloader role) is dropped when it is `AI_ASSAULT_SMOKE_MIN_DIST_M` = 32 .. `AI_ASSAULT_SMOKE_MAX_DIST_M` = 40 m from the enemy gate, screening it from slit guns; the second smoke stays in reserve for defence.
 - The world emits `friendlyMineKill` / `enemyMineKill` events (used by the bench only).
 
 ### 15.16 Hand-off Trim (hazard veer)
@@ -948,7 +950,7 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 | `BORDER_DRAG_FACTOR` / `TANK_CONTACT_TURN_FACTOR` | 0.5 / 0.5 | |
 | `TANK_START_SHELLS` / `MINES` / `SMOKES` | 5 / 2 / 2 | |
 | `GUN_RELOAD_S` / `WINDOW_RELOAD_S` | 1 / 1.5 | s |
-| `SHELL_RANGE_M` / `SHELL_FLIGHT_TIME_S` | 50 / 0.4 | m / s |
+| `SHELL_RANGE_M` / `SHELL_FLIGHT_TIME_S` | 32 (default) / 0.4 | m / s |
 | `MINE_DROP_BEHIND_M` / `MINE_ARM_DELAY_S` / `MINE_TRIGGER_RADIUS_M` | 1.5 / 1.5 / 1 | m / s / m |
 | `SMOKE_RADIUS_M` / `SMOKE_LIFETIME_S` / `SMOKE_FADE_S` | 10 / 10 / 2 | m / s / s |
 | `WINDOW_OFFSET_FROM_GATE_M` / `WINDOW_LENGTH_M` | 8 / 5 | m |
@@ -959,10 +961,10 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 | `CAMERA_HEIGHT_M` / `CAMERA_FOV_DEG` | 2.2 / 60 | m / ° |
 | `EXPLOSION_DURATION_S` | 1 | s |
 | `SAVE_SLOT_COUNT` | 10 | |
-| `AI_MAX_FIRE_DIST_M` | 115 | m |
-| `AI_ENGAGE_FAR_DIST_M` | 55 | m |
-| `AI_SMOKE_LOW_AMMO_DIST_M` | 35 | m |
-| `AI_SMOKE_INCOMING_SHELL_DIST_M` | 30 | m |
+| `AI_MAX_FIRE_DIST_M` | 32 | m |
+| `AI_ENGAGE_FAR_DIST_M` | 35 | m |
+| `AI_SMOKE_LOW_AMMO_DIST_M` | 22 | m |
+| `AI_SMOKE_INCOMING_SHELL_DIST_M` | 20 | m |
 | `AI_SMOKE_SHELL_DOT_THRESHOLD` | 0.8 | |
 | `AI_MINE_BEHIND_ANGLE_RAD` | 0.7 | rad |
 | `AI_TARGET_STICKINESS_BONUS` | 20 | |
@@ -975,9 +977,13 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 | `AI_STANDOFF_JITTER_M` | 3.5 | m |
 | `AI_SPEED_JITTER_KMH` | 3 | km/h |
 | `AI_LANE_OFFSET_MAX_M` | 16 | m |
-| `AI_SLIT_DEFENSE_TRIGGER_DIST_M` | 40 | m |
+| `AI_SLIT_DEFENSE_TRIGGER_DIST_M` | 26 | m |
 | `AI_SLIT_AIM_TOLERANCE_RAD` / `FIRE_TOLERANCE_RAD` | 0.08 / 0.12 | rad |
-| `AI_SLIT_MAX_FIRE_DIST_M` | 50 | m |
+| `AI_SLIT_MAX_FIRE_DIST_M` | 32 | m |
+| `AI_PLAN_DEFENSE_TRIGGER_DIST_M` / `CLEAR_DIST_M` / `INNER_DIST_M` | 30 / 40 / 20 | m |
+| `AI_SLIT_ENTRY_MIN_TANK_DIST_M` | 38 | m |
+| `AI_EFFECTIVE_MOVING_RANGE_M` | 24 | m |
+| `AI_ASSAULT_SMOKE_MIN_DIST_M` / `MAX_DIST_M` | 32 / 40 | m |
 | `AI_MOBILIZE_CRUISE_KMH` | 18 | km/h |
 | `AI_TRAJECTORY_WEAVE_AMP_M` | 5.0 | m |
 | `AI_TRAJECTORY_WEAVE_FREQ` | 0.65 | Hz |

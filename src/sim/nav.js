@@ -242,7 +242,7 @@ export function isInEnemySlitGunSector(x, y, enemyOwner, marginM = 2.0) {
   }
 
   // Direct frontal gate channel is deadly
-  if (dx <= 45.0 && y >= 36.0 && y <= 64.0) {
+  if (dx <= 28.0 && y >= 36.0 && y <= 64.0) {
     return true;
   }
 
@@ -332,8 +332,8 @@ export function getAttackStandoffWaypoint(tank, target, world, profile, simTime 
   const tIntercept = Math.min(3.0, dist / (mySpeed + Math.max(1, Math.abs(target.speed))));
 
   const predTarget = predictTargetCurvilinear(target, tIntercept);
-  const standoffJitter = (Math.random() - 0.5) * 3.5;
-  const standoffDist = Math.max(18, Math.min(30, (profile.standoffDist || 26) + standoffJitter));
+  const standoffJitter = (Math.random() - 0.5) * 2.5;
+  const standoffDist = Math.max(10, Math.min(22, (profile.standoffDist || 18) + standoffJitter));
 
   // Candidate attack angles around predicted target: prefer lateral angles (flanking) with organic asymmetry
   const ownerBias = tank.owner === 0 ? 0.35 : -0.35;
@@ -405,7 +405,7 @@ export function getAttackStandoffWaypoint(tank, target, world, profile, simTime 
   if (!bestWaypoint) {
     const gx = gateX(enemyOwner);
     const dir = enemyOwner === 0 ? 1 : -1;
-    const safeX = gx + dir * 52.0;
+    const safeX = gx + dir * 34.0;
     const safeY = tank.y <= C.GATE_CENTER_Y_M ? 7.5 : 92.5;
     return { x: safeX, y: safeY, predTarget };
   }

@@ -47,10 +47,10 @@ export const PLAYER_MODES = [
   { id: 'CvC', label: 'Computer vs Computer', leftAi: true, rightAi: true },
 ];
 export const AI_LEVELS = ['HARD', 'MEDIUM', 'EASY'];
-export const AI_MAX_FIRE_DIST_M = 115;
-export const AI_ENGAGE_FAR_DIST_M = 55;
-export const AI_SMOKE_LOW_AMMO_DIST_M = 35;
-export const AI_SMOKE_INCOMING_SHELL_DIST_M = 30;
+export const AI_MAX_FIRE_DIST_M = 32;
+export const AI_ENGAGE_FAR_DIST_M = 35;
+export const AI_SMOKE_LOW_AMMO_DIST_M = 22;
+export const AI_SMOKE_INCOMING_SHELL_DIST_M = 20;
 export const AI_SMOKE_SHELL_DOT_THRESHOLD = 0.8;
 export const AI_MINE_BEHIND_ANGLE_RAD = 0.7;
 // Bench (6x120 s HARD): 28 of 36 mine kills hit the layer's own side (unselected tanks cannot avoid mines),
@@ -62,8 +62,8 @@ export const AI_MINE_FRIENDLY_SAFE_DIST_M = 12;
 export const AI_MINE_GATE_THREAT_DIST_M = 40;
 export const AI_MINE_GATE_KEEPOUT_X_M = 30;
 export const AI_MINE_GATE_KEEPOUT_Y_M = 10;
-export const AI_ASSAULT_SMOKE_MIN_DIST_M = 50;
-export const AI_ASSAULT_SMOKE_MAX_DIST_M = 62;
+export const AI_ASSAULT_SMOKE_MIN_DIST_M = 32;
+export const AI_ASSAULT_SMOKE_MAX_DIST_M = 40;
 
 // ---- AI hull aiming (gun is fixed to the hull) ------------------------------
 export const AI_AIM_GAIN_PER_S = 1.5; // commanded turn rate (deg/s) per degree of heading error
@@ -100,7 +100,7 @@ export const AI_TARGET_LOS_BLOCKED_PENALTY = 70;
 export const AI_TARGET_THREAT_ANGLE_WEIGHT = 18;
 export const AI_TARGET_FACING_US_BONUS = 14;
 export const AI_TARGET_OPPORTUNITY_BONUS = 35;
-export const AI_TARGET_OPPORTUNITY_MAX_DIST_M = 38;
+export const AI_TARGET_OPPORTUNITY_MAX_DIST_M = 25;
 export const AI_TARGET_OPPORTUNITY_MAX_ANGLE_RAD = 1.3; // ~75 degrees
 export const AI_TARGET_NOISE_AMPLITUDE = 6;
 export const AI_TICK_JITTER_FRACTION = 0.25;
@@ -108,10 +108,10 @@ export const AI_COORD_JITTER_FRACTION = 0.35;
 export const AI_STANDOFF_JITTER_M = 3.5;
 export const AI_SPEED_JITTER_KMH = 3;
 export const AI_LANE_OFFSET_MAX_M = 16;
-export const AI_SLIT_DEFENSE_TRIGGER_DIST_M = 40;
+export const AI_SLIT_DEFENSE_TRIGGER_DIST_M = 26;
 export const AI_SLIT_AIM_TOLERANCE_RAD = 0.08;
 export const AI_SLIT_FIRE_TOLERANCE_RAD = 0.12;
-export const AI_SLIT_MAX_FIRE_DIST_M = 50;
+export const AI_SLIT_MAX_FIRE_DIST_M = 32;
 
 // ---- AI Strategic Brigade Control & Formations -------------------------------
 export const AI_STRATEGY_PLANS = {
@@ -120,9 +120,9 @@ export const AI_STRATEGY_PLANS = {
   CHARLIE: 'BASE_DEFENSE',
   DELTA: 'PURSUIT',
 };
-export const AI_PLAN_DEFENSE_TRIGGER_DIST_M = 45;
-export const AI_PLAN_DEFENSE_CLEAR_DIST_M = 60;
-export const AI_PLAN_DEFENSE_INNER_DIST_M = 30; // a single enemy this close triggers Charlie
+export const AI_PLAN_DEFENSE_TRIGGER_DIST_M = 30;
+export const AI_PLAN_DEFENSE_CLEAR_DIST_M = 40;
+export const AI_PLAN_DEFENSE_INNER_DIST_M = 20; // a single enemy this close triggers Charlie
 export const AI_PLAN_DEFENSE_MIN_THREATS = 2; // enemies within trigger distance needed otherwise
 export const AI_PLAN_MIN_DWELL_S = 4.0; // minimum time in a plan before a non-emergency exit
 export const AI_WEDGE_MIN_TANKS = 4;
@@ -143,7 +143,7 @@ export const AI_URGENCY_HAZARD_MINE = 90;
 export const AI_URGENCY_HAZARD_OBSTACLE = 80;
 export const AI_URGENCY_COMBAT_AIMED = 85;
 export const AI_URGENCY_COMBAT_OPPORTUNITY = 88;
-export const AI_SLIT_ENTRY_MIN_TANK_DIST_M = 60;
+export const AI_SLIT_ENTRY_MIN_TANK_DIST_M = 38;
 export const AI_SLIT_MIN_HOLD_S = 2.0;
 export const AI_SLIT_EXIT_IDLE_S = 2.0;
 export const AI_SLIT_REENTRY_COOLDOWN_S = 4;
@@ -154,7 +154,7 @@ export const AI_URGENCY_GATE_TARGET_BONUS = 5;
 export const AI_GATE_EMERGE_X_M = 9;
 export const AI_GATE_EMERGE_Y_M = 5;
 export const AI_MOVING_TARGET_SPEED_MS = 1.5;
-export const AI_EFFECTIVE_MOVING_RANGE_M = 38;
+export const AI_EFFECTIVE_MOVING_RANGE_M = 24;
 export const AI_URGENCY_COMBAT_SHELL_INCOMING = 75;
 export const AI_URGENCY_COMBAT_ENGAGING = 65;
 export const AI_URGENCY_REARM = 50;
@@ -283,7 +283,7 @@ export const TANK_START_MINES = 2;
 export const TANK_START_SMOKES = 2;
 export const GUN_RELOAD_S = 1;
 export const WINDOW_RELOAD_S = 1.5;
-export const SHELL_RANGE_M = 50;
+export const SHELL_RANGE_M = 32;
 export const DEBUG_VECTOR_LENGTH_M = SHELL_RANGE_M;
 export const SHELL_FLIGHT_TIME_S = 0.4;
 export const SHELL_MUZZLE_OFFSET_M = 0.5;

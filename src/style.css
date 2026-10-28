@@ -1616,7 +1616,7 @@ html, body {
   font-size: 13px;
 }
 .replays-table th {
-  padding: 8px 12px;
+  padding: 4px 10px;
   color: #a0baa6;
   font-size: 11px;
   font-weight: 700;
@@ -1628,10 +1628,17 @@ html, body {
   z-index: 2;
 }
 .replays-table td {
-  padding: 10px 12px;
+  padding: 4px 10px;
   border-bottom: 1px solid #1a281f;
   color: #d9e6d9;
   vertical-align: middle;
+}
+.replays-custom-dist {
+  font-size: 11px;
+  font-weight: 400;
+  color: #e0a050;
+  margin-top: 2px;
+  line-height: 1.25;
 }
 .replays-row {
   cursor: pointer;

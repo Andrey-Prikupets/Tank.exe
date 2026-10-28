@@ -79,6 +79,10 @@ export function createReplaysModal(root) {
           const modeDisplay = r.aiLevel && r.mode !== 'HvH'
             ? `${r.modeLabel || r.mode} (${r.aiLevel})`
             : (r.modeLabel || r.mode);
+          const isCustomDist = r.shootDist != null && r.shootDist !== C.SHELL_RANGE_M;
+          const customDistNotice = isCustomDist
+            ? `<div class="replays-custom-dist">This game has customized maximum shooting distance = ${r.shootDist} m</div>`
+            : '';
 
           return `
             <tr class="replays-row" data-id="${r.id}">
@@ -89,7 +93,10 @@ export function createReplaysModal(root) {
               </td>
               <td class="col-date">${formatDatetime(r.savedAt)}</td>
               <td class="col-dur">${formatDuration(r.duration || 0)}</td>
-              <td class="col-mode">${modeDisplay}</td>
+              <td class="col-mode">
+                ${modeDisplay}
+                ${customDistNotice}
+              </td>
               <td class="col-score">
                 <span class="outcome-tag ${outcomeClass}">${r.winnerLabel || 'END'}</span>
                 <span class="score-tag">${r.score || ''}</span>

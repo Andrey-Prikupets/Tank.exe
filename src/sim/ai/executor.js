@@ -264,7 +264,7 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
       navTargetX = ambushPose.doorwayAimX;
       navTargetY = ambushPose.doorwayAimY;
       maxSpeedOverride = 0; // pivot in place
-    } else if (!isAmbushRole && !assignedRole.includes('FLANK') && distToEnemyGate > 54.0) {
+    } else if (!isAmbushRole && !assignedRole.includes('FLANK') && distToEnemyGate > 36.0) {
       navTargetY += ctl.laneOffset * 0.5;
     }
   }
@@ -274,7 +274,7 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
     if (isInEnemySlitGunSector(navTargetX, navTargetY, 1 - owner)) {
       const gx = gateX(1 - owner);
       const dir = (1 - owner) === 0 ? 1 : -1;
-      navTargetX = gx + dir * 52.0;
+      navTargetX = gx + dir * 34.0;
       if (navTargetY > 9.0 && navTargetY < C.FIELD_WIDTH_M - 9.0) {
         navTargetY = tank.y <= C.GATE_CENTER_Y_M ? 7.5 : 92.5;
       }

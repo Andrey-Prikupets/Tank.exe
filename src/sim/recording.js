@@ -264,6 +264,12 @@ export function createRecorder(initialWorld, options = {}) {
       winner === 'draw' ? 'DRAW' : winner === 0 ? 'RED WINS' : 'BLUE WINS';
     const score = `${15 - b.lost} - ${15 - a.lost}`;
 
+    const shootDist =
+      finalWorld?.shellRange ||
+      initialWorld?.shellRange ||
+      options.shootDist ||
+      C.SHELL_RANGE_M;
+
     const metadata = {
       id: `rec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       savedAt: new Date().toISOString(),
@@ -271,6 +277,7 @@ export function createRecorder(initialWorld, options = {}) {
       mode,
       modeLabel,
       aiLevel,
+      shootDist,
       winner,
       winnerLabel,
       score,

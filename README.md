@@ -75,12 +75,15 @@ You can launch the game with pre-configured settings or start directly into batt
 | **`pits`** | Boolean | `Y` / `N` | Enable (`Y`) or disable (`N`) water hazard trenches / moats |
 | **`lang`** | String | `EN`, `ES`, `RU` | Pre-select language for the History dialog |
 | **`mobile`** | Boolean | `Y` / `N` | When `Y`, forces mobile mode on even on desktop (activates on-screen touch controls, analog joystick, and mouse click/drag interaction while omitting the keyboard layout menu) |
-| **`debugVectors`** | Boolean | `Y` / `N` | When `Y`, displays aiming vectors for each tank deployed on the battlefield on the 2D map view with color matching the tank (bright for active, dark for passive) and vector length equal to 65% of the ammo flight distance (40.6m; parked hangar tanks excluded) |
+| **`shootDist`** | Number | e.g. `32`, `45`, `50` | Maximum shooting distance in meters for tank cannons and base slit guns (defaults to `32` meters). All dependent aiming and AI standoff distances adjust dynamically. |
+| **`debugVectors`** | Boolean | `Y` / `N` | When `Y`, displays aiming vectors for each tank deployed on the battlefield and base slit guns on the 2D map view with color matching the unit (bright for active, dark for passive) and vector length equal to the maximum shooting distance (defaults to 32m; parked hangar tanks excluded) |
 | **`start`** | Boolean | `Y` / `N` | When `Y`, immediately starts a new game, bypassing the title menu |
 
 ### Quick Launch Examples:
 * **Battle with Aiming Vectors Visualization:**  
   [`https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&debugVectors=Y&start=Y`](https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&debugVectors=Y&start=Y)
+* **Custom Maximum Shooting Distance (45m):**  
+  [`https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&shootDist=45&start=Y`](https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&shootDist=45&start=Y)
 * **Mobile Touch Mode on Desktop with Mouse Controls:**  
   [`https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&mobile=Y&start=Y`](https://andrey-prikupets.github.io/Tank.exe/?mode=HvC&mobile=Y&start=Y)
 * **Computer vs Computer Spectator Mode:**  

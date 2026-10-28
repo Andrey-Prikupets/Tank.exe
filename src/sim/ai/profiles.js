@@ -8,9 +8,9 @@ export const PROFILES = {
     fireTolerance: 0.18,     // ~10 deg
     leadFactor: 0.0,         // direct aiming, no lead
     maxSpeedKmh: 18,
-    maxFireDist: 24,         // holds fire until within 24m
-    standoffDist: 18,        // stops advancing at 18m
-    minDist: 11,             // reverses if closer than 11m to avoid collision
+    maxFireDist: 16,         // holds fire until within 16m
+    standoffDist: 12,        // stops advancing at 12m
+    minDist: 8,              // reverses if closer than 8m to avoid collision
     useSmoke: 0.2,
     useMines: 0.2,
     multiTank: true,
@@ -23,9 +23,9 @@ export const PROFILES = {
     fireTolerance: 0.14,     // ~8 deg
     leadFactor: 0.5,         // partial lead
     maxSpeedKmh: 36,
-    maxFireDist: 32,         // holds fire until within 32m
-    standoffDist: 21,        // stops advancing at 21m
-    minDist: 13,             // reverses if closer than 13m
+    maxFireDist: 22,         // holds fire until within 22m
+    standoffDist: 15,        // stops advancing at 15m
+    minDist: 9,              // reverses if closer than 9m
     useSmoke: 0.6,
     useMines: 0.6,
     multiTank: true,
@@ -38,9 +38,9 @@ export const PROFILES = {
     fireTolerance: 0.10,     // ~5.7 deg
     leadFactor: 1.0,         // full predictive lead
     maxSpeedKmh: 36,
-    maxFireDist: C.SHELL_RANGE_M, // 50m maximum physical shell reach
-    standoffDist: 25,        // stops advancing at 25m
-    minDist: 15,             // reverses if closer than 15m
+    maxFireDist: C.SHELL_RANGE_M, // 32m maximum physical shell reach
+    standoffDist: 18,        // stops advancing at 18m
+    minDist: 10,             // reverses if closer than 10m
     useSmoke: 0.9,
     useMines: 0.9,
     multiTank: true,

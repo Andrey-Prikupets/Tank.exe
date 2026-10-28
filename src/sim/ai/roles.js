@@ -143,14 +143,14 @@ export function getRoleWaypoint(tank, role, plan, owner, enemyGateX, simTime = 0
 
     case 'VANGUARD': {
       const vanguardLaneY = owner === 0 ? C.AI_LANE_CENTER_Y - 6.0 : C.AI_LANE_CENTER_Y + 6.0;
-      // Stop at safe 52m standoff line before enemy slit gun firing zone!
-      if (distToEnemyGate <= 54.0) {
+      // Stop at safe 34m standoff line before enemy slit gun firing zone!
+      if (distToEnemyGate <= 36.0) {
         return {
-          x: enemyGateX + enemyDir * 52.0,
+          x: enemyGateX + enemyDir * 34.0,
           y: vanguardLaneY,
         };
       }
-      return { x: enemyGateX + enemyDir * 52.0, y: vanguardLaneY + weaveY };
+      return { x: enemyGateX + enemyDir * 34.0, y: vanguardLaneY + weaveY };
     }
 
     case 'NORTH_FLANK_LEAD': {
@@ -194,31 +194,31 @@ export function getRoleWaypoint(tank, role, plan, owner, enemyGateX, simTime = 0
     }
 
     case 'SPEARHEAD_N': {
-      if (distToEnemyGate <= 54.0) {
-        return { x: enemyGateX + enemyDir * 52.0, y: C.AI_LANE_NORTH_Y };
+      if (distToEnemyGate <= 36.0) {
+        return { x: enemyGateX + enemyDir * 34.0, y: C.AI_LANE_NORTH_Y };
       }
-      return { x: enemyGateX + enemyDir * 52.0, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
+      return { x: enemyGateX + enemyDir * 34.0, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
     }
 
     case 'SPEARHEAD_S': {
-      if (distToEnemyGate <= 54.0) {
-        return { x: enemyGateX + enemyDir * 52.0, y: C.AI_LANE_SOUTH_Y };
+      if (distToEnemyGate <= 36.0) {
+        return { x: enemyGateX + enemyDir * 34.0, y: C.AI_LANE_SOUTH_Y };
       }
-      return { x: enemyGateX + enemyDir * 52.0, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
+      return { x: enemyGateX + enemyDir * 34.0, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
     }
 
     case 'ECHELON_N': {
-      if (distToEnemyGate <= 58.0) {
-        return { x: enemyGateX + enemyDir * 56.0, y: C.AI_LANE_NORTH_Y };
+      if (distToEnemyGate <= 40.0) {
+        return { x: enemyGateX + enemyDir * 38.0, y: C.AI_LANE_NORTH_Y };
       }
-      return { x: enemyGateX + enemyDir * 56.0, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
+      return { x: enemyGateX + enemyDir * 38.0, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
     }
 
     case 'ECHELON_S': {
-      if (distToEnemyGate <= 58.0) {
-        return { x: enemyGateX + enemyDir * 56.0, y: C.AI_LANE_SOUTH_Y };
+      if (distToEnemyGate <= 40.0) {
+        return { x: enemyGateX + enemyDir * 38.0, y: C.AI_LANE_SOUTH_Y };
       }
-      return { x: enemyGateX + enemyDir * 56.0, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
+      return { x: enemyGateX + enemyDir * 38.0, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
     }
 
     case 'REARGUARD':
@@ -257,14 +257,14 @@ export function getRoleWaypoint(tank, role, plan, owner, enemyGateX, simTime = 0
 
     case 'PURSUER':
     default: {
-      if (distToEnemyGate <= 54.0) {
+      if (distToEnemyGate <= 36.0) {
         const edgeY = tank.y < C.GATE_CENTER_Y_M ? 7.5 : 92.5;
         if (Math.abs(tank.y - edgeY) < 5.0) {
           return { x: enemyGateX + enemyDir * 8.5, y: edgeY };
         }
-        return { x: enemyGateX + enemyDir * 52.0, y: tank.y < 50 ? 25 : 75 };
+        return { x: enemyGateX + enemyDir * 34.0, y: tank.y < 50 ? 25 : 75 };
       }
-      return { x: enemyGateX + enemyDir * 52.0, y: (tank.y < 50 ? 25 : 75) + weaveY };
+      return { x: enemyGateX + enemyDir * 34.0, y: (tank.y < 50 ? 25 : 75) + weaveY };
     }
   }
 }

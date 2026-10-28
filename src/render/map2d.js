@@ -313,8 +313,9 @@ export function createMap2D(canvas, options = {}) {
         const color = selected ? TEAM[t.owner].sel : TEAM[t.owner].base;
         const startX = t.x + Math.cos(t.heading) * muzzleDist;
         const startY = t.y + Math.sin(t.heading) * muzzleDist;
-        const endX = startX + Math.cos(t.heading) * C.DEBUG_VECTOR_LENGTH_M;
-        const endY = startY + Math.sin(t.heading) * C.DEBUG_VECTOR_LENGTH_M;
+        const vectorLen = world.shellRange || C.DEBUG_VECTOR_LENGTH_M;
+        const endX = startX + Math.cos(t.heading) * vectorLen;
+        const endY = startY + Math.sin(t.heading) * vectorLen;
 
         ctx.save();
         ctx.strokeStyle = color;
@@ -350,8 +351,9 @@ export function createMap2D(canvas, options = {}) {
           const color = isActive ? TEAM[owner].sel : TEAM[owner].base;
           const startX = gx;
           const startY = windowY(owner, idx);
-          const endX = startX + Math.cos(heading) * C.DEBUG_VECTOR_LENGTH_M;
-          const endY = startY + Math.sin(heading) * C.DEBUG_VECTOR_LENGTH_M;
+          const vectorLen = world.shellRange || C.DEBUG_VECTOR_LENGTH_M;
+          const endX = startX + Math.cos(heading) * vectorLen;
+          const endY = startY + Math.sin(heading) * vectorLen;
 
           ctx.save();
           ctx.strokeStyle = color;

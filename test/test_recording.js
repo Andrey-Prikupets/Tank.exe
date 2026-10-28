@@ -83,7 +83,17 @@ const { metadata, base64Payload } = await recorder.finalize(world);
 assert.ok(metadata.id.startsWith('rec_'), 'Metadata ID format check');
 assert.strictEqual(metadata.mode, 'HvC');
 assert.strictEqual(metadata.aiLevel, 'MEDIUM');
+assert.strictEqual(metadata.shootDist, 32, 'Default shootDist in metadata should be 32m');
 assert.ok(base64Payload.length > 0, 'Payload must be non-empty base64 string');
+
+// Test custom shootDist recording
+const customWorld = createWorld({ shootDist: 45 });
+assert.strictEqual(customWorld.shellRange, 45, 'World shellRange should reflect options.shootDist');
+const customRec = createRecorder(customWorld, { mode: 'CvC', shootDist: 45 });
+customRec.sample(customWorld);
+const customRes = await customRec.finalize(customWorld);
+assert.strictEqual(customRes.metadata.shootDist, 45, 'Custom shootDist should be saved in metadata');
+
 console.log(`✔ Recording finalized: ${recorder.frameCount} frames, payload size: ${base64Payload.length} base64 chars (~${Math.round(base64Payload.length / 1024)} KB).`);
 
 // 5. Test Decompression & Playback Controller

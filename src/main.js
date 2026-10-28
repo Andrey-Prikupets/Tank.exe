@@ -220,6 +220,19 @@ const forceMobile = mobileBool === true;
 const debugVectorsBool = parseBoolParam('debugVectors');
 const debugVectors = debugVectorsBool === true;
 
+// 10. Maximum Shooting Distance: ?shootDist=32 (meters, default 32)
+const shootDistParam =
+  urlParams.get('shootDist') ??
+  urlParams.get('shootDistance') ??
+  urlParams.get('shellRange') ??
+  urlParams.get('maxShootDist');
+if (shootDistParam !== null && shootDistParam !== '') {
+  const parsedDist = parseFloat(shootDistParam);
+  if (!Number.isNaN(parsedDist) && parsedDist > 0) {
+    options.shootDist = parsedDist;
+  }
+}
+
 let world = createWorld(options);
 world.isAiPlayer = isAiPlayer;
 let appState = 'TITLE'; // 'TITLE' | 'PLAYING'
@@ -570,6 +583,7 @@ function newGame() {
       mode: currentMode().id,
       modeLabel: currentMode().label,
       aiLevel: currentAiLevel(),
+      shootDist: world.shellRange || options.shootDist || C.SHELL_RANGE_M,
     });
   } else {
     activeRecorder = null;
@@ -584,7 +598,11 @@ async function startPlayback(id) {
 
   try {
     const decoded = await decodeRecording(base64);
-    playbackWorld = createWorld({ obstacles: decoded.obstacles, pits: decoded.pits });
+    playbackWorld = createWorld({
+      obstacles: decoded.obstacles,
+      pits: decoded.pits,
+      shootDist: decoded.shootDist || metadata.shootDist || C.SHELL_RANGE_M,
+    });
     playbackWorld.isAiPlayer = () => false;
 
     activePlayback = createPlayback(decoded, playbackWorld, sfx);
