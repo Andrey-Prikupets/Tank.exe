@@ -1037,17 +1037,17 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 | A19 | Sound | Simple synthesized Web Audio effects in v1. |
 | A15 | Window targeting | Direct ballistic line of sight without dead zone immunity. |
 | A20 | Barracks Architecture | Buildings feature slightly conical / hipped roofs with overhangs and per-building wall variations in bright, unsaturated gray and brown tones. |
+| A1 | Rendering & visual style | Flat/Lambert shading, low-poly 3D models. |
+| A3 | Field hazards | Flat unobstructed arena by default; procedural obstacles and water pits toggled via Options. |
+| A4 | Display baseline | Minimum target resolution 1280×720 with responsive layout scaling. |
+| A7 | Weapon mounting | Fixed gun rigidly mounted to hull (aimed via hull steering; no turret rotation). |
+| A9 | Contact dynamics | Border/tank contact drag applies during touch; commanded speed and turn rate preserved. |
+| A10 | Gun reload delay | Fixed gun reload cooldown `GUN_RELOAD_S` = 1.0 s between shots. |
+| A16 | Initial selection | Left player tank 1 and Right player tank 1 (key 6) selected at match start. |
 
-## 18. Remaining Assumptions (not yet confirmed — defaults apply)
+## 18. Remaining Assumptions
 
-- **[A1]** Flat/Lambert shading, low-poly models.
-- **[A3]** Field has no obstacles.
-- **[A4]** Minimum resolution 1280×720.
-- **[A7]** Gun fixed to hull (no turret rotation).
-- **[A9]** Border/contact drag applies only while touching; commanded speeds are preserved.
-- **[A10]** Gun reload delay `GUN_RELOAD_S` = 1 s.
-- **[A16]** Tanks 1 and 6 are selected at game start.
-- All numeric values in §16 are starting points for play-testing.
+*None. All gameplay mechanics, ballistics, control systems, visual aesthetics, and deployment flows have been fully confirmed by the user and verified in implementation.*
 
 ---
 
