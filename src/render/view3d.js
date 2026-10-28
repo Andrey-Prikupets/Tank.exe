@@ -51,9 +51,6 @@ export function createView3D(canvas) {
   const L = C.FIELD_LENGTH_M;
   const W = C.FIELD_WIDTH_M;
   const fieldMat = mat(C.COLOR_FIELD, { shininess: 0, specular: 0x000000 });
-  fieldMat.polygonOffset = true;
-  fieldMat.polygonOffsetFactor = -2;
-  fieldMat.polygonOffsetUnits = -4;
   const field = new THREE.Mesh(new THREE.PlaneGeometry(L, W), fieldMat);
   field.rotation.x = -Math.PI / 2;
   field.position.set(L / 2, 0, W / 2);
@@ -196,8 +193,16 @@ export function createView3D(canvas) {
     flatShading: true,
     shininess: 45,
     specular: 0x557799,
+    depthWrite: true,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -4,
   });
-  const pitRimMat = mat(C.COLOR_PIT_RIM);
+  const pitRimMat = mat(C.COLOR_PIT_RIM, {
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -4,
+  });
 
   const roofGeoCache = new Map();
   function getHipRoofGeo(L, W, H) {
@@ -315,7 +320,7 @@ export function createView3D(canvas) {
     g.rotation.y = -pit.h;
     const { rimMeshes, bedMesh, waterMesh } = g.userData;
     const rim = 0.6;
-    const h = 0.04;
+    const h = 0.08;
     const y = h / 2;
 
     // Top (+Z) and Bottom (-Z) borders span full length including corners

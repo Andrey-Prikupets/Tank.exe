@@ -235,6 +235,9 @@ if (shootDistParam !== null && shootDistParam !== '') {
 
 let world = createWorld(options);
 world.isAiPlayer = isAiPlayer;
+if (typeof window !== 'undefined') {
+  window.__world = () => world;
+}
 let appState = 'TITLE'; // 'TITLE' | 'PLAYING'
 let gameOverShown = false;
 
