@@ -38,6 +38,13 @@ const pinSvg = (pinned) => `
 </svg>
 `;
 
+function getOutcomeInfo(r) {
+  if (r.winner === 0) return { label: 'RED WINS', className: 'red' };
+  if (r.winner === 1) return { label: 'BLUE WINS', className: 'blue' };
+  if (r.winner === 'draw') return { label: 'DRAW', className: 'draw' };
+  return { label: 'INCOMPLETE', className: 'incomplete' };
+}
+
 export function createReplaysModal(root) {
   let callbacks = null;
   let showPinnedOnly = false;
@@ -58,7 +65,7 @@ export function createReplaysModal(root) {
             ${confirmItem.pinned ? '⚠️ This recording is <strong>PINNED</strong>. Delete anyway?' : 'Delete this recorded match?'}
           </div>
           <div class="confirm-match-info">
-            <span>${formatDatetime(confirmItem.savedAt)}</span> · <span>${confirmItem.modeLabel || confirmItem.mode}</span> · <span>${confirmItem.winnerLabel || 'END'}</span>
+            <span>${formatDatetime(confirmItem.savedAt)}</span> · <span>${confirmItem.modeLabel || confirmItem.mode}</span> · <span>${getOutcomeInfo(confirmItem).label}</span>
           </div>
           <div class="confirm-actions">
             <button type="button" class="rp-btn rp-btn-cancel" id="btnConfirmCancel">Cancel (Esc)</button>
@@ -74,8 +81,7 @@ export function createReplaysModal(root) {
     } else {
       const rowsHtml = replays
         .map((r) => {
-          const outcomeClass =
-            r.winner === 0 ? 'red' : r.winner === 1 ? 'blue' : 'draw';
+          const outcome = getOutcomeInfo(r);
           const modeDisplay = r.aiLevel && r.mode !== 'HvH'
             ? `${r.modeLabel || r.mode} (${r.aiLevel})`
             : (r.modeLabel || r.mode);
@@ -98,7 +104,7 @@ export function createReplaysModal(root) {
                 ${customDistNotice}
               </td>
               <td class="col-score">
-                <span class="outcome-tag ${outcomeClass}">${r.winnerLabel || 'END'}</span>
+                <span class="outcome-tag ${outcome.className}">${outcome.label}</span>
                 <span class="score-tag">${r.score || ''}</span>
               </td>
               <td class="col-actions">

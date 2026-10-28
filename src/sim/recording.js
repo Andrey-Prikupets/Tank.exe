@@ -263,8 +263,14 @@ export function createRecorder(initialWorld, options = {}) {
     const duration = rawFrames.length > 0 ? rawFrames[rawFrames.length - 1].t : 0;
     const [a, b] = finalWorld.players;
     const winner = finalWorld.winner;
-    const winnerLabel =
-      winner === 'draw' ? 'DRAW' : winner === 0 ? 'RED WINS' : 'BLUE WINS';
+    const isOver = !!(finalWorld.over && winner != null);
+    const winnerLabel = !isOver
+      ? 'INCOMPLETE'
+      : winner === 'draw'
+        ? 'DRAW'
+        : winner === 0
+          ? 'RED WINS'
+          : 'BLUE WINS';
     const score = `${15 - b.lost} - ${15 - a.lost}`;
 
     const shootDist =
@@ -281,7 +287,7 @@ export function createRecorder(initialWorld, options = {}) {
       modeLabel,
       aiLevel,
       shootDist,
-      winner,
+      winner: isOver ? winner : null,
       winnerLabel,
       score,
       redLost: a.lost,

@@ -906,6 +906,9 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
   - Tank numbers ($1\dots 5$) and player locked-target IDs are serialized and restored in replay playback, ensuring active field tanks correctly display their tactical numbers on the strategic map.
   - In replay playback, the "SELECT TANK" HUD banner text is suppressed, and 3D camera viewports follow the selected tank.
   - In CvC recording playback, targeting vectors (barrel aiming lines with terminal range circles and locked target arrows) are rendered identically to live matches.
+  - **Match Outcome Categorization & Styling:**
+    - Completed matches store `winner: 0` (`RED WINS`, red badge), `winner: 1` (`BLUE WINS`, blue badge), or `winner: 'draw'` (`DRAW`, yellow badge).
+    - Unfinished or prematurely terminated matches (exited via menu or restarting before match completion) store `winner: null` and `winnerLabel: 'INCOMPLETE'`. The replay modal renders incomplete games with dedicated neutral slate styling (`.outcome-tag.incomplete`), preventing unfinished recordings from erroneously defaulting to "BLUE WINS" or inheriting draw yellow styling. Legacy recordings with unassigned winners are similarly normalized to `INCOMPLETE`.
 - **Bench** (`.\bench.cmd [seeds] [seconds] [level]`, `tools/bench.js`): aggregates several seeded matches (tanks lost, hit rate, shots, mine explosions) to compare AI versions before/after a change.
 
 ### 15.12 Hull Aiming & Combat Engagement (fixed gun)

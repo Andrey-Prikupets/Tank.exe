@@ -1694,6 +1694,11 @@ html, body {
   color: var(--accent);
   border: 1px solid rgba(255, 213, 74, 0.4);
 }
+.outcome-tag.incomplete {
+  background: rgba(160, 175, 195, 0.18);
+  color: #a0afc3;
+  border: 1px solid rgba(160, 175, 195, 0.4);
+}
 .score-tag {
   color: #c4d7c7;
   font-weight: 700;

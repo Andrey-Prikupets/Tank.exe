@@ -84,15 +84,21 @@ assert.ok(metadata.id.startsWith('rec_'), 'Metadata ID format check');
 assert.strictEqual(metadata.mode, 'HvC');
 assert.strictEqual(metadata.aiLevel, 'MEDIUM');
 assert.strictEqual(metadata.shootDist, 32, 'Default shootDist in metadata should be 32m');
+assert.strictEqual(metadata.winner, null, 'Unfinished recording should have winner null');
+assert.strictEqual(metadata.winnerLabel, 'INCOMPLETE', 'Unfinished recording should have winnerLabel INCOMPLETE');
 assert.ok(base64Payload.length > 0, 'Payload must be non-empty base64 string');
 
-// Test custom shootDist recording
+// Test custom shootDist recording and completed match winner
 const customWorld = createWorld({ shootDist: 45 });
 assert.strictEqual(customWorld.shellRange, 45, 'World shellRange should reflect options.shootDist');
+customWorld.over = true;
+customWorld.winner = 1;
 const customRec = createRecorder(customWorld, { mode: 'CvC', shootDist: 45 });
 customRec.sample(customWorld);
 const customRes = await customRec.finalize(customWorld);
 assert.strictEqual(customRes.metadata.shootDist, 45, 'Custom shootDist should be saved in metadata');
+assert.strictEqual(customRes.metadata.winner, 1, 'Completed recording preserves winner');
+assert.strictEqual(customRes.metadata.winnerLabel, 'BLUE WINS', 'Completed recording sets BLUE WINS');
 
 console.log(`✔ Recording finalized: ${recorder.frameCount} frames, payload size: ${base64Payload.length} base64 chars (~${Math.round(base64Payload.length / 1024)} KB).`);
 
