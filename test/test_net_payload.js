@@ -1,7 +1,7 @@
 import assert from 'assert';
 import { compressToBase64, decompressFromBase64, packSignal, unpackSignal } from '../src/net/payload.js';
 
-console.log('Testing net payload compression and packaging...');
+console.log('Testing native CompressionStream net payload...');
 
 const sampleSdp = `v=0
 o=- 123456789 2 IN IP4 127.0.0.1
@@ -22,8 +22,8 @@ a=candidate:2 1 UDP 1686052607 203.0.113.15 61240 typ srflx raddr 192.168.1.55 r
 `;
 
 const largeSdp = sampleSdp.repeat(3);
-const compressedLarge = compressToBase64(largeSdp);
-const decompressedLarge = decompressFromBase64(compressedLarge);
+const compressedLarge = await compressToBase64(largeSdp);
+const decompressedLarge = await decompressFromBase64(compressedLarge);
 assert.strictEqual(decompressedLarge, largeSdp);
 assert(compressedLarge.length < largeSdp.length, 'Large payload must compress significantly');
 
@@ -33,9 +33,9 @@ const offer = {
   sdp: sampleSdp,
 };
 
-const token = packSignal(offer);
+const token = await packSignal(offer);
 assert(token.startsWith('TANK:'), 'Token should have TANK: prefix');
-const unpacked = unpackSignal(token);
+const unpacked = await unpackSignal(token);
 assert.strictEqual(unpacked.type, 'offer');
 assert.strictEqual(unpacked.sdp, sampleSdp);
 
@@ -44,9 +44,9 @@ const answer = {
   type: 'answer',
   sdp: sampleSdp.replace('a=setup:actpass', 'a=setup:active'),
 };
-const answerToken = packSignal(answer);
-const unpackedAnswer = unpackSignal(answerToken);
+const answerToken = await packSignal(answer);
+const unpackedAnswer = await unpackSignal(answerToken);
 assert.strictEqual(unpackedAnswer.type, 'answer');
 assert(unpackedAnswer.sdp.includes('a=setup:active'));
 
-console.log(`✓ Net payload tests passed! Full SDP: ${largeSdp.length} chars -> Compressed: ${compressedLarge.length} chars (${Math.round((1 - compressedLarge.length/largeSdp.length)*100)}% reduction)`);
+console.log(`✓ Native CompressionStream tests passed! Full SDP: ${largeSdp.length} chars -> Compressed: ${compressedLarge.length} chars (${Math.round((1 - compressedLarge.length/largeSdp.length)*100)}% reduction)`);

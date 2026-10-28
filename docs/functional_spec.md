@@ -1059,7 +1059,7 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 - **Air-Gapped Signaling:** The initial 2-step WebRTC handshake (Offer $\leftrightarrow$ Answer) is conducted without central servers:
   1. **QR Code Scanning:** Rendered directly to an HTML5 `<canvas>` via a self-contained pure JS QR matrix encoder. Scanned instantly using the device's camera via the browser's hardware `BarcodeDetector` API.
   2. **Messenger Copy & Web Share:** Single-click clipboard copy (`navigator.clipboard.writeText`) on PC and native OS share dialog (`navigator.share`) on mobile devices.
-- **SDP Compression:** Raw SDP descriptors (~1.5 KB) are compacted and compressed with LZ-string base64 encoding (`TANK:...`) to ensure small, high-contrast, fast-scanning QR codes.
+- **SDP Compression:** Raw SDP descriptors (~1.5 KB) are compressed using native browser/Node.js `CompressionStream` (`deflate-raw`) into Base64 (`TANK:...`), achieving a 72% size reduction down to ~400 characters for instant, low-density QR code scanning.
 
 ### 19.2 Connection & Role Negotiation Flow
 - **Multiplayer Modal Dialog (`#networkScreen`):** Accessible directly from the main Title Menu via **Multiplayer (Network)**.

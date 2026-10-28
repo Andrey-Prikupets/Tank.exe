@@ -101,7 +101,7 @@ export class P2PConnection {
     await this.pc.setLocalDescription(offer);
 
     await this.waitForIceGathering(this.pc);
-    return packSignal(this.pc.localDescription);
+    return await packSignal(this.pc.localDescription);
   }
 
   /**
@@ -109,7 +109,7 @@ export class P2PConnection {
    */
   async applyAnswerToken(answerToken) {
     if (!this.pc) throw new Error('Host connection not initialized');
-    const desc = unpackSignal(answerToken);
+    const desc = await unpackSignal(answerToken);
     if (!desc || desc.type !== 'answer') {
       throw new Error('Invalid Answer code');
     }
@@ -125,7 +125,7 @@ export class P2PConnection {
     this.isHost = false;
     this.setState('answering');
 
-    const desc = unpackSignal(offerToken);
+    const desc = await unpackSignal(offerToken);
     if (!desc || desc.type !== 'offer') {
       throw new Error('Invalid Offer code');
     }
@@ -141,7 +141,7 @@ export class P2PConnection {
 
     await this.waitForIceGathering(this.pc);
     this.setState('connecting');
-    return packSignal(this.pc.localDescription);
+    return await packSignal(this.pc.localDescription);
   }
 
   send(msg) {
