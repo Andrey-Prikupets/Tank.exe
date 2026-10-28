@@ -315,8 +315,10 @@ export function getAttackStandoffWaypoint(tank, target, world, profile, simTime 
   const enemyGate = gateX(enemyOwner);
   const distToEnemyGate = Math.abs(target.x - enemyGate);
 
-  // If target is inside enemy hangar or emerging near gate: take up gate ambush position!
-  if (distToEnemyGate <= 20.0 || target.x < 0 || target.x > C.FIELD_LENGTH_M) {
+  // If target is inside enemy hangar or emerging in doorway: take up gate ambush position!
+  const inDoorwayCorridor =
+    distToEnemyGate <= 8.0 && Math.abs(target.y - C.GATE_CENTER_Y_M) <= C.GATE_WIDTH_M / 2 + 1.5;
+  if (target.x < 0 || target.x > C.FIELD_LENGTH_M || inDoorwayCorridor) {
     const ambushPose = getGateAmbushPose(tank, tank.owner);
     return {
       x: ambushPose.targetX,
@@ -553,7 +555,14 @@ export function evaluateKinematicTrajectoryArcs(
   // Candidate commands
   const candidateTurns = [-45, -30, -15, 0, 15, 30, 45];
   const candidateSpeeds = [maxSpeedKmh, Math.min(18, maxSpeedKmh), 0];
-  if (targetDist < 6.0 || isInEnemySlitGunSector(tank.x, tank.y, 1 - tank.owner)) {
+  const nearBoundary =
+    tank.x < 14 || tank.x > C.FIELD_LENGTH_M - 14 || tank.y < 14 || tank.y > C.FIELD_WIDTH_M - 14;
+  if (
+    targetDist < 6.0 ||
+    isInEnemySlitGunSector(tank.x, tank.y, 1 - tank.owner) ||
+    nearBoundary ||
+    Math.abs(tank.speed) < 0.5
+  ) {
     candidateSpeeds.push(-6);
   }
 

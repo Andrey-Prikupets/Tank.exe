@@ -1,6 +1,6 @@
 import * as C from '../../constants.js';
 import { gateX, selectedTank } from '../world.js';
-import { getGateCorridorPose } from '../nav.js';
+import { getGateCorridorPose, getGateAmbushPose } from '../nav.js';
 import { normalizeAngle } from './math.js';
 import { assignBrigadeRoles, updateBrigadeRoles, getRoleWaypoint } from './roles.js';
 
@@ -74,6 +74,10 @@ export function updateCommander(ctl, world, dt, myField, enemyField, profile) {
     if (t.status === 'field' && t.id !== activeTank?.id) {
       const role = ctl.tankRoles.get(t.id) || 'VANGUARD';
       const isAmbush = role === 'NORTH_GATE_AMBUSH' || role === 'SOUTH_GATE_AMBUSH';
+      const ambushPose = isAmbush
+        ? getGateAmbushPose(t, owner, role === 'NORTH_GATE_AMBUSH' ? 'NORTH' : 'SOUTH')
+        : null;
+      const isAtAmbush = ambushPose?.isAtAmbush;
       const isRearming = profile.rearm && t.shells === 0;
       if (isRearming) {
         const gatePose = getGateCorridorPose(t, owner, ctl.simTime);
@@ -82,7 +86,7 @@ export function updateCommander(ctl, world, dt, myField, enemyField, profile) {
         const desiredTurn = Math.round(C.radToDeg(errRad) / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S;
         t.cmdTurnDeg = gatePose.isDoorwayMode ? 0 : Math.max(-C.TANK_MAX_TURN_DEG_S, Math.min(C.TANK_MAX_TURN_DEG_S, desiredTurn));
         t.cmdSpeedKmh = gatePose.speedLimitKmh || 18;
-      } else if (t.cmdSpeedKmh === 0 && !isAmbush) {
+      } else if (t.cmdSpeedKmh === 0 && !isAtAmbush) {
         const roleWaypoint = getRoleWaypoint(
           t,
           role,

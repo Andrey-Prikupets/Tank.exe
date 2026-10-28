@@ -88,6 +88,7 @@ export function createHud() {
   }
 
   function bannerText(world, p) {
+    if (world.isReplay) return '';
     const pl = world.players[p];
     if (pl.msgT > 0) return pl.msg;
     const t = selectedTank(world, p);

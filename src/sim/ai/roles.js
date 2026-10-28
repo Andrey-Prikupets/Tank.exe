@@ -112,11 +112,11 @@ export function getRoleWaypoint(tank, role, plan, owner, enemyGateX, simTime = 0
 
   switch (role) {
     case 'NORTH_GATE_AMBUSH': {
-      // Advance along safe North edge crawl corridor (y=7.5m) until reaching pre-gate position
+      // Advance along safe North edge crawl corridor (y=10.0m) until reaching pre-gate position
       if (distToEnemyGate > 12.0) {
         return {
           x: enemyGateX + enemyDir * 10.0,
-          y: 7.5,
+          y: 10.0,
         };
       }
       // Pre-gate vertical approach: turn vertically South into North Ambush Post (y=30.0)
@@ -127,11 +127,11 @@ export function getRoleWaypoint(tank, role, plan, owner, enemyGateX, simTime = 0
     }
 
     case 'SOUTH_GATE_AMBUSH': {
-      // Advance along safe South edge crawl corridor (y=92.5m) until reaching pre-gate position
+      // Advance along safe South edge crawl corridor (y=90.0m) until reaching pre-gate position
       if (distToEnemyGate > 12.0) {
         return {
           x: enemyGateX + enemyDir * 10.0,
-          y: 92.5,
+          y: 90.0,
         };
       }
       // Pre-gate vertical approach: turn vertically North into South Ambush Post (y=70.0)

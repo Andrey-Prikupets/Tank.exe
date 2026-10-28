@@ -304,8 +304,13 @@ export function createMap2D(canvas, options = {}) {
       return t ? t.id : -1;
     });
 
-    // debug aiming vectors (debugVectors=Y)
-    if (debugVectors) {
+    // debug aiming vectors (debugVectors=Y or CvC recording playback)
+    const showVectors =
+      debugVectors ||
+      !!world.showVectors ||
+      !!world.debugVectors ||
+      (world.isReplay && (world.isCvC || world.mode === 'CvC'));
+    if (showVectors) {
       const muzzleDist = C.TANK_LENGTH_M / 2 + C.SHELL_MUZZLE_OFFSET_M;
       for (const t of world.tanks) {
         if (t.status !== 'field') continue;

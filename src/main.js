@@ -606,6 +606,10 @@ async function startPlayback(id) {
       pits: decoded.pits,
       shootDist: decoded.shootDist || metadata.shootDist || C.SHELL_RANGE_M,
     });
+    playbackWorld.isReplay = true;
+    playbackWorld.isCvC = metadata.mode === 'CvC';
+    playbackWorld.mode = metadata.mode;
+    playbackWorld.showVectors = metadata.mode === 'CvC' || debugVectors;
     playbackWorld.isAiPlayer = () => false;
 
     activePlayback = createPlayback(decoded, playbackWorld, sfx);

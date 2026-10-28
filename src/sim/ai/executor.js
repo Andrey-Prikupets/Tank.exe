@@ -238,12 +238,7 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
     }
   } else {
     gateReservationManager.releaseGate(owner, tank.id);
-    if (
-      combatTarget &&
-      combatTargetPos &&
-      (combatTargetDist <= profile.maxFireDist + 8 ||
-        ctl.currentPlan === C.AI_STRATEGY_PLANS.DELTA)
-    ) {
+    if (combatTarget && combatTargetPos && tank.shells > 0) {
       const isOpportunityTarget =
         !isLineOfFireBlocked(world, owner, tank.x, tank.y, combatTargetPos.x, combatTargetPos.y, tank.id) &&
         combatTargetDist <= C.AI_TARGET_OPPORTUNITY_MAX_DIST_M;

@@ -16,7 +16,7 @@ import {
   deleteRecording,
   angleLerp,
 } from '../src/sim/recording.js';
-import { createWorld, step } from '../src/sim/world.js';
+import { createWorld, step, selectedTank } from '../src/sim/world.js';
 import * as C from '../src/constants.js';
 
 console.log('--- Running Replay System Unit Tests ---');
@@ -118,6 +118,16 @@ assert.ok(Math.abs(playbackWorld.time - 1.0) < 0.001);
 playback.update(0.5);
 assert.ok(Math.abs(playback.currentTime - 1.5) < 0.001);
 assert.ok(Math.abs(playbackWorld.time - 1.5) < 0.001);
+
+// Test tank numbers & selectedTank resolution in playback
+const fieldTanks = playbackWorld.tanks.filter((t) => t.status === 'field');
+assert.ok(fieldTanks.length > 0, 'Field tanks must exist');
+for (const ft of fieldTanks) {
+  assert.ok(ft.number >= 1 && ft.number <= 5, `Field tank ${ft.id} must have number 1..5, got ${ft.number}`);
+}
+assert.ok(selectedTank(playbackWorld, 0), 'selectedTank for player 0 must not be null');
+assert.ok(selectedTank(playbackWorld, 1), 'selectedTank for player 1 must not be null');
+
 console.log('✔ Playback controller seek and step verified.');
 
 // 6. Test LocalStorage manager, Sorting, Pin/Unpin, and Quota Pruning

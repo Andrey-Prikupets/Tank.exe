@@ -180,6 +180,7 @@ export function createRecorder(initialWorld, options = {}) {
       } else if (t.status === 'field') {
         fieldTanks.push({
           id: t.id,
+          number: t.number != null ? Number(t.number) : null,
           x: t.x,
           y: t.y,
           heading: t.heading,
@@ -210,6 +211,7 @@ export function createRecorder(initialWorld, options = {}) {
         windowIdx: p0.windowIdx,
         windowYaw: p0.windowYaw || 0,
         lost: p0.lost,
+        lockedTargetId: p0.lockedTarget ? p0.lockedTarget.id : -1,
       },
       p1: {
         selected: p1.selected,
@@ -217,6 +219,7 @@ export function createRecorder(initialWorld, options = {}) {
         windowIdx: p1.windowIdx,
         windowYaw: p1.windowYaw || 0,
         lost: p1.lost,
+        lockedTargetId: p1.lockedTarget ? p1.lockedTarget.id : -1,
       },
       gates: [
         world.gates ? world.gates[0].open : 0,
@@ -290,8 +293,8 @@ export function createRecorder(initialWorld, options = {}) {
     const w = new BinaryWriter();
     // Magic: "TNKR"
     w.writeUint32(0x544e4b52);
-    // Version: 1
-    w.writeUint8(1);
+    // Version: 2
+    w.writeUint8(2);
     w.writeFloat32(duration);
 
     // Obstacles
@@ -329,6 +332,7 @@ export function createRecorder(initialWorld, options = {}) {
       w.writeUint8(p0Meta);
       w.writeInt16(Math.round(f.p0.windowYaw * 1000));
       w.writeUint8(f.p0.lost);
+      w.writeInt8(f.p0.lockedTargetId != null ? f.p0.lockedTargetId : -1);
 
       // Player 1
       const p1Meta =
@@ -338,6 +342,7 @@ export function createRecorder(initialWorld, options = {}) {
       w.writeUint8(p1Meta);
       w.writeInt16(Math.round(f.p1.windowYaw * 1000));
       w.writeUint8(f.p1.lost);
+      w.writeInt8(f.p1.lockedTargetId != null ? f.p1.lockedTargetId : -1);
 
       // Gates (4 bits each)
       const g0 = Math.max(0, Math.min(15, Math.round(f.gates[0] * 15)));
@@ -356,7 +361,7 @@ export function createRecorder(initialWorld, options = {}) {
         w.writeInt16(Math.round(normalizeAngle(t.heading) * 10000));
         w.writeInt16(Math.round(t.speed * 100));
         w.writeUint8((t.shells & 0x0f) | ((t.mines & 0x03) << 4) | ((t.smokes & 0x03) << 6));
-        w.writeUint8(t.reload ? 1 : 0);
+        w.writeUint8((t.reload ? 1 : 0) | (((t.number || 0) & 0x07) << 1));
       }
 
       // Shells
@@ -419,7 +424,7 @@ export async function decodeRecording(base64Payload) {
   const magic = r.readUint32();
   if (magic !== 0x544e4b52) throw new Error('Invalid replay format magic');
   const version = r.readUint8();
-  if (version !== 1) throw new Error(`Unsupported replay version: ${version}`);
+  if (version !== 1 && version !== 2) throw new Error(`Unsupported replay version: ${version}`);
   const duration = r.readFloat32();
 
   const obstaclesCount = r.readUint8();
@@ -461,6 +466,7 @@ export async function decodeRecording(base64Payload) {
     const p0WindowIdx = (p0Meta >> 4) & 0x01;
     const p0WindowYaw = r.readInt16() / 1000;
     const p0Lost = r.readUint8();
+    const p0LockedTargetId = version >= 2 ? r.readInt8() : -1;
 
     // Player 1
     const p1Meta = r.readUint8();
@@ -469,6 +475,7 @@ export async function decodeRecording(base64Payload) {
     const p1WindowIdx = (p1Meta >> 4) & 0x01;
     const p1WindowYaw = r.readInt16() / 1000;
     const p1Lost = r.readUint8();
+    const p1LockedTargetId = version >= 2 ? r.readInt8() : -1;
 
     // Gates
     const gatesByte = r.readUint8();
@@ -491,8 +498,11 @@ export async function decodeRecording(base64Payload) {
       const shells = ammo & 0x0f;
       const mines = (ammo >> 4) & 0x03;
       const smokes = (ammo >> 6) & 0x03;
-      const reload = r.readUint8() ? 1 : 0;
-      fieldTanks.push({ id, x, y, heading, speed, shells, mines, smokes, reload });
+      const reloadByte = r.readUint8();
+      const reload = reloadByte & 1;
+      const numFromByte = (reloadByte >> 1) & 0x07;
+      const number = numFromByte > 0 ? numFromByte : null;
+      fieldTanks.push({ id, number, x, y, heading, speed, shells, mines, smokes, reload });
     }
 
     // Shells
@@ -556,8 +566,8 @@ export async function decodeRecording(base64Payload) {
 
     frames.push({
       t,
-      p0: { selected: p0Selected, view: p0View, windowIdx: p0WindowIdx, windowYaw: p0WindowYaw, lost: p0Lost },
-      p1: { selected: p1Selected, view: p1View, windowIdx: p1WindowIdx, windowYaw: p1WindowYaw, lost: p1Lost },
+      p0: { selected: p0Selected, view: p0View, windowIdx: p0WindowIdx, windowYaw: p0WindowYaw, lost: p0Lost, lockedTargetId: p0LockedTargetId },
+      p1: { selected: p1Selected, view: p1View, windowIdx: p1WindowIdx, windowYaw: p1WindowYaw, lost: p1Lost, lockedTargetId: p1LockedTargetId },
       gates: [g0, g1],
       deadTankMask,
       fieldTanks,
@@ -668,6 +678,11 @@ export function deleteRecording(id) {
 // ---------------------------------------------------------------------------
 export function createPlayback(decodedReplay, targetWorld, sfx) {
   const { duration, frames } = decodedReplay;
+  for (const t of targetWorld.tanks) {
+    if (t.number == null && (t.id % 15) < 5) {
+      t.number = (t.id % 5) + 1;
+    }
+  }
   let currentTime = 0;
   let isPlaying = true;
   let speed = 1.0;
@@ -750,6 +765,17 @@ export function createPlayback(decodedReplay, targetWorld, sfx) {
         pl.windowYaws[pl.windowIdx] = pl.windowYaw;
       }
       pl.lost = fp1.lost;
+
+      if (fp1.lockedTargetId != null && fp1.lockedTargetId >= 0) {
+        pl.lockedTarget = { id: fp1.lockedTargetId };
+      } else if (world.isCvC || decodedReplay.mode === 'CvC' || (world.mode && world.mode === 'CvC')) {
+        const enemyOwner = 1 - p;
+        const enemySelected = (enemyOwner === 0 ? f1.p0 : f1.p1).selected;
+        const enemyTank = world.tanks.find((t) => t.owner === enemyOwner && t.number === enemySelected && t.status === 'field');
+        pl.lockedTarget = enemyTank ? { id: enemyTank.id } : null;
+      } else {
+        pl.lockedTarget = null;
+      }
     }
 
     // Dead tanks from bitmask
@@ -773,6 +799,7 @@ export function createPlayback(decodedReplay, targetWorld, sfx) {
 
       if (t1) {
         t.status = 'field';
+        t.number = t1.number != null ? t1.number : (t.number != null ? t.number : ((t.id % 5) + 1));
         if (t2) {
           t.x = lerp(t1.x, t2.x, alpha);
           t.y = lerp(t1.y, t2.y, alpha);
