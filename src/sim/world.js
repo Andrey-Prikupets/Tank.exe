@@ -85,6 +85,17 @@ function placeInHangar(t, row, i) {
 
 export function createWorld(options = {}) {
   const shellRange = options.shootDist || options.shellRange || C.SHELL_RANGE_M;
+  const obstacles = Array.isArray(options.obstacles)
+    ? options.obstacles.map((o) => ({ ...o, height: o.height || C.OBSTACLE_HEIGHT_M }))
+    : options.obstacles
+      ? generateObstacles()
+      : [];
+  const pits = Array.isArray(options.pits)
+    ? options.pits.map((p) => ({ ...p }))
+    : options.pits
+      ? generatePits(obstacles)
+      : [];
+
   const world = {
     version: C.SAVE_FORMAT_VERSION,
     time: 0,
@@ -113,12 +124,9 @@ export function createWorld(options = {}) {
     smokes: [],
     explosions: [],
     events: [],
-    obstacles: options.obstacles ? generateObstacles() : [],
-    pits: options.pits ? generatePits(options.obstacles ? [] : []) : [],
+    obstacles,
+    pits,
   };
-  if (options.pits) {
-    world.pits = generatePits(world.obstacles);
-  }
 
   for (const owner of [0, 1]) {
     const nums = C.TANK_NUMBERS[owner];
@@ -792,14 +800,18 @@ export function step(world, dt, held) {
 }
 
 export function syncWorldTerrain(world, options) {
-  if (!world) return;
+  if (!world || !options) return;
   if (options.obstacles && (!world.obstacles || world.obstacles.length === 0)) {
-    world.obstacles = generateObstacles();
+    world.obstacles = Array.isArray(options.obstacles)
+      ? options.obstacles.map((o) => ({ ...o, height: o.height || C.OBSTACLE_HEIGHT_M }))
+      : generateObstacles();
   } else if (!options.obstacles) {
     world.obstacles = [];
   }
   if (options.pits && (!world.pits || world.pits.length === 0)) {
-    world.pits = generatePits(world.obstacles || []);
+    world.pits = Array.isArray(options.pits)
+      ? options.pits.map((p) => ({ ...p }))
+      : generatePits(world.obstacles || []);
   } else if (!options.pits) {
     world.pits = [];
   }

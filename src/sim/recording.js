@@ -180,7 +180,7 @@ export function createRecorder(initialWorld, options = {}) {
       } else if (t.status === 'field') {
         fieldTanks.push({
           id: t.id,
-          number: t.number != null ? Number(t.number) : null,
+          number: t.number != null ? String(t.number) : null,
           x: t.x,
           y: t.y,
           heading: t.heading,
@@ -206,7 +206,7 @@ export function createRecorder(initialWorld, options = {}) {
     rawFrames.push({
       t: world.time,
       p0: {
-        selected: p0.selected,
+        selected: p0.selected != null ? String(p0.selected) : null,
         view: p0.view,
         windowIdx: p0.windowIdx,
         windowYaw: p0.windowYaw || 0,
@@ -214,7 +214,7 @@ export function createRecorder(initialWorld, options = {}) {
         lockedTargetId: p0.lockedTarget ? p0.lockedTarget.id : -1,
       },
       p1: {
-        selected: p1.selected,
+        selected: p1.selected != null ? String(p1.selected) : null,
         view: p1.view,
         windowIdx: p1.windowIdx,
         windowYaw: p1.windowYaw || 0,
@@ -303,9 +303,18 @@ export function createRecorder(initialWorld, options = {}) {
     w.writeUint8(2);
     w.writeFloat32(duration);
 
+    const activeObstacles =
+      finalWorld?.obstacles && finalWorld.obstacles.length > 0
+        ? finalWorld.obstacles
+        : obstacles;
+    const activePits =
+      finalWorld?.pits && finalWorld.pits.length > 0
+        ? finalWorld.pits
+        : pits;
+
     // Obstacles
-    w.writeUint8(obstacles.length);
-    for (const ob of obstacles) {
+    w.writeUint8(activeObstacles.length);
+    for (const ob of activeObstacles) {
       w.writeUint8(ob.id || 0);
       w.writeInt16(Math.round(ob.x * 10));
       w.writeInt16(Math.round(ob.y * 10));
@@ -315,8 +324,8 @@ export function createRecorder(initialWorld, options = {}) {
     }
 
     // Pits
-    w.writeUint8(pits.length);
-    for (const p of pits) {
+    w.writeUint8(activePits.length);
+    for (const p of activePits) {
       w.writeUint8(p.id || 0);
       w.writeInt16(Math.round(p.x * 10));
       w.writeInt16(Math.round(p.y * 10));
@@ -332,7 +341,7 @@ export function createRecorder(initialWorld, options = {}) {
 
       // Player 0
       const p0Meta =
-        ((f.p0.selected || 0) & 0x07) |
+        ((Number(f.p0.selected) || 0) & 0x07) |
         (f.p0.view === 'window' ? 0x08 : 0) |
         (((f.p0.windowIdx || 0) & 0x01) << 4);
       w.writeUint8(p0Meta);
@@ -342,7 +351,7 @@ export function createRecorder(initialWorld, options = {}) {
 
       // Player 1
       const p1Meta =
-        ((f.p1.selected || 0) & 0x07) |
+        ((Number(f.p1.selected) || 0) & 0x07) |
         (f.p1.view === 'window' ? 0x08 : 0) |
         (((f.p1.windowIdx || 0) & 0x01) << 4);
       w.writeUint8(p1Meta);
@@ -367,7 +376,7 @@ export function createRecorder(initialWorld, options = {}) {
         w.writeInt16(Math.round(normalizeAngle(t.heading) * 10000));
         w.writeInt16(Math.round(t.speed * 100));
         w.writeUint8((t.shells & 0x0f) | ((t.mines & 0x03) << 4) | ((t.smokes & 0x03) << 6));
-        w.writeUint8((t.reload ? 1 : 0) | (((t.number || 0) & 0x07) << 1));
+        w.writeUint8((t.reload ? 1 : 0) | (((Number(t.number) || 0) & 0x07) << 1));
       }
 
       // Shells
@@ -443,6 +452,7 @@ export async function decodeRecording(base64Payload) {
       h: r.readInt16() / 1000,
       l: r.readInt16() / 10,
       w: r.readInt16() / 10,
+      height: C.OBSTACLE_HEIGHT_M,
     });
   }
 
@@ -467,7 +477,7 @@ export async function decodeRecording(base64Payload) {
 
     // Player 0
     const p0Meta = r.readUint8();
-    const p0Selected = (p0Meta & 0x07) || null;
+    const p0Selected = (p0Meta & 0x07) ? String(p0Meta & 0x07) : null;
     const p0View = (p0Meta & 0x08) ? 'window' : 'tank';
     const p0WindowIdx = (p0Meta >> 4) & 0x01;
     const p0WindowYaw = r.readInt16() / 1000;
@@ -476,7 +486,7 @@ export async function decodeRecording(base64Payload) {
 
     // Player 1
     const p1Meta = r.readUint8();
-    const p1Selected = (p1Meta & 0x07) || null;
+    const p1Selected = (p1Meta & 0x07) ? String(p1Meta & 0x07) : null;
     const p1View = (p1Meta & 0x08) ? 'window' : 'tank';
     const p1WindowIdx = (p1Meta >> 4) & 0x01;
     const p1WindowYaw = r.readInt16() / 1000;
@@ -507,7 +517,7 @@ export async function decodeRecording(base64Payload) {
       const reloadByte = r.readUint8();
       const reload = reloadByte & 1;
       const numFromByte = (reloadByte >> 1) & 0x07;
-      const number = numFromByte > 0 ? numFromByte : null;
+      const number = numFromByte > 0 ? String(numFromByte) : ((id % 15) < 5 ? String((id % 5) + 1) : null);
       fieldTanks.push({ id, number, x, y, heading, speed, shells, mines, smokes, reload });
     }
 
@@ -686,7 +696,7 @@ export function createPlayback(decodedReplay, targetWorld, sfx) {
   const { duration, frames } = decodedReplay;
   for (const t of targetWorld.tanks) {
     if (t.number == null && (t.id % 15) < 5) {
-      t.number = (t.id % 5) + 1;
+      t.number = String((t.id % 5) + 1);
     }
   }
   let currentTime = 0;
@@ -763,7 +773,7 @@ export function createPlayback(decodedReplay, targetWorld, sfx) {
       const fp1 = p === 0 ? f1.p0 : f1.p1;
       const fp2 = p === 0 ? f2.p0 : f2.p1;
       const pl = world.players[p];
-      pl.selected = fp1.selected;
+      pl.selected = fp1.selected != null ? String(fp1.selected) : null;
       pl.view = fp1.view;
       pl.windowIdx = fp1.windowIdx;
       pl.windowYaw = angleLerp(fp1.windowYaw, fp2.windowYaw, alpha);
@@ -777,7 +787,7 @@ export function createPlayback(decodedReplay, targetWorld, sfx) {
       } else if (world.isCvC || decodedReplay.mode === 'CvC' || (world.mode && world.mode === 'CvC')) {
         const enemyOwner = 1 - p;
         const enemySelected = (enemyOwner === 0 ? f1.p0 : f1.p1).selected;
-        const enemyTank = world.tanks.find((t) => t.owner === enemyOwner && t.number === enemySelected && t.status === 'field');
+        const enemyTank = world.tanks.find((t) => t.owner === enemyOwner && String(t.number) === String(enemySelected) && t.status === 'field');
         pl.lockedTarget = enemyTank ? { id: enemyTank.id } : null;
       } else {
         pl.lockedTarget = null;
@@ -805,7 +815,8 @@ export function createPlayback(decodedReplay, targetWorld, sfx) {
 
       if (t1) {
         t.status = 'field';
-        t.number = t1.number != null ? t1.number : (t.number != null ? t.number : ((t.id % 5) + 1));
+        const rawNum = t1.number != null ? t1.number : (t.number != null ? t.number : ((t.id % 15) < 5 ? (t.id % 5) + 1 : null));
+        t.number = rawNum != null ? String(rawNum) : null;
         if (t2) {
           t.x = lerp(t1.x, t2.x, alpha);
           t.y = lerp(t1.y, t2.y, alpha);

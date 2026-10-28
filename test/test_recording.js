@@ -110,6 +110,21 @@ assert.ok(decoded.obstacles.length > 0, 'Obstacles preserved');
 assert.ok(decoded.pits.length > 0, 'Pits preserved');
 
 const playbackWorld = createWorld({ obstacles: decoded.obstacles, pits: decoded.pits });
+assert.strictEqual(playbackWorld.obstacles.length, decoded.obstacles.length, 'Playback obstacles count must match decoded');
+for (let i = 0; i < decoded.obstacles.length; i++) {
+  assert.strictEqual(playbackWorld.obstacles[i].x, decoded.obstacles[i].x, `Obstacle ${i} x must match`);
+  assert.strictEqual(playbackWorld.obstacles[i].y, decoded.obstacles[i].y, `Obstacle ${i} y must match`);
+  assert.strictEqual(playbackWorld.obstacles[i].h, decoded.obstacles[i].h, `Obstacle ${i} h must match`);
+  assert.strictEqual(playbackWorld.obstacles[i].height, C.OBSTACLE_HEIGHT_M, `Obstacle ${i} height must be preset`);
+}
+
+assert.strictEqual(playbackWorld.pits.length, decoded.pits.length, 'Playback pits count must match decoded');
+for (let i = 0; i < decoded.pits.length; i++) {
+  assert.strictEqual(playbackWorld.pits[i].x, decoded.pits[i].x, `Pit ${i} x must match`);
+  assert.strictEqual(playbackWorld.pits[i].y, decoded.pits[i].y, `Pit ${i} y must match`);
+  assert.strictEqual(playbackWorld.pits[i].h, decoded.pits[i].h, `Pit ${i} h must match`);
+}
+
 const playback = createPlayback(decoded, playbackWorld);
 
 assert.strictEqual(playback.currentTime, 0);
@@ -129,12 +144,15 @@ assert.ok(Math.abs(playbackWorld.time - 1.5) < 0.001);
 const fieldTanks = playbackWorld.tanks.filter((t) => t.status === 'field');
 assert.ok(fieldTanks.length > 0, 'Field tanks must exist');
 for (const ft of fieldTanks) {
-  assert.ok(ft.number >= 1 && ft.number <= 5, `Field tank ${ft.id} must have number 1..5, got ${ft.number}`);
+  assert.strictEqual(typeof ft.number, 'string', `Field tank ${ft.id} number must be a string, got ${typeof ft.number}`);
+  assert.ok(['1', '2', '3', '4', '5'].includes(ft.number), `Field tank ${ft.id} must have number '1'..'5', got ${ft.number}`);
 }
+assert.strictEqual(typeof playbackWorld.players[0].selected, 'string', 'Player 0 selected must be string');
+assert.strictEqual(typeof playbackWorld.players[1].selected, 'string', 'Player 1 selected must be string');
 assert.ok(selectedTank(playbackWorld, 0), 'selectedTank for player 0 must not be null');
 assert.ok(selectedTank(playbackWorld, 1), 'selectedTank for player 1 must not be null');
 
-console.log('✔ Playback controller seek and step verified.');
+console.log('✔ Playback controller seek, step, obstacles preloading, and tank numbers verified.');
 
 // 6. Test LocalStorage manager, Sorting, Pin/Unpin, and Quota Pruning
 console.log('Testing LocalStorage Manager, Pinning & Auto-pruning...');

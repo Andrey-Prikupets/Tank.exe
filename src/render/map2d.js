@@ -14,6 +14,7 @@ export function createMap2D(canvas, options = {}) {
   let dpr = 1;
 
   function drawTacticalDigit(ctx, num, tr, scale) {
+    const digitStr = String(num != null ? num : '');
     const s = tr * 0.85;
     const w = s * 0.46;
     const h = s * 0.68;
@@ -22,7 +23,7 @@ export function createMap2D(canvas, options = {}) {
 
     function tracePath() {
       ctx.beginPath();
-      switch (num) {
+      switch (digitStr) {
         case '1':
           ctx.moveTo(w * 0.2, -h);
           ctx.lineTo(w * 0.2, h);
@@ -300,7 +301,7 @@ export function createMap2D(canvas, options = {}) {
 
     // tanks selection lookup
     const selIds = world.players.map((pl) => {
-      const t = world.tanks.find((x) => x.owner === pl.id && x.number === pl.selected && x.status !== 'dead');
+      const t = world.tanks.find((x) => x.owner === pl.id && String(x.number) === String(pl.selected) && x.status !== 'dead');
       return t ? t.id : -1;
     });
 
