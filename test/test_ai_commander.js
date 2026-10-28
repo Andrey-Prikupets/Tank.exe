@@ -1,6 +1,8 @@
 import assert from 'node:assert';
 import * as C from '../src/constants.js';
 import { assignBrigadeRoles, updateBrigadeRoles, BRIGADE_DOCTRINES } from '../src/sim/ai/roles.js';
+import { createWorld, step } from '../src/sim/world.js';
+import { AiController } from '../src/sim/ai.js';
 import { runVcr } from '../tools/vcr.js';
 
 console.log('\n--- Running AI Commander Tests (doctrine, sticky roles, plans) ---');
@@ -101,4 +103,30 @@ for (const o of [0, 1]) {
   assert.ok(mockCtl.decisionLog.some((e) => e.tag === 'REARM'), 'Logged REARM return to hangar');
 }
 
+// 6. Opening rollout pit avoidance and unselected tank hazard protection
+{
+  const world = createWorld({ obstacles: false, pits: false });
+  // Add pit right in the path of Blue tanks at x=180, y=50
+  world.pits = [{ id: 1, x: 180, y: 50, l: 20, w: 8, h: Math.PI / 2 }];
+
+  const ai0 = new AiController(0);
+  const ai1 = new AiController(1);
+  const dt = 1 / 60;
+  let pitDeaths = 0;
+
+  for (let s = 0; s < 600; s++) { // 10 seconds
+    world.events.length = 0;
+    ai0.update(world, dt, 'HARD');
+    ai1.update(world, dt, 'HARD');
+    const held = { windowTurn: [ai0.windowTurn, ai1.windowTurn] };
+    step(world, dt, held);
+    for (const ev of world.events) {
+      if (ev.type === 'splash') pitDeaths++;
+    }
+  }
+
+  assert.strictEqual(pitDeaths, 0, 'Zero tanks must fall into pit during opening rollout');
+}
+
 console.log('✔ AI Commander tests passed\n');
+

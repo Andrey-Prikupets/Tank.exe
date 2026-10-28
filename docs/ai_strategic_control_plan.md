@@ -106,6 +106,7 @@ Reserve deployment (armed reserve in hangar, spawn corridor clear) has its own u
 
 Before leaving a tank, **safe cruising trim** straightens its turn, projects 3.5 s ahead and either
 holds an 18 km/h cruise (36 on Delta / spearhead) or issues STOP when a hazard lies ahead.
+Additionally, **autonomous unselected hazard protection** (`enforceUnselectedTanksSafety` at 60Hz and `updateCommander` at 0.8s) monitors all moving unselected units, banking around pits or braking to prevent unselected tanks from driving into hazards. Mobilization verifies launch corridors against all pits (`isPathClearOfPits`) before rollout.
 
 ## 5. Tier 3 - Tactical executor
 

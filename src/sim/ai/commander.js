@@ -5,7 +5,7 @@ import { normalizeAngle } from './math.js';
 import { segmentVsObb, toLocal } from '../geometry.js';
 import { assignBrigadeRoles, updateBrigadeRoles, getRoleWaypoint } from './roles.js';
 
-function isPathClearOfPits(world, x0, y0, heading, dist = 24.0) {
+export function isPathClearOfPits(world, x0, y0, heading, dist = 24.0) {
   if (!world.pits || world.pits.length === 0) return true;
   const fx = x0 + Math.cos(heading) * dist;
   const fy = y0 + Math.sin(heading) * dist;
@@ -23,6 +23,34 @@ function isPathClearOfPits(world, x0, y0, heading, dist = 24.0) {
   }
   return true;
 }
+
+/** Per-tick fast safety reflex for unselected tanks cruising on the field. */
+export function enforceUnselectedTanksSafety(ctl, world, myField, activeTank) {
+  if (!world.pits || world.pits.length === 0) return;
+  for (const t of myField) {
+    if (t.status === 'field' && t.id !== activeTank?.id && t.cmdSpeedKmh > 0) {
+      const lookAhead = Math.max(12.0, Math.abs(t.speed) * 1.8);
+      if (!isPathClearOfPits(world, t.x, t.y, t.heading, lookAhead)) {
+        let clearAngle = null;
+        for (const off of [0.55, -0.55, 1.05, -1.05, 1.55, -1.55]) {
+          if (isPathClearOfPits(world, t.x, t.y, t.heading + off, lookAhead + 4.0)) {
+            clearAngle = t.heading + off;
+            break;
+          }
+        }
+        if (clearAngle != null) {
+          const errRad = normalizeAngle(clearAngle - t.heading);
+          t.cmdTurnDeg = Math.sign(errRad) * C.TANK_MAX_TURN_DEG_S;
+          t.cmdSpeedKmh = Math.min(t.cmdSpeedKmh, 18);
+        } else {
+          t.cmdSpeedKmh = 0;
+          t.cmdTurnDeg = 45;
+        }
+      }
+    }
+  }
+}
+
 
 /** Tier 1: Brigade Commander Strategic State Machine. */
 export function updateCommander(ctl, world, dt, myField, enemyField, profile) {
@@ -66,7 +94,27 @@ export function updateCommander(ctl, world, dt, myField, enemyField, profile) {
         enemyGateX,
         ctl.simTime,
       );
-      const wpAngle = Math.atan2(roleWaypoint.y - t.y, roleWaypoint.x - t.x);
+      let wpAngle = Math.atan2(roleWaypoint.y - t.y, roleWaypoint.x - t.x);
+      const distToWp = Math.hypot(roleWaypoint.x - t.x, roleWaypoint.y - t.y);
+
+      // Verify opening route is clear of pits
+      const checkDist = Math.min(75.0, distToWp);
+      if (!isPathClearOfPits(world, t.x, t.y, wpAngle, checkDist)) {
+        let clearAngle = null;
+        for (const off of [0.45, -0.45, 0.85, -0.85, 1.25, -1.25, 1.6, -1.6]) {
+          if (isPathClearOfPits(world, t.x, t.y, wpAngle + off, Math.min(45.0, checkDist))) {
+            clearAngle = wpAngle + off;
+            break;
+          }
+        }
+        if (clearAngle != null) {
+          wpAngle = clearAngle;
+        } else {
+          const flankY = t.y < C.FIELD_WIDTH_M / 2 ? 16 : 84;
+          wpAngle = Math.atan2(flankY - t.y, (owner === 0 ? 50 : 200) - t.x);
+        }
+      }
+
       const errRad = normalizeAngle(wpAngle - t.heading);
       const desiredTurn = Math.round(C.radToDeg(errRad) / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S;
       t.cmdTurnDeg = Math.max(-C.TANK_MAX_TURN_DEG_S, Math.min(C.TANK_MAX_TURN_DEG_S, desiredTurn));
@@ -120,6 +168,27 @@ export function updateCommander(ctl, world, dt, myField, enemyField, profile) {
         const desiredTurn = Math.round(C.radToDeg(errRad) / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S;
         t.cmdTurnDeg = gatePose.isDoorwayMode ? 0 : Math.max(-C.TANK_MAX_TURN_DEG_S, Math.min(C.TANK_MAX_TURN_DEG_S, desiredTurn));
         t.cmdSpeedKmh = gatePose.speedLimitKmh || 18;
+      } else if (t.cmdSpeedKmh > 0 && !isAtAmbush) {
+        // Continuous hazard protection for moving unselected tanks: check forward trajectory
+        const forwardLookAhead = Math.max(18.0, Math.abs(t.speed) * 3.0);
+        if (!isPathClearOfPits(world, t.x, t.y, t.heading, forwardLookAhead)) {
+          let clearAngle = null;
+          for (const off of [0.5, -0.5, 0.9, -0.9, 1.3, -1.3, 1.7, -1.7]) {
+            if (isPathClearOfPits(world, t.x, t.y, t.heading + off, forwardLookAhead + 5.0)) {
+              clearAngle = t.heading + off;
+              break;
+            }
+          }
+          if (clearAngle != null) {
+            const errRad = normalizeAngle(clearAngle - t.heading);
+            const desiredTurn = Math.round(C.radToDeg(errRad) / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S;
+            t.cmdTurnDeg = Math.max(-C.TANK_MAX_TURN_DEG_S, Math.min(C.TANK_MAX_TURN_DEG_S, desiredTurn));
+            t.cmdSpeedKmh = Math.min(t.cmdSpeedKmh, 18);
+          } else {
+            t.cmdSpeedKmh = 0;
+            t.cmdTurnDeg = 45;
+          }
+        }
       } else if (t.cmdSpeedKmh === 0 && !isAtAmbush) {
         const roleWaypoint = getRoleWaypoint(
           t,

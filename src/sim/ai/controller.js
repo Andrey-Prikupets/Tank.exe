@@ -6,7 +6,7 @@ import { updateEnemyTracking } from './perception.js';
 import { BRIGADE_DOCTRINES } from './roles.js';
 import { evaluateTankUrgency } from './urgency.js';
 import { DecisionLog } from './decision_log.js';
-import { updateCommander } from './commander.js';
+import { updateCommander, enforceUnselectedTanksSafety } from './commander.js';
 import { updateSlit } from './slit.js';
 import { runDispatcher } from './dispatcher.js';
 import { executeTactics } from './executor.js';
@@ -161,6 +161,9 @@ export class AiController {
     updateCommander(this, world, dt, myField, enemyField, profile);
 
     let tank = selectedTank(world, owner);
+
+    // Continuous per-tick safety brake and obstacle avoidance for unselected cruising tanks
+    enforceUnselectedTanksSafety(this, world, myField, tank);
 
     // 3. Update Visual Intelligence & Memory
     if (tank && tank.status === 'field') {
