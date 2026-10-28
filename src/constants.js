@@ -380,6 +380,12 @@ export const MENU_KEYS = {
   BACK: ['Escape'],
 };
 
+// ---- Network multiplayer ----------------------------------------------------
+export const NET_SNAPSHOT_INTERVAL_MS = 33; // host -> client state snapshots (~30 Hz)
+export const NET_HEARTBEAT_MS = 500; // PING cadence in both directions
+export const NET_TIMEOUT_MS = 2000; // no message from peer for this long => connection lost
+export const NET_TURN_EPSILON = 0.02; // min joystick steering change worth sending to the host
+
 // ---- Colors -----------------------------------------------------------------
 export const COLOR_FIELD = '#3f9b3f';
 export const COLOR_OUTSIDE = '#2e3338';

@@ -19,6 +19,23 @@ export class P2PConnection {
     this.onMessage = options.onMessage || (() => {});
     this.onError = options.onError || (() => {});
     this.onStateChange = options.onStateChange || (() => {});
+    this.closeNotified = false;
+  }
+
+  /** Calls onClose once per connection when the remote side is gone (not for a local close()). */
+  notifyClosed() {
+    if (this.closeNotified) return;
+    this.closeNotified = true;
+    this.setState('closed');
+    this.onClose();
+  }
+
+  /** Surfaces ICE/transport failure, which can arrive long before the data channel reports closed. */
+  watchPeerConnection(pc) {
+    pc.onconnectionstatechange = () => {
+      if (pc !== this.pc) return;
+      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') this.notifyClosed();
+    };
   }
 
   setState(newState) {
@@ -69,8 +86,7 @@ export class P2PConnection {
       this.onOpen();
     };
     dc.onclose = () => {
-      this.setState('closed');
-      this.onClose();
+      this.notifyClosed();
     };
     dc.onerror = (err) => {
       this.onError(err);
@@ -90,10 +106,12 @@ export class P2PConnection {
    */
   async createHostOffer() {
     this.close();
+    this.closeNotified = false;
     this.isHost = true;
     this.setState('offering');
 
     this.pc = new RTCPeerConnection({ iceServers: this.iceServers });
+    this.watchPeerConnection(this.pc);
     const dc = this.pc.createDataChannel('tank-game', { ordered: true });
     this.setupDataChannel(dc);
 
@@ -122,6 +140,7 @@ export class P2PConnection {
    */
   async createJoinerAnswer(offerToken) {
     this.close();
+    this.closeNotified = false;
     this.isHost = false;
     this.setState('answering');
 
@@ -131,6 +150,7 @@ export class P2PConnection {
     }
 
     this.pc = new RTCPeerConnection({ iceServers: this.iceServers });
+    this.watchPeerConnection(this.pc);
     this.pc.ondatachannel = (e) => {
       this.setupDataChannel(e.channel);
     };
@@ -154,6 +174,8 @@ export class P2PConnection {
   }
 
   close() {
+    // Local, intentional close: do not report it as a remote disconnect.
+    this.closeNotified = true;
     if (this.dc) {
       try { this.dc.close(); } catch {}
       this.dc = null;

@@ -65,35 +65,12 @@ export function serializeWorldSnapshot(world) {
       reload: t.reload,
       contacts: [...t.contacts],
     })),
-    shells: world.shells.map((s) => ({
-      x: s.x,
-      y: s.y,
-      vx: s.vx,
-      vy: s.vy,
-      owner: s.owner,
-      sourceTank: s.sourceTank,
-      dist: s.dist,
-    })),
-    mines: world.mines.map((m) => ({
-      x: m.x,
-      y: m.y,
-      owner: m.owner,
-      armed: m.armed,
-      t: m.t,
-    })),
-    smokes: world.smokes.map((s) => ({
-      x: s.x,
-      y: s.y,
-      t: s.t,
-    })),
-    explosions: world.explosions.map((e) => ({
-      x: e.x,
-      y: e.y,
-      r: e.r,
-      maxR: e.maxR,
-      t: e.t,
-      maxT: e.maxT,
-    })),
+    // Projectiles and particles are plain data objects: copy them whole so every field the
+    // renderers read (dx/dy/win, armT, big/splash, ...) is replicated on the client.
+    shells: world.shells.map((s) => ({ ...s })),
+    mines: world.mines.map((m) => ({ ...m })),
+    smokes: world.smokes.map((s) => ({ ...s })),
+    explosions: world.explosions.map((e) => ({ ...e })),
   };
 }
 
@@ -118,9 +95,13 @@ export function applyWorldSnapshot(world, snap) {
       const sp = snap.players[i];
       const wp = world.players[i];
       if (wp && sp) {
+        // The host is authoritative for both players (selection, tank/slit view, slit yaw).
         wp.selected = sp.selected;
-        // Don't overwrite local player's view preference to let them switch slit/tank freely
-        // but sync score and lost counts
+        wp.view = sp.view;
+        wp.windowIdx = sp.windowIdx;
+        wp.windowYaw = sp.windowYaw;
+        if (sp.windowYaws) wp.windowYaws = [...sp.windowYaws];
+        wp.windowReload = sp.windowReload;
         wp.lost = sp.lost;
         wp.shots = sp.shots;
         wp.hits = sp.hits;

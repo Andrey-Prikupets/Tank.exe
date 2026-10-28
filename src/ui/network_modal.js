@@ -7,7 +7,7 @@ export function createNetworkModal(root) {
   let callbacks = { onStartGame: () => {}, onClose: () => {} };
   let p2p = null;
   let activeTab = 'host'; // 'host' | 'connect'
-  let hostPlayer = 0; // 0: Blue, 1: Red
+  let hostPlayer = 0; // 0: Red (left squadron, P1), 1: Blue (right squadron, P2)
   let currentOfferToken = '';
   let currentAnswerToken = '';
   let scanner = null;
@@ -223,23 +223,23 @@ export function createNetworkModal(root) {
       teamRow.className = 'net-team-row';
       teamRow.innerHTML = `<span class="net-label">Host Team:</span>`;
 
-      const blueBtn = document.createElement('button');
-      blueBtn.className = `net-team-btn blue ${hostPlayer === 0 ? 'selected' : ''}`;
-      blueBtn.textContent = 'BLUE TEAM (P1)';
-      blueBtn.addEventListener('click', () => {
+      const redBtn = document.createElement('button');
+      redBtn.className = `net-team-btn red ${hostPlayer === 0 ? 'selected' : ''}`;
+      redBtn.textContent = 'RED TEAM (P1 · LEFT)';
+      redBtn.addEventListener('click', () => {
         hostPlayer = 0;
         render();
       });
-      teamRow.appendChild(blueBtn);
+      teamRow.appendChild(redBtn);
 
-      const redBtn = document.createElement('button');
-      redBtn.className = `net-team-btn red ${hostPlayer === 1 ? 'selected' : ''}`;
-      redBtn.textContent = 'RED TEAM (P2)';
-      redBtn.addEventListener('click', () => {
+      const blueBtn = document.createElement('button');
+      blueBtn.className = `net-team-btn blue ${hostPlayer === 1 ? 'selected' : ''}`;
+      blueBtn.textContent = 'BLUE TEAM (P2 · RIGHT)';
+      blueBtn.addEventListener('click', () => {
         hostPlayer = 1;
         render();
       });
-      teamRow.appendChild(redBtn);
+      teamRow.appendChild(blueBtn);
       body.appendChild(teamRow);
 
       if (currentOfferToken) {

@@ -258,8 +258,14 @@ const hud = createHud();
 let networkSession = null; // { isHost, p2p, localPlayer, remotePlayer }
 let remoteWindowTurn = 0;
 let lastSentWindowTurn = 0;
+let lastSentStickTurn = 0;
 let lastNetworkSync = 0;
-const networkSyncInterval = 33; // ~30 snapshots per second
+let lastNetworkRx = 0;
+let networkHeartbeatTimer = null;
+// Commands a remote peer is allowed to inject into the authoritative host world.
+const REMOTE_ACTIONS = new Set([
+  'SELECT', 'FORWARD', 'BACK', 'STOP', 'TURN_L', 'TURN_R', 'WIN_L', 'WIN_R', 'FIRE', 'MINE', 'SMOKE',
+]);
 
 let activeRecorder = null;
 let activePlayback = null;
@@ -295,28 +301,66 @@ window.addEventListener('keydown', (e) => {
 
 const touchSteer = [0, 0];
 
+/** True when this device may issue commands for `player` (the local seat in a network match). */
+function isLocallyControlled(player) {
+  return networkSession ? player === networkSession.localPlayer : !isAiPlayer(player);
+}
+
+/** Slit-window steering input of a locally controlled seat (touch stick wins over keys). */
+const localWindowTurn = (p) => (touchSteer[p] !== 0 ? touchSteer[p] : input.windowTurn(p));
+
+/** Applies proportional (joystick) steering to the player's selected field tank. */
+function applyStickTurn(player, factor) {
+  const pl = world.players[player];
+  const t = world.tanks.find((tank) => tank.owner === player && tank.number === pl.selected);
+  if (t && t.status === 'field' && pl.view === 'tank') {
+    const maxTurn = t.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
+    t.cmdTurnDeg = Math.round(factor * maxTurn);
+  }
+}
+
+/**
+ * Routes a command issued on this device. Offline and on the host it is applied to the world;
+ * a network client only forwards it - the host is authoritative and replicates the result back.
+ */
+function dispatchLocalAction(player, action, arg) {
+  if (networkSession) {
+    if (networkSession.isHost) applyAction(world, networkSession.localPlayer, action, arg);
+    else networkSession.p2p.send({ type: 'INPUT', action, arg });
+  } else {
+    applyAction(world, player, action, arg);
+  }
+}
+
+/** Forwards the client's joystick steering to the host (only when it actually changed). */
+function sendStickTurn(factor) {
+  const changed = factor === 0
+    ? lastSentStickTurn !== 0
+    : Math.abs(factor - lastSentStickTurn) >= C.NET_TURN_EPSILON;
+  if (!changed) return;
+  lastSentStickTurn = factor;
+  networkSession.p2p.send({ type: 'TURN', factor });
+}
+
 const touch = createTouchControls({
   root: document.getElementById('app'),
   forceMobile,
   onAction: (player, action, arg) => {
-    if (appState !== 'PLAYING' || menu.isOpen() || isAiPlayer(player)) return;
-    if (action === 'STOP') {
-      applyAction(world, player, 'STOP');
-      return;
-    }
-    applyAction(world, player, action, arg);
+    if (appState !== 'PLAYING' || menu.isOpen() || !isLocallyControlled(player)) return;
+    dispatchLocalAction(player, action, arg);
   },
   onContinuousTurn: (player, factor) => {
     touchSteer[player] = factor;
-    if (appState !== 'PLAYING' || menu.isOpen() || isAiPlayer(player)) return;
-    const pl = world.players[player];
-    const t = world.tanks.find((tank) => tank.owner === player && tank.number === pl.selected);
-    if (t && t.status === 'field' && pl.view === 'tank') {
-      const maxTurn = t.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
-      t.cmdTurnDeg = Math.round(factor * maxTurn);
+    if (networkSession && !networkSession.isHost) {
+      // Always let a release (0) through so the host never keeps a stale steering command.
+      if (factor === 0 || (appState === 'PLAYING' && isLocallyControlled(player))) sendStickTurn(factor);
+      return;
     }
+    if (appState !== 'PLAYING' || menu.isOpen() || !isLocallyControlled(player)) return;
+    applyStickTurn(networkSession ? networkSession.localPlayer : player, factor);
   },
-  isHumanPlayer: (p) => !isAiPlayer(p),
+  // Touch controls are shown only for seats this device actually controls.
+  isHumanPlayer: isLocallyControlled,
   openMenu: () => {
     if (appState === 'PLAYING') {
       if (touch.isEnabled()) {
@@ -580,45 +624,103 @@ function confirmScreen(text, onYes) {
   };
 }
 
-function leaveNetworkGame() {
+/** Tears the network session down locally (heartbeat, data channel, input layout). */
+function closeNetworkSession() {
+  if (networkHeartbeatTimer) {
+    clearInterval(networkHeartbeatTimer);
+    networkHeartbeatTimer = null;
+  }
   if (networkSession) {
     try {
       networkSession.p2p.close();
     } catch {}
     networkSession = null;
   }
+  remoteWindowTurn = 0;
+  lastSentWindowTurn = 0;
+  lastSentStickTurn = 0;
+  touchSteer[0] = 0;
+  touchSteer[1] = 0;
   input.setLayoutMode('splitscreen');
+  input.clear();
+}
+
+function leaveNetworkGame() {
+  closeNetworkSession();
   openTitle();
+}
+
+/** The peer went away (channel closed, transport failed or heartbeat timed out): end the match here too. */
+function handleNetworkDisconnect(reason) {
+  if (!networkSession) return;
+  const matchWasOver = world.over;
+  closeNetworkSession();
+  saveActiveRecording();
+  dirty = true;
+  if (matchWasOver) return; // the game-over card already offers the way out
+  menu.clear();
+  menu.push({
+    title: 'DISCONNECTED',
+    text: `<div class="center">${reason}</div>`,
+    items: [{ label: 'Main menu', action: openTitle }],
+    onEsc: openTitle,
+  });
+}
+
+/** Sends PING both ways and declares the peer lost when nothing has been received for NET_TIMEOUT_MS. */
+function startNetworkHeartbeat() {
+  if (networkHeartbeatTimer) clearInterval(networkHeartbeatTimer);
+  lastNetworkRx = performance.now();
+  networkHeartbeatTimer = setInterval(() => {
+    if (!networkSession) return;
+    if (performance.now() - lastNetworkRx > C.NET_TIMEOUT_MS) {
+      handleNetworkDisconnect(
+        networkSession.isHost ? 'The other player lost connection.' : 'Connection to the host was lost.'
+      );
+      return;
+    }
+    networkSession.p2p.send({ type: 'PING' });
+  }, C.NET_HEARTBEAT_MS);
 }
 
 function handleHostNetworkMessage(msg) {
   if (!networkSession || !networkSession.isHost) return;
   if (msg.type === 'INPUT') {
+    if (!REMOTE_ACTIONS.has(msg.action)) return;
     applyAction(world, networkSession.remotePlayer, msg.action, msg.arg);
     dirty = true;
-  } else if (msg.type === 'STEER') {
-    remoteWindowTurn = msg.windowTurn || 0;
+  } else if (msg.type === 'TURN') {
+    const factor = Math.max(-1, Math.min(1, Number(msg.factor) || 0));
+    applyStickTurn(networkSession.remotePlayer, factor);
     dirty = true;
+  } else if (msg.type === 'STEER') {
+    remoteWindowTurn = Math.max(-1, Math.min(1, Number(msg.windowTurn) || 0));
+    dirty = true;
+  }
+}
+
+function startNetworkRecording() {
+  if (recordingEnabled) {
+    activeRecorder = createRecorder(world, {
+      mode: 'HvH_NET',
+      modeLabel: 'Human vs Human (separate devices)',
+      aiLevel: null,
+      shootDist: world.shellRange || options.shootDist || C.SHELL_RANGE_M,
+    });
+  } else {
+    activeRecorder = null;
   }
 }
 
 function handleClientNetworkMessage(msg) {
   if (!networkSession || networkSession.isHost) return;
   if (msg.type === 'INIT') {
-    options.obstacles = msg.options.obstacles;
-    options.pits = msg.options.pits;
-    if (msg.options.shootDist) options.shootDist = msg.options.shootDist;
-    world = createWorld(options);
-    world.obstacles = msg.obstacles;
-    world.pits = msg.pits;
-    world.shellRange = msg.shellRange;
-    syncWorldTerrain(world);
+    // Adopt the host's exact landscape and rules without touching this device's own Options.
+    world = createWorld({ obstacles: msg.obstacles, pits: msg.pits, shellRange: msg.shellRange });
     world.isAiPlayer = () => false;
 
     networkSession.localPlayer = msg.joinerPlayer;
     networkSession.remotePlayer = msg.hostPlayer;
-    const netModeIdx = C.PLAYER_MODES.findIndex((m) => m.id === 'HvH_NET');
-    if (netModeIdx >= 0) playerModeIndex = netModeIdx;
     input.setLayoutMode('network', networkSession.localPlayer);
 
     appState = 'PLAYING';
@@ -627,18 +729,9 @@ function handleClientNetworkMessage(msg) {
     menu.clear();
     dirty = true;
     hud.update(world, performance.now(), true);
-
-    if (recordingEnabled) {
-      activeRecorder = createRecorder(world, {
-        mode: 'HvH_NET',
-        modeLabel: 'Human vs Human (separate devices)',
-        aiLevel: null,
-        shootDist: world.shellRange || options.shootDist || C.SHELL_RANGE_M,
-      });
-    } else {
-      activeRecorder = null;
-    }
+    startNetworkRecording();
   } else if (msg.type === 'STATE') {
+    if (appState !== 'PLAYING') return;
     applyWorldSnapshot(world, msg);
     dirty = true;
   } else if (msg.type === 'EVENTS') {
@@ -658,16 +751,26 @@ function startNetworkGame(session) {
   networkSession = session;
   remoteWindowTurn = 0;
   lastSentWindowTurn = 0;
+  lastSentStickTurn = 0;
   lastNetworkSync = 0;
 
   const netModeIdx = C.PLAYER_MODES.findIndex((m) => m.id === 'HvH_NET');
   if (netModeIdx >= 0) playerModeIndex = netModeIdx;
 
+  const handler = session.isHost ? handleHostNetworkMessage : handleClientNetworkMessage;
+  session.p2p.onMessage = (msg) => {
+    lastNetworkRx = performance.now();
+    if (!msg || msg.type === 'PING') return;
+    handler(msg);
+  };
+  session.p2p.onClose = () =>
+    handleNetworkDisconnect(session.isHost ? 'The other player disconnected.' : 'The host disconnected.');
+  startNetworkHeartbeat();
+
   if (session.isHost) {
     world = createWorld(options);
     world.isAiPlayer = () => false;
     input.setLayoutMode('network', session.localPlayer);
-    session.p2p.onMessage = handleHostNetworkMessage;
     // Send INIT to client with identical landscape and match rules
     session.p2p.send(createInitPayload(world, session.localPlayer, session.remotePlayer, options));
     appState = 'PLAYING';
@@ -676,20 +779,9 @@ function startNetworkGame(session) {
     menu.clear();
     dirty = true;
     hud.update(world, performance.now(), true);
-
-    if (recordingEnabled) {
-      activeRecorder = createRecorder(world, {
-        mode: 'HvH_NET',
-        modeLabel: 'Human vs Human (separate devices)',
-        aiLevel: null,
-        shootDist: world.shellRange || options.shootDist || C.SHELL_RANGE_M,
-      });
-    } else {
-      activeRecorder = null;
-    }
+    startNetworkRecording();
   } else {
-    // Client joins: listener will wait for INIT packet
-    session.p2p.onMessage = handleClientNetworkMessage;
+    // Client joins: the world is created when the host's INIT packet arrives
     menu.clear();
     dirty = true;
   }
@@ -711,9 +803,11 @@ function newGame() {
   hud.update(world, performance.now(), true);
 
   if (recordingEnabled) {
+    // A local game started while the network mode is selected is a plain split-screen match.
+    const mode = currentMode().isNetwork ? C.PLAYER_MODES[0] : currentMode();
     activeRecorder = createRecorder(world, {
-      mode: currentMode().id,
-      modeLabel: currentMode().label,
+      mode: mode.id,
+      modeLabel: mode.label,
       aiLevel: currentAiLevel(),
       shootDist: world.shellRange || options.shootDist || C.SHELL_RANGE_M,
     });
@@ -849,7 +943,7 @@ function openPause() {
   dirty = true;
   menu.push({
     title: C.GAME_NAME,
-    text: '<div class="center">Game is paused</div>',
+    text: `<div class="center">${networkSession ? 'Network match continues — the game is NOT paused' : 'Game is paused'}</div>`,
     items: () => {
       const items = [{ label: 'Resume game', action: resume }];
       if (networkSession) {
@@ -917,7 +1011,9 @@ function openGameOver() {
       {
         label: 'New game',
         action: () => {
-          if (networkSession) leaveNetworkGame();
+          // After a network match (even one whose peer already left) go back to the title,
+          // where Start game reopens the connection dialog.
+          if (networkSession || currentMode().isNetwork) leaveNetworkGame();
           else newGame();
         },
       },
@@ -974,6 +1070,8 @@ window.addEventListener('keyup', (e) => input.keyUp(e));
 window.addEventListener('pointerdown', () => sfx.resume());
 window.addEventListener('blur', () => {
   input.clear();
+  // A network match is shared: losing focus on one device must not freeze the opponent's game.
+  if (networkSession) return;
   if (appState === 'PLAYING' && !menu.isOpen() && !kbScreen.isOpen() && !world.over) openPause();
 });
 document.addEventListener('visibilitychange', () => {
@@ -1012,24 +1110,22 @@ function frame(now) {
     dirty = true;
   }
 
-  const playing = appState === 'PLAYING' && !menu.isOpen() && !world.over;
+  const menuOpen = menu.isOpen();
+  // A network match is shared with a remote player, so it never freezes on a local menu.
+  const playing = appState === 'PLAYING' && !world.over && (!menuOpen || !!networkSession);
   if (playing) {
-    input.update(now);
-    const drainedActions = input.drain();
+    let drainedActions = [];
+    if (!menuOpen) {
+      input.update(now);
+      drainedActions = input.drain();
+    }
 
     if (networkSession) {
-      if (networkSession.isHost) {
-        for (const a of drainedActions) {
-          applyAction(world, networkSession.localPlayer, a.action, a.arg);
-        }
-      } else {
-        for (const a of drainedActions) {
-          if (a.action === 'SELECT' || a.action === 'WIN_L' || a.action === 'WIN_R') {
-            applyAction(world, networkSession.localPlayer, a.action, a.arg);
-          }
-          networkSession.p2p.send({ type: 'INPUT', action: a.action, arg: a.arg });
-        }
-        const wTurn = touchSteer[networkSession.localPlayer] !== 0 ? touchSteer[networkSession.localPlayer] : input.windowTurn(networkSession.localPlayer);
+      for (const a of drainedActions) {
+        dispatchLocalAction(networkSession.localPlayer, a.action, a.arg);
+      }
+      if (!networkSession.isHost) {
+        const wTurn = menuOpen ? 0 : localWindowTurn(networkSession.localPlayer);
         if (wTurn !== lastSentWindowTurn) {
           lastSentWindowTurn = wTurn;
           networkSession.p2p.send({ type: 'STEER', windowTurn: wTurn });
@@ -1055,20 +1151,18 @@ function frame(now) {
       acc += dtFrame;
       while (acc >= C.SIM_TICK_S) {
         step(world, C.SIM_TICK_S, {
-          windowTurn: [
-            networkSession
-              ? (networkSession.localPlayer === 0 ? input.windowTurn(0) : remoteWindowTurn)
-              : (isAiPlayer(0) ? aiControllers[0].windowTurn : (touchSteer[0] !== 0 ? touchSteer[0] : input.windowTurn(0))),
-            networkSession
-              ? (networkSession.localPlayer === 1 ? input.windowTurn(1) : remoteWindowTurn)
-              : (isAiPlayer(1) ? aiControllers[1].windowTurn : (touchSteer[1] !== 0 ? touchSteer[1] : input.windowTurn(1))),
-          ],
+          windowTurn: [0, 1].map((p) => {
+            if (networkSession) {
+              return networkSession.localPlayer === p ? localWindowTurn(p) : remoteWindowTurn;
+            }
+            return isAiPlayer(p) ? aiControllers[p].windowTurn : localWindowTurn(p);
+          }),
         });
         acc -= C.SIM_TICK_S;
       }
 
       if (networkSession && networkSession.isHost) {
-        if (now - lastNetworkSync >= networkSyncInterval) {
+        if (now - lastNetworkSync >= C.NET_SNAPSHOT_INTERVAL_MS) {
           lastNetworkSync = now;
           networkSession.p2p.send(serializeWorldSnapshot(world));
         }
@@ -1083,6 +1177,9 @@ function frame(now) {
       dirty = true;
     } else {
       acc = 0;
+      if (activeRecorder) {
+        activeRecorder.sample(world);
+      }
       dirty = true;
     }
   } else {

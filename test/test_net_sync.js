@@ -45,9 +45,12 @@ applyWorldSnapshot(clientWorld, snapshot);
 
 // Verify client replica matches host exactly
 assert.strictEqual(clientWorld.shells.length, hostWorld.shells.length, 'Client shells must match host');
+assert.strictEqual(clientWorld.shells[0].dx, hostWorld.shells[0].dx, 'Shell dx must match');
 assert.strictEqual(clientWorld.tanks[0].x, hostWorld.tanks[0].x, 'Client tank X must match host');
 assert.strictEqual(clientWorld.tanks[0].speed, hostWorld.tanks[0].speed, 'Client tank speed must match host');
 assert.strictEqual(clientWorld.tanks[0].shells, hostWorld.tanks[0].shells, 'Client tank shells must match host');
 assert.strictEqual(clientWorld.gates[0].open, hostWorld.gates[0].open, 'Client gate status must match host');
+assert.strictEqual(clientWorld.players[0].view, hostWorld.players[0].view, 'Client player view must match host');
+assert.strictEqual(clientWorld.players[0].windowIdx, hostWorld.players[0].windowIdx, 'Client windowIdx must match host');
 
 console.log('✓ Network synchronization engine tests passed!');
