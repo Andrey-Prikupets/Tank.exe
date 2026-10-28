@@ -4,3 +4,4 @@ dist/
 *.log
 init.git.cmd
 vcr.log
+package-lock.json

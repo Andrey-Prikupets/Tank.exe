@@ -1086,3 +1086,11 @@ To ensure both players experience the exact same picture without desynchronizati
    - Host streams simulation event records (`'shot'`, `'hit'`, `'kill'`, `'mine_drop'`, `'smoke'`, `'gate_open'`, `'hangar_exit'`, `'hangar_enter'`).
    - Client immediately pipes received events into the Web Audio synthesizer (`sfx.play(e)`), ensuring audio cues, gate sound effects, and explosion feedback trigger simultaneously on both players' machines.
 
+---
+
+## 20. CI/CD & Deployment Pipeline
+
+- **GitHub Actions Workflow:** Deployments to GitHub Pages are managed via `.github/workflows/deploy.yml` triggered automatically on pushes to `main` or via manual dispatch.
+- **Dependency Management & Build Resilience:** The CI build pipeline runs `npm install --no-audit --no-fund` with dependency caching keyed on `package.json` (`cache-dependency-path: 'package.json'`).
+- **Lockfile Policy:** `package-lock.json` is excluded via `.gitignore` and untracked from git to prevent lockfile divergence issues across varying developer environments and CI runners.
+
