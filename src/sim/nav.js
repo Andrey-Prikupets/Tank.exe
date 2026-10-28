@@ -13,7 +13,7 @@ export const COST_LETHAL = 255; // Pits and Mines (impassable)
 
 export const TANK_COLLISION_RADIUS_M = Math.hypot(C.TANK_LENGTH_M / 2, C.TANK_WIDTH_M / 2); // ~3.61m
 export const MINE_LETHAL_RADIUS_M = C.TANK_WIDTH_M / 2 + C.MINE_TRIGGER_RADIUS_M + 0.6;   // ~3.60m
-export const PIT_LETHAL_MARGIN_M = 1.6;
+export const PIT_LETHAL_MARGIN_M = 1.8;
 
 export const GRID_CELL_SIZE_M = 2.0; // 250m x 100m -> 125 x 50 grid cells
 export const GRID_COLS = Math.ceil(C.FIELD_LENGTH_M / GRID_CELL_SIZE_M);
@@ -142,13 +142,19 @@ export class NavigationGrid {
             const cy = (r + 0.5) * this.cellSize;
             const [lx, ly] = toLocal(pit, cx, cy);
 
-            // Pit overlap threshold margin
+            // Pit overlap threshold margin: lethal core and caution perimeter
             const marginL = pit.l / 2 + PIT_LETHAL_MARGIN_M;
             const marginW = pit.w / 2 + PIT_LETHAL_MARGIN_M;
+            const cautionL = pit.l / 2 + PIT_LETHAL_MARGIN_M + 3.0;
+            const cautionW = pit.w / 2 + PIT_LETHAL_MARGIN_M + 3.0;
+
+            const idx = this.cellIndex(c, r);
+            if (idx === -1) continue;
 
             if (Math.abs(lx) < marginL && Math.abs(ly) < marginW) {
-              const idx = this.cellIndex(c, r);
-              if (idx !== -1) this.data[idx] = COST_LETHAL;
+              this.data[idx] = COST_LETHAL;
+            } else if (Math.abs(lx) < cautionL && Math.abs(ly) < cautionW && this.data[idx] < COST_CAUTION) {
+              this.data[idx] = COST_CAUTION;
             }
           }
         }
@@ -488,10 +494,10 @@ export function getGateCorridorPose(tank, owner, simTime) {
     };
   }
 
-  // Zone 2: In corridor approach or doorway ($distToGate \le 26m$, laterally aligned)
+  // Zone 2: In corridor approach or doorway ($distToGate \le 28m$, laterally aligned)
   // Target penetrates deep into the hangar so heading vector pulls directly through doorway.
-  if (distToGate <= C.AI_REARM_STANDOFF_DIST_M + 4.0 && lateralOffset <= 2.6) {
-    const isDoorway = distToGate <= 16.0 && lateralOffset <= 1.6 && headingErr <= 0.45;
+  if (distToGate <= C.AI_REARM_STANDOFF_DIST_M + 6.0 && lateralOffset <= 3.2) {
+    const isDoorway = distToGate <= 18.0 && lateralOffset <= 2.2 && headingErr <= 0.65;
     return {
       targetX: myGateX - inward * C.AI_REARM_PENETRATION_DEPTH_M,
       targetY: C.GATE_CENTER_Y_M,
@@ -567,8 +573,8 @@ export function evaluateKinematicTrajectoryArcs(
   }
 
   let bestScore = -Infinity;
-  let bestSpeedKmh = maxSpeedKmh;
-  let bestTurnDeg = 0;
+  let bestSpeedKmh = 0; // Safe stop default if all forward arcs are blocked by hazards
+  let bestTurnDeg = 30; // Safe pivot default
 
   const horizonSec = 1.8;
   const simSteps = 6;
@@ -593,6 +599,8 @@ export function evaluateKinematicTrajectoryArcs(
       let minEnemyDist = Infinity;
 
       for (let step = 1; step <= simSteps; step++) {
+        const prevSimX = simX;
+        const prevSimY = simY;
         simHeading += simTurnRad * dtStep;
         simX += Math.cos(simHeading) * simSpeedMs * dtStep;
         simY += Math.sin(simHeading) * simSpeedMs * dtStep;
@@ -607,9 +615,20 @@ export function evaluateKinematicTrajectoryArcs(
           houseContactCount++;
         }
 
-        // Direct Pit geometry verification
+        // Direct Pit geometry verification (point + trajectory segment)
         if (world.pits) {
           for (const pit of world.pits) {
+            const expPit = {
+              x: pit.x,
+              y: pit.y,
+              h: pit.h,
+              l: pit.l + PIT_LETHAL_MARGIN_M * 2,
+              w: pit.w + PIT_LETHAL_MARGIN_M * 2,
+            };
+            if (segmentVsObb(prevSimX, prevSimY, simX, simY, expPit) != null) {
+              lethalCollision = true;
+              break;
+            }
             const [plx, ply] = toLocal(pit, simX, simY);
             if (
               Math.abs(plx) < pit.l / 2 + PIT_LETHAL_MARGIN_M &&

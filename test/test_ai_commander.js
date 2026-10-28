@@ -56,4 +56,49 @@ for (const o of [0, 1]) {
   }
 }
 
+// 5. Empty tank (only mines) pursuit & mine drop test
+{
+  const { createWorld } = await import('../src/sim/world.js');
+  const { executeTactics } = await import('../src/sim/ai/executor.js');
+  const world = createWorld({ obstacles: false, pits: false });
+  // Blue tank (owner 1), out of shells, has 2 mines, moving toward its gate (East)
+  const blueTank = world.tanks.find((t) => t.owner === 1 && t.status === 'field');
+  blueTank.x = 180;
+  blueTank.y = 50;
+  blueTank.heading = 0; // facing East toward blue gate at x=250
+  blueTank.speed = C.kmhToMs(18);
+  blueTank.shells = 0;
+  blueTank.mines = 2;
+
+  // Red pursuer (owner 0) 12m behind blue tank, armed
+  const redTank = world.tanks.find((t) => t.owner === 0 && t.status === 'field');
+  redTank.x = 168;
+  redTank.y = 50;
+  redTank.heading = 0;
+  redTank.speed = C.kmhToMs(18);
+  redTank.shells = 5;
+
+  const mockCtl = {
+    owner: 1,
+    simTime: 10.0,
+    decisionTimer: 1.0,
+    stuckTimer: 0,
+    reverseTimer: 0,
+    sliceTimer: 3.0,
+    tankRoles: new Map([[blueTank.id, 'RELOADER']]),
+    laneOffset: 0,
+    deadTankIds: new Set(),
+    casualtyTimestamps: [],
+    decisionLog: [],
+    note(tag, msg) { this.decisionLog.push({ tag, msg }); },
+  };
+
+  const profile = { maxSpeedKmh: 36, rearm: true, tickInterval: 0.05, useMines: 1.0 };
+  executeTactics(mockCtl, world, 0.05, blueTank, [redTank], profile, 'HARD');
+
+  assert.ok(world.mines.length > 0, 'Empty tank dropped mine against pursuer');
+  assert.ok(mockCtl.decisionLog.some((e) => e.tag === 'MINE'), 'Logged MINE drop');
+  assert.ok(mockCtl.decisionLog.some((e) => e.tag === 'REARM'), 'Logged REARM return to hangar');
+}
+
 console.log('✔ AI Commander tests passed\n');

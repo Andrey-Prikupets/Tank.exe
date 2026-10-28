@@ -2,7 +2,27 @@ import * as C from '../../constants.js';
 import { gateX, selectedTank } from '../world.js';
 import { getGateCorridorPose, getGateAmbushPose } from '../nav.js';
 import { normalizeAngle } from './math.js';
+import { segmentVsObb, toLocal } from '../geometry.js';
 import { assignBrigadeRoles, updateBrigadeRoles, getRoleWaypoint } from './roles.js';
+
+function isPathClearOfPits(world, x0, y0, heading, dist = 24.0) {
+  if (!world.pits || world.pits.length === 0) return true;
+  const fx = x0 + Math.cos(heading) * dist;
+  const fy = y0 + Math.sin(heading) * dist;
+  for (const pit of world.pits) {
+    const expPit = {
+      x: pit.x,
+      y: pit.y,
+      h: pit.h,
+      l: pit.l + 8.0,
+      w: pit.w + 8.0,
+    };
+    if (segmentVsObb(x0, y0, fx, fy, expPit) != null) return false;
+    const [tlx, tly] = toLocal(pit, x0, y0);
+    if (Math.abs(tlx) < pit.l / 2 + 5.0 && Math.abs(tly) < pit.w / 2 + 5.0) return false;
+  }
+  return true;
+}
 
 /** Tier 1: Brigade Commander Strategic State Machine. */
 export function updateCommander(ctl, world, dt, myField, enemyField, profile) {
@@ -81,7 +101,21 @@ export function updateCommander(ctl, world, dt, myField, enemyField, profile) {
       const isRearming = profile.rearm && t.shells === 0;
       if (isRearming) {
         const gatePose = getGateCorridorPose(t, owner, ctl.simTime);
-        const wpAngle = Math.atan2(gatePose.targetY - t.y, gatePose.targetX - t.x);
+        let wpAngle = Math.atan2(gatePose.targetY - t.y, gatePose.targetX - t.x);
+        if (!gatePose.isDoorwayMode && !isPathClearOfPits(world, t.x, t.y, wpAngle)) {
+          let clearAngle = null;
+          for (const off of [0.6, -0.6, 1.1, -1.1]) {
+            if (isPathClearOfPits(world, t.x, t.y, wpAngle + off)) {
+              clearAngle = wpAngle + off;
+              break;
+            }
+          }
+          if (clearAngle != null) wpAngle = clearAngle;
+          else {
+            t.cmdSpeedKmh = 0;
+            continue;
+          }
+        }
         const errRad = normalizeAngle(wpAngle - t.heading);
         const desiredTurn = Math.round(C.radToDeg(errRad) / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S;
         t.cmdTurnDeg = gatePose.isDoorwayMode ? 0 : Math.max(-C.TANK_MAX_TURN_DEG_S, Math.min(C.TANK_MAX_TURN_DEG_S, desiredTurn));
@@ -96,7 +130,21 @@ export function updateCommander(ctl, world, dt, myField, enemyField, profile) {
           ctl.simTime,
           world,
         );
-        const wpAngle = Math.atan2(roleWaypoint.y - t.y, roleWaypoint.x - t.x);
+        let wpAngle = Math.atan2(roleWaypoint.y - t.y, roleWaypoint.x - t.x);
+        if (!isPathClearOfPits(world, t.x, t.y, wpAngle)) {
+          let clearAngle = null;
+          for (const off of [0.6, -0.6, 1.1, -1.1]) {
+            if (isPathClearOfPits(world, t.x, t.y, wpAngle + off)) {
+              clearAngle = wpAngle + off;
+              break;
+            }
+          }
+          if (clearAngle != null) wpAngle = clearAngle;
+          else {
+            t.cmdSpeedKmh = 0;
+            continue;
+          }
+        }
         const errRad = normalizeAngle(wpAngle - t.heading);
         const desiredTurn = Math.round(C.radToDeg(errRad) / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S;
         t.cmdTurnDeg = Math.max(-C.TANK_MAX_TURN_DEG_S, Math.min(C.TANK_MAX_TURN_DEG_S, desiredTurn));

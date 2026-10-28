@@ -49,15 +49,20 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
     for (const pit of world.pits) {
       const dPit = Math.hypot(pit.x - tank.x, pit.y - tank.y);
       const pitR = Math.hypot(pit.l, pit.w) / 2;
-      if (dPit > pitR + lookAhead + 4) continue;
-      const [flx, fly] = toLocal(pit, fx, fy);
+      if (dPit > pitR + lookAhead + 6) continue;
+      const expPit = {
+        x: pit.x,
+        y: pit.y,
+        h: pit.h,
+        l: pit.l + 8.0,
+        w: pit.w + 8.0,
+      };
+      if (segmentVsObb(tank.x, tank.y, fx, fy, expPit) != null) {
+        hazardScore = Math.max(hazardScore, C.AI_URGENCY_HAZARD_PIT);
+        break;
+      }
       const [tlx, tly] = toLocal(pit, tank.x, tank.y);
-      const marginL = pit.l / 2 + C.TANK_WIDTH_M + 1.5;
-      const marginW = pit.w / 2 + C.TANK_WIDTH_M + 1.5;
-      if (
-        (Math.abs(flx) < marginL && Math.abs(fly) < marginW) ||
-        (Math.abs(tlx) < marginL + 2 && Math.abs(tly) < marginW + 2)
-      ) {
+      if (Math.abs(tlx) < pit.l / 2 + 5.0 && Math.abs(tly) < pit.w / 2 + 5.0) {
         hazardScore = Math.max(hazardScore, C.AI_URGENCY_HAZARD_PIT);
         break;
       }
@@ -218,16 +223,16 @@ export function applySafeCruisingTrim(world, owner, tank, targetSpeedKmh = 18) {
     // Pits
     if (world.pits) {
       for (const pit of world.pits) {
-        const [flx, fly] = toLocal(pit, fx, fy);
+        const expPit = {
+          x: pit.x,
+          y: pit.y,
+          h: pit.h,
+          l: pit.l + 8.0,
+          w: pit.w + 8.0,
+        };
+        if (segmentVsObb(tank.x, tank.y, fx, fy, expPit) != null) return true;
         const [tlx, tly] = toLocal(pit, tank.x, tank.y);
-        const marginL = pit.l / 2 + C.TANK_WIDTH_M + 1.5;
-        const marginW = pit.w / 2 + C.TANK_WIDTH_M + 1.5;
-        if (
-          (Math.abs(flx) < marginL && Math.abs(fly) < marginW) ||
-          (Math.abs(tlx) < marginL + 2 && Math.abs(tly) < marginW + 2)
-        ) {
-          return true;
-        }
+        if (Math.abs(tlx) < pit.l / 2 + 5.0 && Math.abs(tly) < pit.w / 2 + 5.0) return true;
       }
     }
 

@@ -236,6 +236,30 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
     if (gatePose.speedLimitKmh) {
       maxSpeedOverride = Math.min(maxSpeedOverride, gatePose.speedLimitKmh);
     }
+
+    // Identify nearest enemy threat while rearming / fleeing
+    let nearestThreat = null;
+    let nearestThreatDist = Infinity;
+    for (const e of enemyField) {
+      const d = Math.hypot(e.x - tank.x, e.y - tank.y);
+      if (d < nearestThreatDist) {
+        nearestThreatDist = d;
+        nearestThreat = e;
+      }
+    }
+
+    if (nearestThreat && nearestThreatDist < 35.0) {
+      // Sprint to hangar to escape the armed pursuer!
+      maxSpeedOverride = profile.maxSpeedKmh;
+
+      // If enemy is directly in our path to the gate, add lateral evasive jinking
+      const toGateX = navTargetX - tank.x;
+      const toEnemyX = nearestThreat.x - tank.x;
+      if (Math.sign(toGateX) === Math.sign(toEnemyX) && nearestThreatDist < 18.0) {
+        const jinkDir = tank.y < nearestThreat.y ? -1 : 1;
+        navTargetY = Math.max(12, Math.min(88, navTargetY + jinkDir * 16.0));
+      }
+    }
   } else {
     gateReservationManager.releaseGate(owner, tank.id);
     if (combatTarget && combatTargetPos && tank.shells > 0) {
@@ -264,7 +288,7 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
     }
   }
 
-  if (!isDoorwayMode) {
+  if (!isDoorwayMode && !isRearming) {
     // Slit gun sector avoidance clamp: ensure no navigation waypoint forces tank into enemy slit gun sector
     if (isInEnemySlitGunSector(navTargetX, navTargetY, 1 - owner)) {
       const gx = gateX(1 - owner);
@@ -351,14 +375,23 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
     }
   }
 
-  // 15. Defensive mines (never next to friendly tanks or in our own gate lane: mines kill our own too)
-  const gateThreat = enemyField.some((e) => Math.abs(e.x - gateX(owner)) < C.AI_MINE_GATE_THREAT_DIST_M);
-  if (C.AI_MINES_ENABLED && tank.mines > 0 && assignedRole.includes('DEFENSE') && gateThreat) {
-    const behindAngle = normalizeAngle(desiredHeading - (tank.heading + Math.PI));
+  // 15. Defensive mines: Lay mines when pursued from behind or when defending the base
+  if (C.AI_MINES_ENABLED && tank.mines > 0 && Math.random() < (profile.useMines || 0.6)) {
     const ownGateX = gateX(owner);
     const inOwnGateLane =
-      Math.abs(tank.x - ownGateX) < C.AI_MINE_GATE_KEEPOUT_X_M &&
-      Math.abs(tank.y - C.GATE_CENTER_Y_M) < C.AI_MINE_GATE_KEEPOUT_Y_M;
+      Math.abs(tank.x - ownGateX) < 14.0 &&
+      Math.abs(tank.y - C.GATE_CENTER_Y_M) < 6.0;
+
+    // Check if an enemy is pursuing in our trailing wake corridor
+    let pursuerBehind = false;
+    for (const e of enemyField) {
+      const [elx, ely] = toLocal(tank, e.x, e.y);
+      if (elx < -2.0 && elx > -26.0 && Math.abs(ely) < 5.5) {
+        pursuerBehind = true;
+        break;
+      }
+    }
+
     const friendlyNear = world.tanks.some(
       (t) =>
         t.owner === owner &&
@@ -366,14 +399,15 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
         t.status === 'field' &&
         Math.hypot(t.x - tank.x, t.y - tank.y) < C.AI_MINE_FRIENDLY_SAFE_DIST_M,
     );
-    if (
-      !inOwnGateLane &&
-      !friendlyNear &&
-      Math.abs(behindAngle) < C.AI_MINE_BEHIND_ANGLE_RAD &&
-      Math.random() < profile.useMines
-    ) {
-      applyAction(world, owner, 'MINE');
-      ctl.note('MINE', `T${tank.number} lays a mine`, { key: `mine${tank.id}`, gap: 2 });
+
+    const isDefendingBase = assignedRole.includes('DEFENSE') && gateThreat;
+
+    if (!inOwnGateLane && !friendlyNear && (pursuerBehind || isDefendingBase)) {
+      // Must be moving forward away from the mine
+      if (tank.speed > 0.5 || tank.cmdSpeedKmh > 0) {
+        applyAction(world, owner, 'MINE');
+        ctl.note('MINE', `T${tank.number} lays mine against pursuing enemy`, { key: `mine${tank.id}`, gap: 3 });
+      }
     }
   }
 }

@@ -552,7 +552,7 @@ function gateWants(world) {
     }
     // Driving toward own gate with room to enter: open in advance.
     const depthC = dir * (t.x - gateX(o));
-    const towardGate = -dir * Math.cos(t.heading) > 0.5 && t.speed > 0.5;
+    const towardGate = -dir * Math.cos(t.heading) > 0.3;
     if (towardGate && depthC <= C.GATE_APPROACH_M && lateral <= C.GATE_WIDTH_M / 2 + 2 && freeSlot(world, o)) wants[o] = true;
   }
   return wants;
