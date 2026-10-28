@@ -45,6 +45,24 @@ function getOutcomeInfo(r) {
   return { label: 'INCOMPLETE', className: 'incomplete' };
 }
 
+function formatReplayMode(r) {
+  let label = r.modeLabel;
+  if (r.mode === 'HvH' || label === 'Human vs Human') {
+    label = 'Human vs Human (split screen on same device)';
+  } else if (r.mode === 'HvH_NET' || r.mode === 'NET') {
+    label = 'Human vs Human (separate devices)';
+  } else if (!label) {
+    if (r.mode === 'HvC') label = 'Human vs Computer';
+    else if (r.mode === 'CvH') label = 'Computer vs Human';
+    else if (r.mode === 'CvC') label = 'Computer vs Computer';
+    else label = r.mode;
+  }
+  if (r.aiLevel && r.mode !== 'HvH' && r.mode !== 'HvH_NET' && r.mode !== 'NET') {
+    return `${label} (${r.aiLevel})`;
+  }
+  return label;
+}
+
 export function createReplaysModal(root) {
   let callbacks = null;
   let showPinnedOnly = false;
@@ -65,7 +83,7 @@ export function createReplaysModal(root) {
             ${confirmItem.pinned ? '⚠️ This recording is <strong>PINNED</strong>. Delete anyway?' : 'Delete this recorded match?'}
           </div>
           <div class="confirm-match-info">
-            <span>${formatDatetime(confirmItem.savedAt)}</span> · <span>${confirmItem.modeLabel || confirmItem.mode}</span> · <span>${getOutcomeInfo(confirmItem).label}</span>
+            <span>${formatDatetime(confirmItem.savedAt)}</span> · <span>${formatReplayMode(confirmItem)}</span> · <span>${getOutcomeInfo(confirmItem).label}</span>
           </div>
           <div class="confirm-actions">
             <button type="button" class="rp-btn rp-btn-cancel" id="btnConfirmCancel">Cancel (Esc)</button>
@@ -82,9 +100,7 @@ export function createReplaysModal(root) {
       const rowsHtml = replays
         .map((r) => {
           const outcome = getOutcomeInfo(r);
-          const modeDisplay = r.aiLevel && r.mode !== 'HvH'
-            ? `${r.modeLabel || r.mode} (${r.aiLevel})`
-            : (r.modeLabel || r.mode);
+          const modeDisplay = formatReplayMode(r);
           const isCustomDist = r.shootDist != null && r.shootDist !== C.SHELL_RANGE_M;
           const customDistNotice = isCustomDist
             ? `<div class="replays-custom-dist">This game has customized maximum shooting distance = ${r.shootDist} m</div>`

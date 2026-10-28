@@ -22,4 +22,13 @@
 - **Always use `.\dev.cmd` when starting the Vite dev server.**
 - Do NOT execute direct `npm` or `node` preview/dev commands directly.
 
+## 5. Adding Node Dependencies
+
+- **Always update `package.json` directly and use `npm install`.**
+- Do NOT run parameterized install commands like `npm install <package>` directly.
+
+## 6. Node.js Environment
+
+- **Use Node.js 22 at `C:\Work\nodejs.22` for local npm commands** when running installs or CLI operations, as Vite 6 and npm dependencies in this repository are verified on Node 22 (avoiding Node 21 / Node 24 incompatibility issues).
+
 

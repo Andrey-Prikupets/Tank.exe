@@ -476,7 +476,7 @@ The game launches into the **Tank.exe Title Menu**:
 - Options:
   1. **Start game**
   2. **Load game** (choose slot 1..10)
-  3. **Players: Human vs Human | Human vs Computer | Computer vs Human | Computer vs Computer** (1st is left player, 2nd is right)
+  3. **Players: Human vs Human (split screen on same device) | Human vs Computer | Computer vs Human | Computer vs Computer | Human vs Human (separate devices)** (1st is left player, 2nd is right)
   4. **Level: HARD | MEDIUM | EASY** (visible only when Computer mode is selected)
   5. **Game Playback** (opens the recorded matches grid modal; details in §11.6)
   6. **Options** (opens the Options submenu)
@@ -491,7 +491,7 @@ The game launches into the **Tank.exe Title Menu**:
   3. **Load game** (choose slot 1..10)
   4. **New game** (with loss confirmation)
   5. **Main menu** (with loss confirmation)
-  6. **Players: Human vs Human | Human vs Computer | Computer vs Human | Computer vs Computer** (1st is left player, 2nd is right)
+  6. **Players: Human vs Human (split screen on same device) | Human vs Computer | Computer vs Human | Computer vs Computer | Human vs Human (separate devices)** (1st is left player, 2nd is right; omitted during active network sessions)
   7. **Level: HARD | MEDIUM | EASY** (visible only when Computer mode is selected)
   8. **Options** (opens the Options submenu)
   9. **Help** (opens the scrollable game manual modal with in-header language switcher)
@@ -516,7 +516,7 @@ The game launches into the **Tank.exe Title Menu**:
 ### 11.4 Startup Query String Parameters
 
 The application supports URL query string parameters on startup to configure settings or launch directly into combat without manual menu interaction. All parameters and string values are **case-insensitive**, and all boolean parameters accept only **`Y`** or **`N`**:
-- **`mode`:** Configures game player mode (`HvH`, `HvC`, `CvH`, `CvC`).
+- **`mode`:** Configures game player mode (`HvH`, `HvC`, `CvH`, `CvC`, `HvH_NET`).
 - **`level`:** Configures AI difficulty level (`EASY`, `MEDIUM`, `HARD`).
 - **`sound`:** Toggles procedural sound output (`Y` / `N`).
 - **`obstacles`:** Toggles building obstacles (`Y` / `N`).
@@ -583,7 +583,7 @@ The game provides a deterministic match recording and playback system:
     - **PIN:** Interactive pin toggle button (`📌` bright active vs muted outline).
     - **DATE & TIME:** Formatted timestamp (e.g. `2026-10-27 19:42`).
     - **DURATION:** Match length (`MM:SS`, e.g. `01:34`).
-    - **MODE:** Full human-readable mode names (`Human vs. Human`, `Human vs. Computer (MEDIUM)`, `Computer vs. Human (EASY)`, `Computer vs. Computer (HARD)`). If the match was played with a customized maximum shooting distance differing from the default ($32\text{m}$), small text is displayed below the mode: `"This game has customized maximum shooting distance = NN m"`. Default $32\text{m}$ distance is not shown in the grid.
+    - **MODE:** Full human-readable mode names (`Human vs Human (split screen on same device)`, `Human vs Human (separate devices)`, `Human vs Computer (MEDIUM)`, `Computer vs Human (EASY)`, `Computer vs Computer (HARD)`). If the match was played with a customized maximum shooting distance differing from the default ($32\text{m}$), small text is displayed below the mode: `"This game has customized maximum shooting distance = NN m"`. Default $32\text{m}$ distance is not shown in the grid.
     - **OUTCOME & SCORE:** Colored team victory badge with final tank destruction score (e.g. `RED WINS (15 - 8)`).
     - **ACTIONS:** `▶ Play` button and trash bin icon button (`🗑`).
   - **Compact Grid Presentation:** Grid line gaps and row cell padding are compact (`padding: 4px 10px`) to maximize match visibility without vertical scrolling.
@@ -1057,12 +1057,12 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 - **Zero Backend / 100% Static & Serverless:** Peer-to-peer gameplay connects two web browsers directly using WebRTC `RTCDataChannel` over UDP.
 - **NAT Traversal:** Leverages standard ICE gathering with Google's free public STUN servers (`stun:stun.l.google.com:19302`) for remote play, or operates completely offline over local LAN / Mobile Hotspot (`iceServers: []`) without any internet access.
 - **Air-Gapped Signaling:** The initial 2-step WebRTC handshake (Offer $\leftrightarrow$ Answer) is conducted without central servers:
-  1. **QR Code Scanning:** Rendered directly to an HTML5 `<canvas>` via a self-contained pure JS QR matrix encoder. Scanned instantly using the device's camera via the browser's hardware `BarcodeDetector` API.
+  1. **QR Code Scanning:** Rendered directly to an HTML5 `<canvas>` via the ultra-lightweight open-source `uqr` library (UnJS). Scanned instantly using the device's camera via the browser's hardware `BarcodeDetector` API.
   2. **Messenger Copy & Web Share:** Single-click clipboard copy (`navigator.clipboard.writeText`) on PC and native OS share dialog (`navigator.share`) on mobile devices.
 - **SDP Compression:** Raw SDP descriptors (~1.5 KB) are compressed using native browser/Node.js `CompressionStream` (`deflate-raw`) into Base64 (`TANK:...`), achieving a 72% size reduction down to ~400 characters for instant, low-density QR code scanning.
 
 ### 19.2 Connection & Role Negotiation Flow
-- **Multiplayer Modal Dialog (`#networkScreen`):** Accessible directly from the main Title Menu via **Multiplayer (Network)**.
+- **Access Flow:** Activated directly by selecting the **Players: Human vs Human (separate devices)** mode from the Title Menu and clicking **Start game**, opening the streamlined connection dialog (`#networkScreen`).
 - **Host Role:**
   - Selects Squadron Team color: **Blue Team (P1 / Player 0)** or **Red Team (P2 / Player 1)**.
   - Automatically initializes WebRTC offer and renders Offer QR Code (+ Copy Offer / Share buttons).

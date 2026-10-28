@@ -163,11 +163,13 @@ function parseBoolParam(key) {
   return null;
 }
 
-// 1. Mode: ?mode=HvH | HvC | CvH | CvC (case-insensitive)
+// 1. Mode: ?mode=HvH | HvC | CvH | CvC | HvH_NET (case-insensitive)
 const modeVal = urlParams.get('mode');
 if (modeVal) {
   const clean = modeVal.trim().toUpperCase();
-  const idx = C.PLAYER_MODES.findIndex((m) => m.id.toUpperCase() === clean);
+  const idx = C.PLAYER_MODES.findIndex(
+    (m) => m.id.toUpperCase() === clean || (clean === 'NET' && m.id === 'HvH_NET')
+  );
   if (idx >= 0) playerModeIndex = idx;
 }
 
@@ -615,6 +617,8 @@ function handleClientNetworkMessage(msg) {
 
     networkSession.localPlayer = msg.joinerPlayer;
     networkSession.remotePlayer = msg.hostPlayer;
+    const netModeIdx = C.PLAYER_MODES.findIndex((m) => m.id === 'HvH_NET');
+    if (netModeIdx >= 0) playerModeIndex = netModeIdx;
     input.setLayoutMode('network', networkSession.localPlayer);
 
     appState = 'PLAYING';
@@ -623,6 +627,17 @@ function handleClientNetworkMessage(msg) {
     menu.clear();
     dirty = true;
     hud.update(world, performance.now(), true);
+
+    if (recordingEnabled) {
+      activeRecorder = createRecorder(world, {
+        mode: 'HvH_NET',
+        modeLabel: 'Human vs Human (separate devices)',
+        aiLevel: null,
+        shootDist: world.shellRange || options.shootDist || C.SHELL_RANGE_M,
+      });
+    } else {
+      activeRecorder = null;
+    }
   } else if (msg.type === 'STATE') {
     applyWorldSnapshot(world, msg);
     dirty = true;
@@ -645,6 +660,9 @@ function startNetworkGame(session) {
   lastSentWindowTurn = 0;
   lastNetworkSync = 0;
 
+  const netModeIdx = C.PLAYER_MODES.findIndex((m) => m.id === 'HvH_NET');
+  if (netModeIdx >= 0) playerModeIndex = netModeIdx;
+
   if (session.isHost) {
     world = createWorld(options);
     world.isAiPlayer = () => false;
@@ -658,6 +676,17 @@ function startNetworkGame(session) {
     menu.clear();
     dirty = true;
     hud.update(world, performance.now(), true);
+
+    if (recordingEnabled) {
+      activeRecorder = createRecorder(world, {
+        mode: 'HvH_NET',
+        modeLabel: 'Human vs Human (separate devices)',
+        aiLevel: null,
+        shootDist: world.shellRange || options.shootDist || C.SHELL_RANGE_M,
+      });
+    } else {
+      activeRecorder = null;
+    }
   } else {
     // Client joins: listener will wait for INIT packet
     session.p2p.onMessage = handleClientNetworkMessage;
@@ -750,6 +779,23 @@ function stopPlayback() {
   });
 }
 
+function launchGame() {
+  if (currentMode().isNetwork) {
+    document.getElementById('menu').classList.add('hidden');
+    networkModal.open({
+      onStartGame: (session) => {
+        startNetworkGame(session);
+      },
+      onClose: () => {
+        document.getElementById('menu').classList.remove('hidden');
+        if (appState === 'TITLE') menu.refresh();
+      },
+    });
+  } else {
+    newGame();
+  }
+}
+
 function openTitle() {
   saveActiveRecording();
   if (touch.isEnabled()) {
@@ -762,25 +808,10 @@ function openTitle() {
     title: C.GAME_NAME,
     text: '<div class="center">Two players · one keyboard · 90s split-screen tank combat</div>',
     items: () => [
-      { label: 'Start game', action: newGame },
-      {
-        label: 'Multiplayer (Network)',
-        action: () => {
-          document.getElementById('menu').classList.add('hidden');
-          networkModal.open({
-            onStartGame: (session) => {
-              startNetworkGame(session);
-            },
-            onClose: () => {
-              document.getElementById('menu').classList.remove('hidden');
-              if (appState === 'TITLE') menu.refresh();
-            },
-          });
-        },
-      },
+      { label: 'Start game', action: launchGame },
       { label: 'Load game', action: () => menu.push(loadScreen()) },
       playersItem(),
-      ...(currentMode().id !== 'HvH' ? [levelItem()] : []),
+      ...(currentMode().leftAi || currentMode().rightAi ? [levelItem()] : []),
       {
         label: 'Game Playback',
         action: () => {
@@ -834,12 +865,12 @@ function openPause() {
           {
             label: 'Main menu',
             action: () => menu.push(confirmScreen('Current game will be lost.', openTitle)),
-          }
+          },
+          playersItem(),
+          ...(currentMode().leftAi || currentMode().rightAi ? [levelItem()] : [])
         );
       }
       items.push(
-        playersItem(),
-        ...(currentMode().id !== 'HvH' ? [levelItem()] : []),
         { label: 'Options', action: () => menu.push(optionsScreen()) },
         { label: 'Help', action: () => menu.push(helpScreen()) },
         { label: 'History', action: () => menu.push(historyScreen()) }
@@ -1082,7 +1113,7 @@ function frame(now) {
 }
 
 if (autoStart) {
-  newGame();
+  launchGame();
 } else {
   openTitle();
 }

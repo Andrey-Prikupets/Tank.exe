@@ -10,7 +10,8 @@
     "test": "node test/run_tests.js"
   },
   "dependencies": {
-    "three": "^0.170.0"
+    "three": "^0.170.0",
+    "uqr": "^0.1.3"
   },
   "devDependencies": {
     "vite": "^6.0.0"

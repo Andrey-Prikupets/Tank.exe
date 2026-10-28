@@ -41,10 +41,11 @@ export const OBSTACLE_ROOF_HEIGHT_M = 1.6;
 export const OBSTACLE_ROOF_EAVE_M = 0.5;
 export const PIT_DROP_OVERLAP_FRACTION = 0.30;
 export const PLAYER_MODES = [
-  { id: 'HvH', label: 'Human vs Human', leftAi: false, rightAi: false },
-  { id: 'HvC', label: 'Human vs Computer', leftAi: false, rightAi: true },
-  { id: 'CvH', label: 'Computer vs Human', leftAi: true, rightAi: false },
-  { id: 'CvC', label: 'Computer vs Computer', leftAi: true, rightAi: true },
+  { id: 'HvH', label: 'Human vs Human (split screen on same device)', shortLabel: 'HvH (Split)', leftAi: false, rightAi: false },
+  { id: 'HvC', label: 'Human vs Computer', shortLabel: 'HvC', leftAi: false, rightAi: true },
+  { id: 'CvH', label: 'Computer vs Human', shortLabel: 'CvH', leftAi: true, rightAi: false },
+  { id: 'CvC', label: 'Computer vs Computer', shortLabel: 'CvC', leftAi: true, rightAi: true },
+  { id: 'HvH_NET', label: 'Human vs Human (separate devices)', shortLabel: 'HvH (Network)', leftAi: false, rightAi: false, isNetwork: true },
 ];
 export const AI_LEVELS = ['HARD', 'MEDIUM', 'EASY'];
 export const AI_MAX_FIRE_DIST_M = 32;
