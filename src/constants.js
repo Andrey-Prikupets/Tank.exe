@@ -21,6 +21,7 @@ export const SAVE_FORMAT_VERSION = 2;
 export const SAVE_SLOT_COUNT = 10;
 export const SAVE_KEY_PREFIX = 'tank.exe.save.';
 export const AUDIO_SETTINGS_KEY = 'tank.exe.audio';
+export const TEXTURES_SETTINGS_KEY = 'tank.exe.textures';
 export const PLAYERS_SETTINGS_KEY = 'tank.exe.players';
 export const AI_LEVEL_SETTINGS_KEY = 'tank.exe.ai_level';
 export const OBSTACLES_SETTINGS_KEY = 'tank.exe.obstacles';

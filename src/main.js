@@ -142,6 +142,14 @@ try {
 
 let recordingEnabled = savedRecording;
 
+let savedTextures = true;
+try {
+  const val = localStorage.getItem(C.TEXTURES_SETTINGS_KEY);
+  if (val !== null) savedTextures = JSON.parse(val);
+} catch {}
+
+let texturesEnabled = savedTextures;
+
 const options = {
   obstacles: savedObstacles,
   pits: savedPits,
@@ -205,6 +213,12 @@ if (recordingBool !== null) {
   recordingEnabled = recordingBool;
 }
 
+// 7. Textures: ?textures=Y | N (case-insensitive)
+const texturesBool = parseBoolParam('textures');
+if (texturesBool !== null) {
+  texturesEnabled = texturesBool;
+}
+
 // 6. Language: ?lang=EN | ES | RU (case-insensitive)
 const langVal = urlParams.get('lang');
 if (langVal) {
@@ -252,7 +266,7 @@ const playbackToolbar = createPlaybackToolbar(document.getElementById('playbackT
 const networkModal = createNetworkModal(document.getElementById('networkScreen'));
 const map = createMap2D(document.getElementById('map'), { debugVectors });
 const aiLog = createAiLog(document.getElementById('mapWrap'));
-const view = createView3D(document.getElementById('gl'));
+const view = createView3D(document.getElementById('gl'), { textures: texturesEnabled });
 const hud = createHud();
 
 let networkSession = null; // { isHost, p2p, localPlayer, remotePlayer }
@@ -453,6 +467,15 @@ const touchSettingItem = () => ({
   },
 });
 
+const texturesItem = () => ({
+  label: () => `Textures: ${texturesEnabled ? 'ON' : 'OFF'}`,
+  action: () => {
+    texturesEnabled = !texturesEnabled;
+    localStorage.setItem(C.TEXTURES_SETTINGS_KEY, JSON.stringify(texturesEnabled));
+    view.setTexturesEnabled(texturesEnabled);
+  },
+});
+
 const recordingItem = () => ({
   label: () => `Recording: ${recordingEnabled ? 'ON' : 'OFF'}`,
   action: () => {
@@ -463,11 +486,13 @@ const recordingItem = () => ({
 
 function optionsScreen() {
   return {
+    id: 'options',
     title: 'OPTIONS',
     text: '<div class="center">Game & Audio Settings</div>',
     items: () => {
       const list = [
         soundItem(),
+        texturesItem(),
         obstaclesItem(),
         pitsItem(),
         touchSettingItem(),

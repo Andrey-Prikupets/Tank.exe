@@ -29,7 +29,7 @@
 | Platform | Desktop browser (Chrome, Edge, Firefox — latest). Keyboard only. |
 | Architecture | **Zero backend, 100% static client-side web application**. Loaded as a static web page from any server or CDN (GitHub Pages, Netlify, Cloudflare Pages, S3 bucket) using relative asset paths (`./`). |
 | Language | JavaScript (ES modules), HTML, vanilla CSS. |
-| 3D | Three.js. **No textures** — solid colors, flat/Lambert shading. **[A1]** |
+| 3D | Three.js. **Procedural textures** enabled by default with in-game toggle (`Textures: ON | OFF`) for ground, water, area walls, house walls, gate doors, windows, tank body, and turret; reverts to solid colors and flat shading when toggled off. **[A1]** |
 | Map | 2D `<canvas>` drawn each frame. |
 | Build | Vite (`build.cmd` / `npm run build` generates standalone static files in `dist/`). **[A2]** |
 | Simulation | Fixed timestep (`SIM_TICK_HZ`), rendering decoupled (requestAnimationFrame). Deterministic state → simple save/load. |
@@ -502,16 +502,18 @@ The game launches into the **Tank.exe Title Menu**:
 - Subtitle: `Game & Audio Settings`
 - Options:
   1. **Sound: ON | OFF** (toggles Web Audio master output)
-  2. **Obstacles: ON | OFF** (toggles building obstacles generator; initial default: `OFF`)
-  3. **Pits: ON | OFF** (toggles water pit / trench hazard generator; initial default: `OFF`)
-  4. **Touch controls: AUTO | ON | OFF** (toggles mobile on-screen virtual joystick and tactical combat overlays)
-  5. **Recording: ON | OFF** (toggles automatic binary compressed recording of matches into `localStorage`; initial default: `OFF`)
-  6. **Keyboard layout** (opens the interactive desktop keyboard layout configuration screen; dynamically hidden on mobile touch devices when no hardware keyboard is plugged in)
-  7. **Back** (returns to previous menu)
+  2. **Textures: ON | OFF** (toggles procedural texturing for ground, water, area walls, house walls, gate doors, windows, tank body, and turret; initial default: `ON`)
+  3. **Obstacles: ON | OFF** (toggles building obstacles generator; initial default: `OFF`)
+  4. **Pits: ON | OFF** (toggles water pit / trench hazard generator; initial default: `OFF`)
+  5. **Touch controls: AUTO | ON | OFF** (toggles mobile on-screen virtual joystick and tactical combat overlays)
+  6. **Recording: ON | OFF** (toggles automatic binary compressed recording of matches into `localStorage`; initial default: `OFF`)
+  7. **Keyboard layout** (opens the interactive desktop keyboard layout configuration screen; dynamically hidden on mobile touch devices when no hardware keyboard is plugged in)
+  8. **Back** (returns to previous menu)
 
 **Menu Navigation & Layout Behavior:**
 - **Click-Only Selection:** Menu selection highlight is controlled strictly by mouse clicks or keyboard arrow keys; moving the mouse cursor over items does not shift the active selection.
 - **Top-Anchored Downward Expansion:** The menu card is anchored to a fixed top offset rather than vertically centered, so when dynamic items appear or disappear (such as toggling `Players` mode to reveal or hide the `Level` item), the menu expands downward without shifting vertically or shaking the active item under the mouse pointer.
+- **Compact Menu Spacing:** Both the Main Menu and Options Menu feature reduced vertical gaps between lines (`padding: 3.5px 16px`, `margin: 1.5px 0`) and compact card padding (`20px 32px`), presenting all options comfortably without scrolling or excessive spacing.
 
 ### 11.4 Startup Query String Parameters
 
@@ -519,6 +521,7 @@ The application supports URL query string parameters on startup to configure set
 - **`mode`:** Configures game player mode (`HvH`, `HvC`, `CvH`, `CvC`, `HvH_NET`).
 - **`level`:** Configures AI difficulty level (`EASY`, `MEDIUM`, `HARD`).
 - **`sound`:** Toggles procedural sound output (`Y` / `N`).
+- **`textures`:** Toggles procedural surface textures (`Y` / `N`; default: `Y`).
 - **`obstacles`:** Toggles building obstacles (`Y` / `N`).
 - **`pits`:** Toggles water pit / moat hazard trenches (`Y` / `N`).
 - **`recording` (or `record`):** Toggles automatic game recording (`Y` / `N`).
@@ -1038,7 +1041,7 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 | A19 | Sound | Simple synthesized Web Audio effects in v1. |
 | A15 | Window targeting | Direct ballistic line of sight without dead zone immunity. |
 | A20 | Barracks Architecture | Buildings feature slightly conical / hipped roofs with overhangs and per-building wall variations in bright, unsaturated gray and brown tones. |
-| A1 | Rendering & visual style | Flat/Lambert shading, low-poly 3D models. |
+| A1 | Rendering & visual style | Procedural surface textures (ground turf with seamless low-contrast multi-octave harmonics, water caustics, concrete wall panels, stone masonry, steel blast doors, framed glass windows, armored tank hull and turret) enabled by default; user-toggleable in Options to flat/Lambert solid colors. |
 | A3 | Field hazards | Flat unobstructed arena by default; procedural obstacles and water pits toggled via Options. |
 | A4 | Display baseline | Minimum target resolution 1280×720 with responsive layout scaling. |
 | A7 | Weapon mounting | Fixed gun rigidly mounted to hull (aimed via hull steering; no turret rotation). |

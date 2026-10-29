@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as C from '../constants.js';
 import { viewPose, windowY, gateX } from '../sim/world.js';
+import { createGameTextures, scaleBoxUVs } from './textures.js';
 
 const mat = (color, extra = {}) =>
   new THREE.MeshPhongMaterial({
@@ -12,7 +13,11 @@ const mat = (color, extra = {}) =>
   });
 const basic = (color, extra = {}) => new THREE.MeshBasicMaterial({ color, ...extra });
 
-export function createView3D(canvas) {
+export function createView3D(canvas, options = {}) {
+  let texturesEnabled = options.textures !== undefined ? !!options.textures : true;
+  const gameTextures = createGameTextures();
+  let lastRenderTime = performance.now();
+
   const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: false,
@@ -40,8 +45,12 @@ export function createView3D(canvas) {
   fillLight.position.set(-0.25, 0.6, -0.6).normalize();
   scene.add(fillLight);
 
-  const addBox = (sx, sy, sz, x, y, z, material) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), material);
+  const addBox = (sx, sy, sz, x, y, z, material, uvScale = null) => {
+    const geo = new THREE.BoxGeometry(sx, sy, sz);
+    if (uvScale) {
+      scaleBoxUVs(geo, sx, sy, sz, uvScale);
+    }
+    const m = new THREE.Mesh(geo, material);
     m.position.set(x, y, z);
     scene.add(m);
     return m;
@@ -55,19 +64,23 @@ export function createView3D(canvas) {
   field.rotation.x = -Math.PI / 2;
   field.position.set(L / 2, 0, W / 2);
   scene.add(field);
+  const outsideMat = mat(C.COLOR_OUTSIDE, { shininess: 0, specular: 0x000000 });
   const outside = new THREE.Mesh(
     new THREE.PlaneGeometry(L * 4, W * 8),
-    mat(C.COLOR_OUTSIDE, { shininess: 0, specular: 0x000000 })
+    outsideMat
   );
   outside.rotation.x = -Math.PI / 2;
   outside.position.set(L / 2, -1.0, W / 2);
   scene.add(outside);
 
   const wallMat = mat(C.COLOR_BORDER);
+  const hangarWallMat = mat(C.COLOR_HANGAR_WALL);
+  const hangarFloorMat = mat(C.COLOR_HANGAR_FLOOR);
+  const gateWindowMat = basic(C.COLOR_WINDOW);
   const T = C.BORDER_WALL_THICKNESS_M;
   const H = C.BORDER_WALL_HEIGHT_M;
-  addBox(L + 2 * T, H, T, L / 2, H / 2, -T / 2, wallMat);
-  addBox(L + 2 * T, H, T, L / 2, H / 2, W + T / 2, wallMat);
+  addBox(L + 2 * T, H, T, L / 2, H / 2, -T / 2, wallMat, 4);
+  addBox(L + 2 * T, H, T, L / 2, H / 2, W + T / 2, wallMat, 4);
   const g0 = C.GATE_CENTER_Y_M - C.GATE_WIDTH_M / 2;
   const g1 = C.GATE_CENTER_Y_M + C.GATE_WIDTH_M / 2;
   const doors = [[], []];
@@ -76,9 +89,9 @@ export function createView3D(canvas) {
     const cx = owner === 0 ? -T / 2 : L + T / 2;
     // Border walls ending flush with gate pillars (no Z overlap)
     const upperWallLen = g0 - T;
-    addBox(T, H, upperWallLen, cx, H / 2, upperWallLen / 2, wallMat);
+    addBox(T, H, upperWallLen, cx, H / 2, upperWallLen / 2, wallMat, 4);
     const lowerWallLen = W - (g1 + T);
-    addBox(T, H, lowerWallLen, cx, H / 2, (g1 + T) + lowerWallLen / 2, wallMat);
+    addBox(T, H, lowerWallLen, cx, H / 2, (g1 + T) + lowerWallLen / 2, wallMat, 4);
 
     // Gate pillars framing the gate opening [g0, g1], slightly proud in X to prevent coplanar fighting
     const teamMat = mat(owner === 0 ? C.COLOR_LEFT_TEAM : C.COLOR_RIGHT_TEAM);
@@ -97,16 +110,16 @@ export function createView3D(canvas) {
     // window decals (field side)
     const dir = owner === 0 ? 1 : -1;
     for (const idx of [0, 1]) {
-      addBox(0.1, 1, C.WINDOW_LENGTH_M, gateX(owner) + dir * 0.06, 2.2, windowY(owner, idx), basic(C.COLOR_WINDOW));
+      addBox(0.1, 1, C.WINDOW_LENGTH_M, gateX(owner) + dir * 0.06, 2.2, windowY(owner, idx), gateWindowMat);
     }
     // hangar building
     const D = C.HANGAR_DEPTH_M;
     const hx = owner === 0 ? -(T + D / 2) : L + T + D / 2;
     const hw = C.HANGAR_HALF_WIDTH_M;
-    addBox(D, 0.1, 2 * hw, hx, 0.05, C.GATE_CENTER_Y_M, mat(C.COLOR_HANGAR_FLOOR));
+    addBox(D, 0.1, 2 * hw, hx, 0.05, C.GATE_CENTER_Y_M, hangarFloorMat);
     const backWallX = owner === 0 ? -(T + D + T / 2) : L + T + D + T / 2;
-    addBox(T, H, 2 * hw + 2 * T, backWallX, H / 2, C.GATE_CENTER_Y_M, mat(C.COLOR_HANGAR_WALL));
-    for (const s of [-1, 1]) addBox(D, H, T, hx, H / 2, C.GATE_CENTER_Y_M + s * hw, mat(C.COLOR_HANGAR_WALL));
+    addBox(T, H, 2 * hw + 2 * T, backWallX, H / 2, C.GATE_CENTER_Y_M, hangarWallMat, 4);
+    for (const s of [-1, 1]) addBox(D, H, T, hx, H / 2, C.GATE_CENTER_Y_M + s * hw, hangarWallMat, 4);
   }
 
   // ---- dynamic objects (shared geometries and materials) ----
@@ -204,6 +217,76 @@ export function createView3D(canvas) {
     polygonOffsetUnits: -4,
   });
 
+  function applyTextures() {
+    fieldMat.map = texturesEnabled ? gameTextures.ground : null;
+    fieldMat.needsUpdate = true;
+
+    outsideMat.map = texturesEnabled ? gameTextures.ground : null;
+    outsideMat.needsUpdate = true;
+
+    wallMat.map = texturesEnabled ? gameTextures.wall : null;
+    wallMat.needsUpdate = true;
+
+    hangarWallMat.map = texturesEnabled ? gameTextures.wall : null;
+    hangarWallMat.needsUpdate = true;
+
+    hangarFloorMat.map = texturesEnabled ? gameTextures.ground : null;
+    hangarFloorMat.needsUpdate = true;
+
+    obstacleMats.forEach((m) => {
+      m.map = texturesEnabled ? gameTextures.house : null;
+      m.needsUpdate = true;
+    });
+
+    doorMat.map = texturesEnabled ? gameTextures.door : null;
+    doorMat.needsUpdate = true;
+
+    windowMat.map = texturesEnabled ? gameTextures.window : null;
+    windowMat.needsUpdate = true;
+
+    gateWindowMat.map = texturesEnabled ? gameTextures.window : null;
+    gateWindowMat.needsUpdate = true;
+
+    pitWaterMat.map = texturesEnabled ? gameTextures.water : null;
+    pitWaterMat.needsUpdate = true;
+
+    teamMats.forEach((m) => {
+      m.map = texturesEnabled ? gameTextures.tankBody : null;
+      m.needsUpdate = true;
+    });
+
+    turretMats.forEach((m) => {
+      m.map = texturesEnabled ? gameTextures.tankTurret : null;
+      m.needsUpdate = true;
+    });
+  }
+
+  applyTextures();
+
+  const obstacleBodyGeoCache = new Map();
+  function getObstacleBodyGeo(L, H, W) {
+    const key = `${L}_${H}_${W}`;
+    let geo = obstacleBodyGeoCache.get(key);
+    if (!geo) {
+      geo = new THREE.BoxGeometry(L, H, W);
+      scaleBoxUVs(geo, L, H, W, 4);
+      obstacleBodyGeoCache.set(key, geo);
+    }
+    return geo;
+  }
+
+  const pitWaterGeoCache = new Map();
+  function getPitWaterGeo(L, H, W) {
+    const key = `${L}_${H}_${W}`;
+    let geo = pitWaterGeoCache.get(key);
+    if (!geo) {
+      geo = new THREE.BoxGeometry(L, H, W);
+      scaleBoxUVs(geo, L, H, W, 4);
+      pitWaterGeoCache.set(key, geo);
+    }
+    return geo;
+  }
+
   const roofGeoCache = new Map();
   function getHipRoofGeo(L, W, H) {
     const key = `${L}_${W}_${H}`;
@@ -264,7 +347,8 @@ export function createView3D(canvas) {
     const h = ob.height || C.OBSTACLE_HEIGHT_M;
     const matIdx = ((ob.id || 1) - 1) % obstacleMats.length;
     bodyMesh.material = obstacleMats[matIdx];
-    bodyMesh.scale.set(ob.l, h, ob.w);
+    bodyMesh.geometry = getObstacleBodyGeo(ob.l, h, ob.w);
+    bodyMesh.scale.set(1, 1, 1);
     bodyMesh.position.set(0, h / 2, 0);
 
     roofMesh.geometry = getHipRoofGeo(ob.l, ob.w, C.OBSTACLE_ROOF_HEIGHT_M);
@@ -342,7 +426,8 @@ export function createView3D(canvas) {
     bedMesh.position.set(0, 0.005, 0);
 
     // Water plane on the exact same level as the rim borders (top face at y + h/2 = 0.04)
-    waterMesh.scale.set(pit.l, h, pit.w);
+    waterMesh.geometry = getPitWaterGeo(pit.l, h, pit.w);
+    waterMesh.scale.set(1, 1, 1);
     waterMesh.position.set(0, y, 0);
   }
 
@@ -420,6 +505,13 @@ export function createView3D(canvas) {
   }
 
   function render(world) {
+    if (texturesEnabled && gameTextures) {
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - lastRenderTime) / 1000);
+      lastRenderTime = now;
+      gameTextures.water.offset.x = (gameTextures.water.offset.x + dt * 0.04) % 1;
+      gameTextures.water.offset.y = (gameTextures.water.offset.y + dt * 0.02) % 1;
+    }
     updateDynamic(world);
     renderer.setScissorTest(true);
     for (const p of [0, 1]) {
@@ -467,5 +559,12 @@ export function createView3D(canvas) {
     }
   }
 
-  return { resize, render };
+  return {
+    resize,
+    render,
+    setTexturesEnabled: (enabled) => {
+      texturesEnabled = !!enabled;
+      applyTextures();
+    },
+  };
 }

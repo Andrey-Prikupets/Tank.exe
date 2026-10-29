@@ -74,6 +74,12 @@ export function createMenu(root) {
     root.classList.toggle('winner-red', !!(s && s.winner === 0));
     root.classList.toggle('winner-blue', !!(s && s.winner === 1));
     root.classList.toggle('winner-draw', !!(s && s.winner === 'draw'));
+    root.classList.toggle(
+      'screen-options',
+      !!(s && (s.id === 'options' || (typeof s.title === 'string' && s.title === 'OPTIONS')))
+    );
+    if (s && s.id) root.dataset.screen = s.id;
+    else delete root.dataset.screen;
     if (!s || !s.gameOver) {
       resetDrag();
     }

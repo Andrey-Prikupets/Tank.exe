@@ -410,7 +410,7 @@ html, body {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  padding: 24px 32px;
+  padding: 20px 32px;
   border: 1px solid #3b5a44;
   border-radius: 12px;
   background: linear-gradient(160deg, rgba(16, 28, 22, 0.98), rgba(9, 14, 12, 0.98));
@@ -464,7 +464,7 @@ html, body {
 }
 
 .m-title {
-  margin: 0 0 6px;
+  margin: 0 0 2px;
   font-size: 32px;
   letter-spacing: .16em;
   color: var(--accent);
@@ -477,7 +477,7 @@ html, body {
   font-size: 13px;
   letter-spacing: 0.14em;
   color: #7d967d;
-  margin: -2px 0 10px;
+  margin: -2px 0 8px;
   text-transform: uppercase;
 }
 
@@ -578,10 +578,10 @@ html, body {
 .m-items li {
   display: flex;
   align-items: center;
-  padding: 7.5px 16px;
-  margin: 3px 0;
+  padding: 3.5px 16px;
+  margin: 1.5px 0;
   border-radius: 6px;
-  font-size: 20px;
+  font-size: 19px;
   cursor: pointer;
   border: 1px solid transparent;
   transition: background .1s, border-color .1s, color .1s;
@@ -602,6 +602,20 @@ html, body {
 }
 .m-items li.sel::before {
   color: var(--accent);
+}
+
+/* Reduced vertical gaps between lines and compact card spacing across menus */
+.card {
+  padding: 20px 32px;
+}
+.m-title {
+  margin-bottom: 2px;
+}
+.m-text {
+  margin-bottom: 6px;
+}
+.m-hint {
+  margin-top: 10px;
 }
 .m-item-content {
   display: flex;
