@@ -63,6 +63,8 @@ export function createMenu(root) {
 
   const top = () => stack[stack.length - 1];
   const labelOf = (it) => (typeof it.label === 'function' ? it.label() : it.label);
+  const subtitleOf = (it) => (typeof it.subtitle === 'function' ? it.subtitle() : it.subtitle);
+  const badgeOf = (it) => (typeof it.badge === 'function' ? it.badge() : it.badge);
   const itemsOf = (s) => (s ? (typeof s.items === 'function' ? s.items() : s.items || []) : []);
 
   function render() {
@@ -110,7 +112,33 @@ export function createMenu(root) {
     listEl.innerHTML = '';
     items.forEach((it, i) => {
       const li = document.createElement('li');
-      li.textContent = labelOf(it);
+      const label = labelOf(it);
+      const sub = subtitleOf(it);
+      const badge = badgeOf(it);
+      if (sub || badge) {
+        if (sub) li.classList.add('has-subtitle');
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'm-item-content';
+        const labelDiv = document.createElement('div');
+        labelDiv.className = 'm-item-title';
+        labelDiv.textContent = label;
+        contentDiv.appendChild(labelDiv);
+        if (sub) {
+          const subDiv = document.createElement('div');
+          subDiv.className = 'm-item-subtitle';
+          subDiv.textContent = sub;
+          contentDiv.appendChild(subDiv);
+        }
+        li.appendChild(contentDiv);
+        if (badge) {
+          const badgeSpan = document.createElement('span');
+          badgeSpan.className = 'm-item-badge';
+          badgeSpan.textContent = badge;
+          li.appendChild(badgeSpan);
+        }
+      } else {
+        li.textContent = label;
+      }
       if (i === s.index) li.classList.add('sel');
       li.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -134,7 +162,7 @@ export function createMenu(root) {
     isOpen: () => stack.length > 0,
     depth: () => stack.length,
     push(screen) {
-      screen.index = screen.index || 0;
+      screen.index = typeof screen.index === 'number' ? screen.index : 0;
       stack.push(screen);
       render();
     },

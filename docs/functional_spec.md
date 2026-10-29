@@ -1045,6 +1045,7 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 | A9 | Contact dynamics | Border/tank contact drag applies during touch; commanded speed and turn rate preserved. |
 | A10 | Gun reload delay | Fixed gun reload cooldown `GUN_RELOAD_S` = 1.0 s between shots. |
 | A16 | Initial selection | Left player tank 1 and Right player tank 1 (key 6) selected at match start. |
+| A21 | Game Mode Submenu & Subtitle Typography | Main and pause menus feature a dedicated "GAME MODE" submenu showing all modes simultaneously without cycling. Separate devices (`HvH_NET`) is positioned directly below same device (`HvH`). HvH submodes display their descriptor (`Split screen` or `Network`) as a secondary subtitle in clean sans-serif typography, and menu cards use a fixed responsive width (`min(620px, 94vw)`) with `box-sizing: border-box` to eliminate width jumping when toggling options. |
 
 ## 18. Remaining Assumptions
 
@@ -1063,7 +1064,7 @@ The game supports 4 battle modes (`HvH`, `HvC`, `CvH`, `CvC`) with 3 selectable 
 - **SDP Compression:** Raw SDP descriptors (~1.5 KB) are compressed using native browser/Node.js `CompressionStream` (`deflate-raw`) into Base64 (`TANK:...`), achieving a 72% size reduction down to ~400 characters for instant, low-density QR code scanning.
 
 ### 19.2 Connection & Role Negotiation Flow
-- **Access Flow:** Activated directly by selecting the **Players: Human vs Human (separate devices)** mode from the Title Menu and clicking **Start game**, opening the streamlined connection dialog (`#networkScreen`).
+- **Access Flow:** Activated directly by selecting **Human vs Human** (`Network`) from the **Game Mode** submenu on the Title Menu and clicking **Start game**, opening the streamlined connection dialog (`#networkScreen`).
 - **Host Role:**
   - Selects Squadron Team: **RED TEAM (P1 · LEFT / Player 0)** or **BLUE TEAM (P2 · RIGHT / Player 1)**.
   - Automatically initializes WebRTC offer and renders Offer QR Code (+ Copy Offer / Share buttons).

@@ -374,12 +374,39 @@ const touch = createTouchControls({
 });
 
 // ---------------------------------------------------------------- screens ---
+function selectPlayerMode(idx) {
+  if (idx < 0 || idx >= C.PLAYER_MODES.length) return;
+  playerModeIndex = idx;
+  localStorage.setItem(C.PLAYERS_SETTINGS_KEY, currentMode().id);
+  aiControllers.forEach((c) => c.reset());
+}
+
+function gameModeScreen() {
+  return {
+    title: 'GAME MODE',
+    text: '<div class="center">Select player mode</div>',
+    index: playerModeIndex,
+    items: () => {
+      const list = C.PLAYER_MODES.map((mode, i) => ({
+        label: mode.name,
+        subtitle: mode.subtitle || null,
+        action: () => {
+          selectPlayerMode(i);
+          menu.pop();
+        },
+      }));
+      list.push({ label: 'Back', action: () => menu.pop() });
+      return list;
+    },
+    onEsc: () => menu.pop(),
+  };
+}
+
 const playersItem = () => ({
-  label: () => `Players: ${currentMode().label}`,
+  label: () => `Players: ${currentMode().name}`,
+  subtitle: () => currentMode().subtitle || null,
   action: () => {
-    playerModeIndex = (playerModeIndex + 1) % C.PLAYER_MODES.length;
-    localStorage.setItem(C.PLAYERS_SETTINGS_KEY, currentMode().id);
-    aiControllers.forEach((c) => c.reset());
+    menu.push(gameModeScreen());
   },
 });
 

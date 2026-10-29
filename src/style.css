@@ -404,9 +404,10 @@ html, body {
 
 .card {
   position: relative;
-  min-width: min(600px, 94vw);
+  width: min(620px, 94vw);
   max-width: 760px;
   max-height: 90vh;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   padding: 24px 32px;
@@ -600,6 +601,49 @@ html, body {
   color: #fff;
 }
 .m-items li.sel::before {
+  color: var(--accent);
+}
+.m-item-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+.m-item-title {
+  font-size: 20px;
+  line-height: 1.25;
+}
+.m-item-subtitle {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #8da493;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+  font-weight: 500;
+  transition: color 0.1s ease;
+}
+.m-items li.sel .m-item-subtitle {
+  color: #e0f0e2;
+}
+.m-item-badge {
+  font-size: 11px;
+  font-family: inherit;
+  font-weight: bold;
+  letter-spacing: 0.1em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid rgba(80, 200, 120, 0.4);
+  background: rgba(80, 200, 120, 0.15);
+  color: #72f098;
+  margin-left: 12px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+.m-items li.sel .m-item-badge {
+  border-color: var(--accent);
+  background: rgba(255, 213, 74, 0.22);
   color: var(--accent);
 }
 .m-hint {
