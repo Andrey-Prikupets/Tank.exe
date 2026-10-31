@@ -9,7 +9,7 @@ import { createView3D } from './render/view3d.js';
 import { createHud } from './render/hud.js';
 import { createMenu } from './ui/menu.js';
 import { createKeyboardScreen } from './ui/keyboard_screen.js';
-import { createTouchControls, enterFullscreen, exitFullscreen } from './ui/touch.js';
+import { createTouchControls, enterFullscreen, exitFullscreen, lockLandscape } from './ui/touch.js';
 import { createReplaysModal } from './ui/replays_modal.js';
 import { createPlaybackToolbar } from './ui/playback_toolbar.js';
 import { createNetworkModal } from './ui/network_modal.js';
@@ -393,6 +393,7 @@ function selectPlayerMode(idx) {
   playerModeIndex = idx;
   localStorage.setItem(C.PLAYERS_SETTINGS_KEY, currentMode().id);
   aiControllers.forEach((c) => c.reset());
+  resizeAll();
 }
 
 function gameModeScreen() {
@@ -695,6 +696,7 @@ function closeNetworkSession() {
   touchSteer[1] = 0;
   input.setLayoutMode('splitscreen');
   input.clear();
+  resizeAll();
 }
 
 function leaveNetworkGame() {
@@ -779,7 +781,7 @@ function handleClientNetworkMessage(msg) {
     gameOverShown = false;
     input.clear();
     menu.clear();
-    dirty = true;
+    resizeAll();
     hud.update(world, performance.now(), true);
     startNetworkRecording();
   } else if (msg.type === 'STATE') {
@@ -797,9 +799,8 @@ function handleClientNetworkMessage(msg) {
 
 function startNetworkGame(session) {
   saveActiveRecording();
-  if (touch.isEnabled()) {
-    enterFullscreen();
-  }
+  enterFullscreen();
+  lockLandscape();
   networkSession = session;
   remoteWindowTurn = 0;
   lastSentWindowTurn = 0;
@@ -829,13 +830,13 @@ function startNetworkGame(session) {
     gameOverShown = false;
     input.clear();
     menu.clear();
-    dirty = true;
+    resizeAll();
     hud.update(world, performance.now(), true);
     startNetworkRecording();
   } else {
     // Client joins: the world is created when the host's INIT packet arrives
     menu.clear();
-    dirty = true;
+    resizeAll();
   }
 }
 
@@ -851,7 +852,7 @@ function newGame() {
   gameOverShown = false;
   input.clear();
   menu.clear();
-  dirty = true;
+  resizeAll();
   hud.update(world, performance.now(), true);
 
   if (recordingEnabled) {
@@ -892,7 +893,7 @@ async function startPlayback(id) {
     document.getElementById('menu').classList.add('hidden');
     menu.clear();
     input.clear();
-    dirty = true;
+    resizeAll();
 
     playbackToolbar.open(activePlayback, metadata, {
       onExit: () => {
@@ -944,12 +945,10 @@ function launchGame() {
 
 function openTitle() {
   saveActiveRecording();
-  if (touch.isEnabled()) {
-    exitFullscreen();
-  }
+  exitFullscreen();
   appState = 'TITLE';
   menu.clear();
-  dirty = true;
+  resizeAll();
   menu.push({
     title: C.GAME_NAME,
     text: '<div class="center">Two players · one keyboard · 90s split-screen tank combat</div>',
@@ -1132,12 +1131,105 @@ document.addEventListener('visibilitychange', () => {
 
 // ---------------------------------------------------------------- loop ------
 let dirty = true;
+const appEl = document.getElementById('app');
+const mapWrapEl = document.getElementById('mapWrap');
+const pane0El = document.getElementById('pane0');
+const pane1El = document.getElementById('pane1');
+
+function isNetworkHvHLayout() {
+  if (appState === 'PLAYBACK') return false;
+  if (appState === 'PLAYING') return !!networkSession;
+  return !!networkSession || currentMode().isNetwork === true;
+}
+
+function updateViewportDimensions() {
+  const vv = window.visualViewport;
+  const w = Math.max(1, Math.round(vv ? vv.width : window.innerWidth));
+  const h = Math.max(1, Math.round(vv ? vv.height : window.innerHeight));
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty('--app-w', `${w}px`);
+  rootStyle.setProperty('--app-h', `${h}px`);
+}
+
 function resizeAll() {
+  updateViewportDimensions();
+  const netLayout = isNetworkHvHLayout();
+  const localPlayer = networkSession ? networkSession.localPlayer : 0;
+  const remotePlayer = 1 - localPlayer;
+
+  appEl.classList.toggle('net-hvh-layout', netLayout);
+  pane0El.classList.toggle('net-local', netLayout && localPlayer === 0);
+  pane0El.classList.toggle('net-remote', netLayout && remotePlayer === 0);
+  pane1El.classList.toggle('net-local', netLayout && localPlayer === 1);
+  pane1El.classList.toggle('net-remote', netLayout && remotePlayer === 1);
+
+  map.setNetworkLayout(netLayout);
   map.resize();
   view.resize();
+
+  const appRect = appEl.getBoundingClientRect();
+  const mapWrapRect = mapWrapEl.getBoundingClientRect();
+  const appW = Math.max(1, Math.floor(appRect.width));
+  const appH = Math.max(1, Math.floor(appRect.height));
+  const topH = Math.max(1, Math.floor(mapWrapRect.height));
+  const bottomY = topH;
+  const bottomH = Math.max(1, appH - bottomY);
+
+  const localW = Math.floor(appW * C.NET_LOCAL_VIEW_WIDTH_FRAC);
+  const localX = Math.floor((appW - localW) / 2);
+  const sidebarW = Math.max(1, localX);
+
+  const uiScaleH = (bottomH - 12) / C.NET_SIDEBAR_BASE_HEIGHT_PX;
+  const uiScaleW = netLayout ? (sidebarW - 12) / C.NET_SIDEBAR_BASE_WIDTH_PX : 1;
+  const uiScale = Math.max(0.55, Math.min(1, uiScaleH, uiScaleW));
+  appEl.style.setProperty('--ui-scale', uiScale.toFixed(3));
+  appEl.style.setProperty('--bottom-h', `${bottomH}px`);
+
+  if (netLayout) {
+    const mRect = map.getLayoutRect();
+    const localY = bottomY;
+    const localH = bottomH;
+
+    const oppX = mRect.mapW + C.VIEW_GAP_PX;
+    const oppW = Math.max(1, appW - oppX);
+    const oppY = mRect.mapY;
+    const oppH = Math.max(1, mRect.mapH);
+    const oppScale = Math.max(
+      0.55,
+      Math.min(1, oppW / C.NET_OPP_HUD_BASE_WIDTH_PX, oppH / C.NET_SIDEBAR_BASE_HEIGHT_PX)
+    );
+
+    appEl.style.setProperty('--net-local-x', `${localX}px`);
+    appEl.style.setProperty('--net-local-y', `${localY}px`);
+    appEl.style.setProperty('--net-local-w', `${localW}px`);
+    appEl.style.setProperty('--net-local-h', `${localH}px`);
+    appEl.style.setProperty('--net-sidebar-w', `${sidebarW}px`);
+
+    appEl.style.setProperty('--net-opp-x', `${oppX}px`);
+    appEl.style.setProperty('--net-opp-y', `${oppY}px`);
+    appEl.style.setProperty('--net-opp-w', `${oppW}px`);
+    appEl.style.setProperty('--net-opp-h', `${oppH}px`);
+    appEl.style.setProperty('--net-opp-scale', oppScale.toFixed(3));
+
+    const rects = [null, null];
+    rects[localPlayer] = { x: localX, y: localY, w: localW, h: localH };
+    rects[remotePlayer] = { x: oppX, y: oppY, w: oppW, h: oppH };
+    view.setNetworkLayout(true, rects);
+  } else {
+    view.setNetworkLayout(false, null);
+  }
   dirty = true;
 }
-new ResizeObserver(resizeAll).observe(document.getElementById('app'));
+
+new ResizeObserver(resizeAll).observe(appEl);
+window.addEventListener('resize', resizeAll);
+window.addEventListener('orientationchange', resizeAll);
+document.addEventListener('fullscreenchange', resizeAll);
+document.addEventListener('webkitfullscreenchange', resizeAll);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', resizeAll);
+  window.visualViewport.addEventListener('scroll', resizeAll);
+}
 resizeAll();
 
 let last = performance.now();

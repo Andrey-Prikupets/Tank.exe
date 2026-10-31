@@ -11,7 +11,8 @@
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
-  height: 100%;
+  width: 100%;
+  height: var(--app-h, 100dvh);
   background: var(--bg);
   color: var(--text);
   overflow: hidden;
@@ -20,7 +21,8 @@ html, body {
 
 #app {
   position: relative;
-  height: 100vh;
+  width: 100%;
+  height: var(--app-h, 100dvh);
   display: grid;
   grid-template-rows: minmax(0, 48fr) minmax(0, 52fr);
 }
@@ -1242,6 +1244,12 @@ html, body {
   align-items: center;
   gap: 5px;
 }
+.touch-tanks-group,
+.touch-slits-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
 .touch-ribbon-divider {
   width: 1px;
   height: 20px;
@@ -2348,5 +2356,178 @@ html, body {
   border: 2px dashed rgba(255, 255, 255, 0.75);
   pointer-events: none;
 }
+
+/* =============================================================================
+   DYNAMIC HEIGHT SCALING & NETWORK HvH DEDICATED LAYOUT
+   ============================================================================= */
+
+/* Proportional UI scaling when vertical viewport height is reduced (non-fullscreen) */
+.touch-side-left .touch-top-ribbon {
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: top left;
+}
+.touch-side-right .touch-top-ribbon {
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: top right;
+}
+.touch-side-left .touch-stick-wrap,
+.touch-split-layout .touch-stick-wrap {
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: bottom left;
+}
+.touch-side-right .touch-weapons-cluster,
+.touch-split-layout .touch-weapons-cluster {
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: bottom right;
+}
+.touch-side-left:not(.touch-split-layout) .touch-weapons-cluster {
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: bottom left;
+}
+.touch-side-right:not(.touch-split-layout) .touch-stick-wrap {
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: bottom right;
+}
+
+/* Network HvH Mode Layout:
+   - Top-Left: Strategic Map
+   - Top-Right: Other Player's 3D Screen (height = map height, width = available right space)
+   - Bottom-Center: Current Player's 3D Screen (50% width)
+   - Bottom Left & Right (25% each): Black Sidebars with Navigation Controls (left) and Inventory/Weapons (right) */
+#app.net-hvh-layout {
+  background: #000;
+}
+
+#app.net-hvh-layout #mapWrap {
+  z-index: 2;
+  background: transparent;
+  pointer-events: none;
+}
+
+#app.net-hvh-layout #glWrap {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  z-index: 1;
+}
+
+/* Current player's centered 3D screen in bottom half */
+#app.net-hvh-layout .pane.net-local {
+  left: var(--net-local-x, 25%);
+  top: var(--net-local-y, 48%);
+  width: var(--net-local-w, 50%);
+  height: var(--net-local-h, 52%);
+  right: auto;
+  bottom: auto;
+  overflow: visible;
+  z-index: 4;
+}
+
+/* Other player's 3D screen on the right of the map in top half */
+#app.net-hvh-layout .pane.net-remote {
+  left: var(--net-opp-x, 70%);
+  top: var(--net-opp-y, 0px);
+  width: var(--net-opp-w, 30%);
+  height: var(--net-opp-h, 48%);
+  right: auto;
+  bottom: auto;
+  overflow: hidden;
+  z-index: 3;
+}
+
+#app.net-hvh-layout .pane.net-remote .cross {
+  transform: translate(-50%, -50%) scale(var(--net-opp-scale, 0.85));
+}
+
+#app.net-hvh-layout .pane.net-remote .banner {
+  top: clamp(20px, 20%, 64px);
+  font-size: clamp(11px, 1.3vw, 18px);
+}
+
+#app.net-hvh-layout .pane.net-remote .inv-overlay {
+  left: auto;
+  right: 6px;
+  bottom: 6px;
+  top: auto;
+  transform: scale(var(--net-opp-scale, 0.85));
+  transform-origin: bottom right;
+  align-items: flex-end;
+}
+#app.net-hvh-layout .pane.net-remote .inv-overlay .inv-row {
+  justify-content: flex-end;
+}
+
+/* Move Current Player's Inventory (Ammo/Mine/Smoke) outside the 3D view into the Right Black Sidebar */
+#app.net-hvh-layout .pane.net-local .inv-overlay {
+  left: calc(100% + var(--net-sidebar-w, 25vw) / 2);
+  right: auto;
+  bottom: 14px;
+  top: auto;
+  transform: translateX(-50%) scale(var(--ui-scale, 1));
+  transform-origin: bottom center;
+  align-items: center;
+}
+#app.net-hvh-layout .pane.net-local .inv-overlay .inv-row {
+  justify-content: center;
+}
+
+/* When touch controls are active in Network HvH mode, place inventory at top of right black sidebar above weapon buttons */
+#app.touch-active.net-hvh-layout .pane.net-local .inv-overlay {
+  left: calc(100% + var(--net-sidebar-w, 25vw) / 2);
+  right: auto;
+  top: 8px;
+  bottom: auto;
+  transform: translateX(-50%) scale(var(--ui-scale, 1));
+  transform-origin: top center;
+  align-items: center;
+}
+#app.touch-active.net-hvh-layout .pane.net-local .inv-overlay .inv-row {
+  justify-content: center;
+}
+
+/* Span touch overlay across Left Black Sidebar + Center 3D + Right Black Sidebar */
+#app.net-hvh-layout .pane.net-local .touch-player-overlay {
+  left: calc(-1 * var(--net-sidebar-w, 25vw));
+  right: calc(-1 * var(--net-sidebar-w, 25vw));
+  top: 0;
+  bottom: 0;
+  padding: 8px 0 8px;
+}
+
+/* Tank & Slit selection ribbon in Left Black Sidebar above Joystick */
+#app.net-hvh-layout .pane.net-local .touch-top-ribbon {
+  width: var(--net-sidebar-w, 25vw);
+  justify-content: center;
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: top center;
+}
+#app.net-hvh-layout .pane.net-local .touch-tanks-row {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  max-width: 190px;
+}
+#app.net-hvh-layout .pane.net-local .touch-ribbon-divider {
+  display: none;
+}
+
+/* Navigation control on Left Black Sidebar, Weapons cluster on Right Black Sidebar */
+#app.net-hvh-layout .pane.net-local .touch-controls-cluster {
+  width: 100%;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 0;
+}
+#app.net-hvh-layout .pane.net-local .touch-stick-wrap {
+  width: var(--net-sidebar-w, 25vw);
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: bottom center;
+}
+#app.net-hvh-layout .pane.net-local .touch-weapons-cluster {
+  width: var(--net-sidebar-w, 25vw);
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: bottom center;
+}
+
 
 

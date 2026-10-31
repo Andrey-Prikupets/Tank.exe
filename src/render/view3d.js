@@ -494,6 +494,9 @@ export function createView3D(canvas, options = {}) {
   let cw = 1;
   let ch = 1;
   let half = 1;
+  let netLayout = false;
+  let netRects = null; // [{ x, y, w, h }, { x, y, w, h }] in top-down CSS px
+
   function resize() {
     const r = canvas.parentElement.getBoundingClientRect();
     cw = Math.max(1, Math.floor(r.width));
@@ -513,6 +516,11 @@ export function createView3D(canvas, options = {}) {
       gameTextures.water.offset.y = (gameTextures.water.offset.y + dt * 0.02) % 1;
     }
     updateDynamic(world);
+    if (netLayout && netRects) {
+      renderer.setScissorTest(false);
+      renderer.setClearColor(0x000000, 1);
+      renderer.clear();
+    }
     renderer.setScissorTest(true);
     for (const p of [0, 1]) {
       const pose = viewPose(world, p);
@@ -551,9 +559,24 @@ export function createView3D(canvas, options = {}) {
       const hidden = pose.hideId != null ? tankMeshes.get(pose.hideId) : null;
       const prev = hidden ? hidden.visible : false;
       if (hidden) hidden.visible = false;
-      const x = p === 0 ? 0 : cw - half;
-      renderer.setViewport(x, 0, half, ch);
-      renderer.setScissor(x, 0, half, ch);
+
+      if (netLayout && netRects && netRects[p]) {
+        const rect = netRects[p];
+        const vx = Math.max(0, Math.floor(rect.x));
+        const vw = Math.max(1, Math.floor(rect.w));
+        const vh = Math.max(1, Math.floor(rect.h));
+        const vy = Math.max(0, Math.floor(ch - rect.y - vh));
+        camera.aspect = vw / vh;
+        camera.updateProjectionMatrix();
+        renderer.setViewport(vx, vy, vw, vh);
+        renderer.setScissor(vx, vy, vw, vh);
+      } else {
+        const x = p === 0 ? 0 : cw - half;
+        camera.aspect = half / ch;
+        camera.updateProjectionMatrix();
+        renderer.setViewport(x, 0, half, ch);
+        renderer.setScissor(x, 0, half, ch);
+      }
       renderer.render(scene, camera);
       if (hidden) hidden.visible = prev;
     }
@@ -562,6 +585,10 @@ export function createView3D(canvas, options = {}) {
   return {
     resize,
     render,
+    setNetworkLayout: (enabled, rects) => {
+      netLayout = !!enabled;
+      netRects = rects || null;
+    },
     setTexturesEnabled: (enabled) => {
       texturesEnabled = !!enabled;
       applyTextures();

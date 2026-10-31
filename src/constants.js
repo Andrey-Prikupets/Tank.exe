@@ -427,6 +427,11 @@ export const NET_SNAPSHOT_INTERVAL_MS = 33; // host -> client state snapshots (~
 export const NET_HEARTBEAT_MS = 500; // PING cadence in both directions
 export const NET_TIMEOUT_MS = 2000; // no message from peer for this long => connection lost
 export const NET_TURN_EPSILON = 0.02; // min joystick steering change worth sending to the host
+export const NET_MAP_MAX_WIDTH_FRAC = 0.78; // max top-row width fraction for map in Network HvH
+export const NET_LOCAL_VIEW_WIDTH_FRAC = 0.5; // centered bottom 3D view width fraction in Network HvH
+export const NET_SIDEBAR_BASE_HEIGHT_PX = 210; // baseline bottom-half height for sidebar control scaling
+export const NET_SIDEBAR_BASE_WIDTH_PX = 180; // baseline sidebar width for control scaling
+export const NET_OPP_HUD_BASE_WIDTH_PX = 320; // baseline width for scaling opponent top-right HUD
 
 // ---- Colors -----------------------------------------------------------------
 export const COLOR_FIELD = '#3f9b3f';

@@ -2,6 +2,7 @@
 import * as C from '../constants.js';
 import { P2PConnection } from '../net/p2p.js';
 import { renderQrToCanvas, createQrScanner } from '../net/qr.js';
+import { enterFullscreen, lockLandscape } from './touch.js';
 
 export function createNetworkModal(root) {
   let callbacks = { onStartGame: () => {}, onClose: () => {} };
@@ -42,6 +43,7 @@ export function createNetworkModal(root) {
       video,
       (text) => {
         stopScanner();
+        enterFullscreen();
         onDetected(text);
       },
       (err) => {
@@ -286,6 +288,7 @@ export function createNetworkModal(root) {
         scanAnswerBtn.className = 'net-action-btn highlight';
         scanAnswerBtn.textContent = 'SCAN CLIENT QR';
         scanAnswerBtn.addEventListener('click', () => {
+          enterFullscreen();
           startScanning((scanned) => applyAnswerText(scanned));
         });
         step2Btns.appendChild(scanAnswerBtn);
@@ -294,6 +297,7 @@ export function createNetworkModal(root) {
         pasteAnswerBtn.className = 'net-action-btn';
         pasteAnswerBtn.textContent = 'PASTE ANSWER CODE';
         pasteAnswerBtn.addEventListener('click', async () => {
+          enterFullscreen();
           try {
             const clip = await navigator.clipboard.readText();
             if (clip) {
@@ -302,7 +306,10 @@ export function createNetworkModal(root) {
             }
           } catch {}
           const userVal = prompt('Paste client answer code here:');
-          if (userVal) applyAnswerText(userVal);
+          if (userVal) {
+            enterFullscreen();
+            applyAnswerText(userVal);
+          }
         });
         step2Btns.appendChild(pasteAnswerBtn);
 
@@ -323,6 +330,7 @@ export function createNetworkModal(root) {
         scanOfferBtn.className = 'net-action-btn highlight';
         scanOfferBtn.textContent = 'SCAN HOST QR CODE';
         scanOfferBtn.addEventListener('click', () => {
+          enterFullscreen();
           startScanning((scanned) => applyOfferText(scanned));
         });
         step1Btns.appendChild(scanOfferBtn);
@@ -331,6 +339,7 @@ export function createNetworkModal(root) {
         pasteOfferBtn.className = 'net-action-btn';
         pasteOfferBtn.textContent = 'PASTE HOST OFFER';
         pasteOfferBtn.addEventListener('click', async () => {
+          enterFullscreen();
           try {
             const clip = await navigator.clipboard.readText();
             if (clip) {
@@ -339,7 +348,10 @@ export function createNetworkModal(root) {
             }
           } catch {}
           const userVal = prompt('Paste host offer code here:');
-          if (userVal) applyOfferText(userVal);
+          if (userVal) {
+            enterFullscreen();
+            applyOfferText(userVal);
+          }
         });
         step1Btns.appendChild(pasteOfferBtn);
 
@@ -421,11 +433,24 @@ export function createNetworkModal(root) {
     callbacks.onClose();
   }
 
+  window.addEventListener('paste', (e) => {
+    if (root.classList.contains('hidden')) return;
+    const pasted = e.clipboardData ? e.clipboardData.getData('text') : '';
+    if (!pasted || !pasted.trim()) return;
+    enterFullscreen();
+    if (activeTab === 'connect' && !currentAnswerToken) {
+      applyOfferText(pasted.trim());
+    } else if (activeTab === 'host' && currentOfferToken) {
+      applyAnswerText(pasted.trim());
+    }
+  });
+
   return {
     isOpen: () => !root.classList.contains('hidden'),
     open(cb) {
       callbacks = { ...callbacks, ...cb };
       root.classList.remove('hidden');
+      lockLandscape();
       activeTab = 'host';
       initHost();
     },

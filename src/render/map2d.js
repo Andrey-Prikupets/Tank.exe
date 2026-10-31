@@ -12,6 +12,21 @@ export function createMap2D(canvas, options = {}) {
   let w = 0;
   let h = 0;
   let dpr = 1;
+  let netLayout = false;
+
+  function computeGeometry() {
+    const worldW = C.FIELD_LENGTH_M + 2 * C.MAP_MARGIN_X_M;
+    const worldH = C.FIELD_WIDTH_M + 2 * C.MAP_MARGIN_Y_M;
+    const maxW = netLayout ? w * C.NET_MAP_MAX_WIDTH_FRAC : w;
+    const scale = Math.max(0.01, Math.min(maxW / worldW, h / worldH));
+    const drawnW = worldW * scale;
+    const drawnH = worldH * scale;
+    const leftX = netLayout ? 0 : (w - drawnW) / 2;
+    const topY = (h - drawnH) / 2;
+    const ox = leftX + C.MAP_MARGIN_X_M * scale;
+    const oy = topY + C.MAP_MARGIN_Y_M * scale;
+    return { worldW, worldH, scale, drawnW, drawnH, leftX, topY, ox, oy };
+  }
 
   function drawTacticalDigit(ctx, num, tr, scale) {
     const digitStr = String(num != null ? num : '');
@@ -145,17 +160,23 @@ export function createMap2D(canvas, options = {}) {
   }
 
   function render(world) {
-    const worldW = C.FIELD_LENGTH_M + 2 * C.MAP_MARGIN_X_M;
-    const worldH = C.FIELD_WIDTH_M + 2 * C.MAP_MARGIN_Y_M;
-    const scale = Math.min(w / worldW, h / worldH);
-    const ox = (w - worldW * scale) / 2 + C.MAP_MARGIN_X_M * scale;
-    const oy = (h - worldH * scale) / 2 + C.MAP_MARGIN_Y_M * scale;
+    const { scale, drawnW, drawnH, topY, ox, oy } = computeGeometry();
     const px = (x) => ox + x * scale;
     const py = (y) => oy + y * scale;
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = C.COLOR_OUTSIDE;
-    ctx.fillRect(0, 0, w, h);
+    if (netLayout) {
+      ctx.clearRect(0, 0, w, h);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, Math.floor(topY), Math.ceil(drawnW), Math.ceil(drawnH));
+      ctx.clip();
+      ctx.fillStyle = C.COLOR_OUTSIDE;
+      ctx.fillRect(0, Math.floor(topY), Math.ceil(drawnW), Math.ceil(drawnH));
+    } else {
+      ctx.fillStyle = C.COLOR_OUTSIDE;
+      ctx.fillRect(0, 0, w, h);
+    }
 
     // hangars
     for (const owner of [0, 1]) {
@@ -504,17 +525,34 @@ export function createMap2D(canvas, options = {}) {
       ctx.fill();
     }
     ctx.globalAlpha = 1;
+    if (netLayout) {
+      ctx.restore();
+    }
   }
 
   /** Width in px of the empty (letterbox) area on each side of the drawn map. */
   function sideWidthPx() {
-    const worldW = C.FIELD_LENGTH_M + 2 * C.MAP_MARGIN_X_M;
-    const worldH = C.FIELD_WIDTH_M + 2 * C.MAP_MARGIN_Y_M;
-    const scale = Math.min(w / worldW, h / worldH);
-    return Math.max(0, (w - worldW * scale) / 2);
+    if (netLayout) return 0;
+    const { drawnW } = computeGeometry();
+    return Math.max(0, (w - drawnW) / 2);
   }
 
-  return { resize, render, sideWidthPx };
+  function getLayoutRect() {
+    const { drawnW, drawnH, topY } = computeGeometry();
+    return {
+      mapW: Math.floor(drawnW),
+      mapH: Math.floor(drawnH),
+      mapY: Math.floor(topY),
+      containerW: Math.floor(w),
+      containerH: Math.floor(h),
+    };
+  }
+
+  function setNetworkLayout(enabled) {
+    netLayout = !!enabled;
+  }
+
+  return { resize, render, sideWidthPx, getLayoutRect, setNetworkLayout };
 }
 
 export { slotPos };

@@ -43,7 +43,9 @@ To ensure both players experience the exact same picture without desynchronizati
 - Client routes all physical commands (keyboard actions and mobile touch overlays) exclusively to the host via `{ type: 'INPUT', action, arg }`, joystick steering via `{ type: 'TURN', factor }`, and observation slit panning via `{ type: 'STEER', windowTurn }`.
 - Simulation continues seamlessly if a player opens an in-game menu or switches tabs, preventing desync or accidental pausing of the shared battlefield.
 
-### 3.3 Control Isolation & Mobile Ergonomics
+### 3.3 Control Isolation, Dedicated Network Layout & Fullscreen Ergonomics
+- Entering the network modal or clicking **Scan QR** / **Paste Code** (or pasting via clipboard) synchronously requests browser fullscreen (`enterFullscreen()`) and landscape orientation lock (`screen.orientation.lock('landscape')`) within the user gesture. If fullscreen is unavailable or exited, the game dynamically scales to the visible viewport height and rescales to full height when the user clicks the `[⛶]` Fullscreen button.
+- During Network HvH play, the screen uses the dedicated Network HvH layout: the strategic map shifts to the top-left, the opponent's 3D view renders to the right of the map, and the local player's 3D view is centered in the bottom half (`50%` width) with all touch controls and inventory moved into the left and right `25%` black sidebars.
 - On mobile devices during network play, touch controls and cockpit manipulation overlays are rendered strictly for the locally assigned player seat (`isLocallyControlled`), never displaying duplicate touch controls on both 3D viewports.
 
 ### 3.4 Snapshot Replication & Visual Fidelity

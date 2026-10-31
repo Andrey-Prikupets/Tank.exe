@@ -23,8 +23,39 @@ The screen divides vertical space into a shared top-down strategic map and two f
 ```
 
 - **Aspect Ratio & Scaling:** Map maintains the 2.5:1 field aspect ratio (plus hangar side margins), letter-boxed if needed. Minimum target display resolution is $1280 \times 720\text{ px}$ (`MIN_SCREEN_W_PX × MIN_SCREEN_H_PX`).
-- **Dual Viewports:** Bottom area is split 50/50 horizontally between the Left player (Red) and Right player (Blue).
-- **HUD Integration:** Inventory telemetry is docked inside the 3D viewports rather than occupying separate bottom screen strips.
+- **Dynamic Viewport Height Scaling:** The root `#app` container dynamically tracks the visible screen height via `window.visualViewport` / `window.innerHeight` (`--app-h`, `100dvh` fallback) and computes a proportional UI scale (`--ui-scale`). When not in fullscreen (e.g., mobile browser toolbars visible), the game cleanly scales down to fit the smaller visible height; when the user enters fullscreen, the game immediately rescales to the full screen height.
+- **Dual Viewports (Standard Modes):** Bottom area is split 50/50 horizontally between the Left player (Red) and Right player (Blue).
+- **HUD Integration (Standard Modes):** Inventory telemetry is docked inside the 3D viewports rather than occupying separate bottom screen strips.
+
+### 1.1 Dedicated Network HvH Layout (`#app.net-hvh-layout`)
+
+Exclusively in **Human vs Human (Network)** mode, the screen layout reorganizes to maximize local situational awareness and keep the local player's 3D viewport 100% unobstructed:
+
+```
++-----------------------------------------------+-----------------------+
+|                                               |                       |
+|                 STRATEGIC MAP                 |    OTHER PLAYER'S     |   ~48%
+|             (shifted to very left)            |       3D SCREEN       |
+|    [hangar L]   [250x100 field]   [hangar R]  |   (right of the map)  |
+|                                               |  [+crosshair & HUD]   |
++-----------+-----------------------------------+-----------+-----------+
+|   BLACK   |                                               |   BLACK   |
+|  SIDEBAR  |            CURRENT PLAYER 3D SCREEN           |  SIDEBAR  |   ~52%
+|   (25%)   |             (centered, 50% width)             |   (25%)   |
+|           |                                               |           |
+| [1..5|L|R]|                 (+ crosshair)                 | [Inv HUD] |
+| [Joystick]|                                               | [MIN][SMK]|
+|  [STOP]   |                                               |  [FIRE]   |
++-----------+-----------------------------------------------+-----------+
+```
+
+- **Top Half — Left-Aligned Map + Opponent 3D View:**
+  - The 2D strategic map remains in the top half (`48%` height) but shifts to the **very left** (`left = 0`, capped at `NET_MAP_MAX_WIDTH_FRAC = 0.78` of width on narrow displays).
+  - The **other player's 3D screen** is rendered in the available space to the **right of the map**, with its maximum height equal to the drawn map height and its width filling the remaining right-hand space. It displays the opponent's 3D view, crosshair, slit-window masks, banners, and proportionally scaled inventory HUD.
+- **Bottom Half — Centered Local 3D View + 25% Black Sidebars:**
+  - The **current (local) player's 3D screen** is centered horizontally in the middle of the bottom half at `50%` screen width (`NET_LOCAL_VIEW_WIDTH_FRAC = 0.5`), flanked by `25%` pure black sidebars on the left and right.
+  - **Left Black Sidebar (25% width):** Houses the local player's unit & slit selection buttons (`[1]..[5]`, `[L]`, `[R]`) at the top and navigation controls (2-axis analog joystick + `[STOP]`) at the bottom.
+  - **Right Black Sidebar (25% width):** Houses the local player's ammunition/mine/smoke inventory overlay (`.inv-overlay`) outside the 3D screen, plus the tactical weapon buttons (`[MINE]`, `[SMOKE]`, `[FIRE]`) at the bottom when touch controls are active.
 
 ---
 

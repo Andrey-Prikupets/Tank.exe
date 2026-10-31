@@ -72,6 +72,11 @@ Touch environments are detected dynamically via `'ontouchstart'`, `navigator.max
 - **Human vs Computer (`HvC` or `CvH`):**
   - Two-handed thumb spread: Steering joystick and `[STOP]` on the left screen edge; tactical weapons (`[MINE]`, `[SMOKE]`, `[FIRE]`) on the right screen edge.
   - Cockpit Inventory HUD centered between thumb pads.
+- **Network Human vs Human (`HvH_NET`):**
+  - All controls and inventory HUD are moved outside the centered 50% 3D viewport into the 25% black sidebars on the left and right.
+  - Left black sidebar: Unit selection `[1]`..`[5]` and slit toggles `[L]`, `[R]` at the top; steering joystick and `[STOP]` at the bottom.
+  - Right black sidebar: Ammunition/mine/smoke inventory HUD at the top; `[MINE]`, `[SMOKE]`, and `[FIRE]` buttons at the bottom.
+  - Top bar (`[⏸ MENU]` and `[⛶]` Fullscreen toggle) remains accessible at the top corners so players can switch to fullscreen at any time.
 
 ### 4.2 2-Axis Drone-Style Virtual Analog Joystick
 - **Horizontal Axis (Steering):** Proportional deflection calculates continuous rotational velocity:

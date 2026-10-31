@@ -128,16 +128,28 @@ export function createTouchControls({ root, onAction, onContinuousTurn, isHumanP
     openMenu();
   });
 
-  btnFs.addEventListener('pointerdown', (e) => {
+  function toggleFullscreen(e) {
     e.stopPropagation();
-    e.preventDefault();
     sfxResume();
     if (!document.fullscreenElement && !document.webkitFullscreenElement) {
       enterFullscreen();
     } else {
       exitFullscreen();
     }
+  }
+
+  btnFs.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
   });
+  btnFs.addEventListener('click', toggleFullscreen);
+
+  const onFsChange = () => {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      lockLandscape();
+    }
+  };
+  document.addEventListener('fullscreenchange', onFsChange);
+  document.addEventListener('webkitfullscreenchange', onFsChange);
 
   // SVG Icons
   const SHELL_ICON_SVG = `
@@ -175,17 +187,21 @@ export function createTouchControls({ root, onAction, onContinuousTurn, isHumanP
     overlay.innerHTML = `
       <div class="touch-top-ribbon">
         <div class="touch-tanks-row" role="group" aria-label="Tank and slit selection">
-          ${[1, 2, 3, 4, 5]
-            .map(
-              (n) =>
-                `<button type="button" class="touch-tank-btn" data-tank="${n}" aria-label="Tank ${n}">
-                  <span class="tank-num">${n}</span>
-                </button>`
-            )
-            .join('')}
+          <div class="touch-tanks-group">
+            ${[1, 2, 3, 4, 5]
+              .map(
+                (n) =>
+                  `<button type="button" class="touch-tank-btn" data-tank="${n}" aria-label="Tank ${n}">
+                    <span class="tank-num">${n}</span>
+                  </button>`
+              )
+              .join('')}
+          </div>
           <div class="touch-ribbon-divider"></div>
-          <button type="button" class="touch-slit-btn" data-slit="L" aria-label="Left slit window">L</button>
-          <button type="button" class="touch-slit-btn" data-slit="R" aria-label="Right slit window">R</button>
+          <div class="touch-slits-group">
+            <button type="button" class="touch-slit-btn" data-slit="L" aria-label="Left slit window">L</button>
+            <button type="button" class="touch-slit-btn" data-slit="R" aria-label="Right slit window">R</button>
+          </div>
         </div>
       </div>
 
@@ -423,7 +439,8 @@ export function createTouchControls({ root, onAction, onContinuousTurn, isHumanP
     overlay0.classList.toggle('touch-split-layout', enabled && human0 && !human1);
     overlay1.classList.toggle('touch-split-layout', enabled && !human0 && human1);
 
-    topBar.classList.toggle('hidden', !enabled || appState !== 'PLAYING');
+    const isNetLayout = root.classList.contains('net-hvh-layout');
+    topBar.classList.toggle('hidden', (!enabled && !isNetLayout) || appState !== 'PLAYING');
     overlay0.classList.toggle('hidden', !enabled || !playing || !human0);
     overlay1.classList.toggle('hidden', !enabled || !playing || !human1);
 
