@@ -651,7 +651,7 @@ export function createKeyboardScreen(root) {
       if (activeLayoutTab === 'splitscreen') return;
       activeLayoutTab = 'splitscreen';
       selectedFn = null;
-      statusMsg = 'Switched to Split-Screen layout (Left / Right players).';
+      statusMsg = '';
       render();
     });
     tabSwitch.appendChild(splitTabBtn);
@@ -663,7 +663,7 @@ export function createKeyboardScreen(root) {
       if (activeLayoutTab === 'single') return;
       activeLayoutTab = 'single';
       selectedFn = null;
-      statusMsg = 'Switched to Single player layout (HvC, CvH & Network).';
+      statusMsg = '';
       render();
     });
     tabSwitch.appendChild(singleTabBtn);
