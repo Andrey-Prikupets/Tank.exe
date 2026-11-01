@@ -15,6 +15,12 @@ import {
   setPinned,
   deleteRecording,
   angleLerp,
+  formatLocalDatetimeForFilename,
+  formatScoreForFilename,
+  getRecordingFileName,
+  serializeRecordingSave,
+  parseRecordingSave,
+  importRecordingSave,
 } from '../src/sim/recording.js';
 import { createWorld, step, selectedTank } from '../src/sim/world.js';
 import * as C from '../src/constants.js';
@@ -196,5 +202,92 @@ assert.strictEqual(list.length, 1);
 assert.strictEqual(list[0].id, metadata.id);
 
 console.log('✔ LocalStorage manager, sorting, and pin operations verified.');
+
+// 7. Test Replay Export (.sav filename formatting, serialization) & Import System
+console.log('Testing Export (.sav) Filename Generation...');
+const testIso = '2026-11-01T23:21:06.000Z';
+const localDt = formatLocalDatetimeForFilename(testIso);
+assert.match(localDt, /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/, 'Local datetime must match YYYY-MM-DD_HH-mm-ss');
+
+const testMeta = {
+  id: 'rec_test_123',
+  savedAt: testIso,
+  duration: 42.5,
+  mode: 'HvC',
+  modeLabel: 'Human vs. Computer',
+  aiLevel: 'HARD',
+  shootDist: 32,
+  winner: 0,
+  winnerLabel: 'RED WINS',
+  score: '15 - 3',
+  redLost: 15,
+  blueLost: 3,
+  pinned: true,
+};
+
+const filename = getRecordingFileName(testMeta);
+assert.ok(filename.startsWith('tank.'), 'Filename must start with tank.');
+assert.ok(filename.endsWith('.sav'), 'Filename must end with .sav');
+assert.ok(filename.includes('_15-3.sav'), 'Filename must contain _<score>.sav');
+assert.strictEqual(filename, `tank.${localDt}_15-3.sav`, 'Filename format must match tank.<local_date-time>_<score>.sav');
+
+console.log('Testing Serialization & Deserialization of .sav file...');
+const serialized = serializeRecordingSave(testMeta, base64Payload);
+assert.ok(typeof serialized === 'string' && serialized.length > 0);
+
+const parsed = await parseRecordingSave(serialized);
+assert.strictEqual(parsed.payload, base64Payload, 'Parsed payload must match original');
+assert.strictEqual(parsed.metadata.mode, 'HvC');
+assert.strictEqual(parsed.metadata.winnerLabel, 'RED WINS');
+assert.strictEqual(parsed.metadata.score, '15 - 3');
+assert.strictEqual(parsed.metadata.pinned, false, 'Imported recording starts unpinned');
+assert.ok(parsed.metadata.id.startsWith('rec_'), 'Imported metadata gets unique id');
+
+console.log('Testing Import into LocalStorage...');
+mockStorage.clear();
+const importedMeta = await importRecordingSave(serialized);
+assert.ok(importedMeta.id.startsWith('rec_'));
+
+// Must appear in recordings list
+const recordingsAfterImport = listRecordings();
+assert.strictEqual(recordingsAfterImport.length, 1);
+assert.strictEqual(recordingsAfterImport[0].id, importedMeta.id);
+assert.strictEqual(recordingsAfterImport[0].score, '15 - 3');
+
+// Must be readable and decodable for playback
+const loadedBase64 = loadRecording(importedMeta.id);
+assert.strictEqual(loadedBase64, base64Payload);
+const decodedImport = await decodeRecording(loadedBase64);
+assert.strictEqual(decodedImport.frames.length, recorder.frameCount);
+
+console.log('Testing Save File Validation & Error Handling...');
+// 1. Invalid JSON
+await assert.rejects(
+  async () => {
+    await parseRecordingSave('{ corrupted json');
+  },
+  /not valid JSON/i,
+  'Malformed JSON must be rejected'
+);
+
+// 2. World snapshot rejection
+await assert.rejects(
+  async () => {
+    await parseRecordingSave(JSON.stringify({ version: 1, world: { time: 0 } }));
+  },
+  /world snapshot/,
+  'World snapshot must not be accepted as match recording'
+);
+
+// 3. Corrupted payload
+await assert.rejects(
+  async () => {
+    await parseRecordingSave(JSON.stringify({ metadata: testMeta, payload: 'not-valid-base64!' }));
+  },
+  /Corrupted recording payload/,
+  'Corrupted payload must be rejected'
+);
+
+console.log('✔ Replay export, filename generation, import, and error validation verified.');
 
 console.log('=== All Replay Unit Tests Passed Successfully! ===\n');

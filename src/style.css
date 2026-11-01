@@ -1632,9 +1632,43 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-top: 10px;
   padding-top: 8px;
   border-top: 1px dashed rgba(59, 90, 68, 0.4);
+}
+.replays-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.hidden-file-input {
+  display: none;
+}
+.replays-toast {
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  animation: fadeIn 0.15s ease;
+}
+.replays-toast.success {
+  background: rgba(42, 82, 56, 0.9);
+  border: 1px solid #50c878;
+  color: #d1fae5;
+}
+.replays-toast.error {
+  background: rgba(110, 32, 27, 0.9);
+  border: 1px solid #ef4444;
+  color: #fee2e2;
+}
+.replays-modal.dragover {
+  border-color: #50c878;
+  box-shadow: 0 0 20px rgba(80, 200, 120, 0.35);
 }
 .replays-filter-label {
   display: flex;
@@ -1732,7 +1766,7 @@ html, body {
   width: 220px;
 }
 .col-actions {
-  width: 120px;
+  width: 148px;
   text-align: right;
   white-space: nowrap;
 }
@@ -1789,6 +1823,21 @@ html, body {
   background: #376f4b;
   box-shadow: 0 0 10px rgba(80, 200, 120, 0.4);
 }
+.rp-btn-import {
+  background: #1e3d29;
+  color: #a3f7bf;
+  border-color: #3b7450;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+}
+.rp-btn-import:hover {
+  background: #285438;
+  border-color: #50c878;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(80, 200, 120, 0.35);
+}
 .rp-btn-back {
   background: transparent;
   color: #a0baa6;
@@ -1836,6 +1885,10 @@ html, body {
 }
 .rp-icon-btn.pin-toggle:hover {
   color: #ffd54a;
+}
+.rp-icon-btn.export-btn:hover {
+  color: #50c878;
+  background: rgba(80, 200, 120, 0.15);
 }
 .rp-icon-btn.delete-btn:hover {
   color: var(--red);
@@ -1949,6 +2002,11 @@ html, body {
   width: 36px;
   font-size: 12px;
   color: var(--accent);
+}
+.pb-export-btn:hover {
+  color: #50c878;
+  border-color: rgba(80, 200, 120, 0.4);
+  background: rgba(80, 200, 120, 0.15);
 }
 .pb-trash-btn:hover {
   color: var(--red);

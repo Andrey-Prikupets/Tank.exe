@@ -90,7 +90,8 @@ A deterministic, high-performance binary recording and playback engine:
 Accessed from the Title Menu via **Game playback**:
 - Sorted strictly by datetime descending (newest match first).
 - Filter toggle: `[ ] Show only pinned recordings`.
-- Telemetry Columns: Pin toggle (`📌`), Date & Time, Duration (`MM:SS`), Game Mode & Shooting Distance, Outcome & Final Score badge, Actions (`▶ Play`, `🗑 Delete`).
+- **Import Button (`📥 Import (.sav)`):** Allows loading `.sav` match recordings from disk or device storage directly into `localStorage`. Also supports drag-and-drop onto the modal.
+- Telemetry Columns: Pin toggle (`📌`), Date & Time, Duration (`MM:SS`), Game Mode & Shooting Distance, Outcome & Final Score badge, Actions (`▶ Play`, `📤 Export / Share`, `🗑 Delete`).
 - Incomplete/aborted matches are categorized with a neutral `INCOMPLETE` badge rather than inheriting winning colors.
 
 ### 5.4 Playback Viewer & Floating Toolbar
@@ -100,5 +101,16 @@ Accessed from the Title Menu via **Game playback**:
   - Play / Pause toggle (`Space`).
   - Continuous seek slider track for instant scrubbing across the timeline without resimulation lag.
   - Playback speed multiplier (`1x` $\to$ `2x` $\to$ `0.5x`).
-  - Time elapsed counter (`MM:SS / MM:SS`), pin toggle, and delete.
+  - Time elapsed counter (`MM:SS / MM:SS`), pin toggle, export/share button (`📤`), and delete.
 - **Auto-Hide with Jitter Filtering:** The toolbar slides down offscreen after 3 seconds of mouse inactivity. Mouse movements $< 4\text{ px}$ are ignored to prevent table vibration or sensor jitter from unhiding the bar.
+
+### 5.5 Replay Export & Mobile Sharing (`.sav`)
+- Players can export any recorded match from the Replays list (`ACTIONS` column) or directly from the active playback toolbar.
+- **File Naming Specification:** `tank.<local_date-time>_<score>.sav` (e.g. `tank.2026-11-01_23-21-06_15-3.sav`), constructed deterministically from the recording's local timestamp and final score.
+- **Mobile Web Share API:** On supported mobile devices (iOS/Android), invokes `navigator.share({ files: [file] })` to summon the native system share sheet (AirDrop, WhatsApp, Telegram, Files, etc.). Seamlessly falls back to direct browser file download on desktop.
+- **Encapsulated JSON Save Structure:** Stores metadata together with the compressed binary Base64 frame payload under `magic: "TANK_RECORDING"`.
+
+### 5.6 Replay Import & Verification (`.sav`)
+- Players can import `.sav` replay files into browser `localStorage` using the **Import (.sav)** button or by dragging and dropping `.sav` files onto the Replays modal.
+- **Integrity Verification:** Replay files are validated through real-time JSON decoding, binary magic check (`0x544e4b52`), Deflate decompression, and frame stream validation before saving. World state snapshots or corrupted files are rejected with explanatory notifications.
+- **Instant Playback Availability:** Successfully imported replays are assigned collision-free identifiers and immediately listed in the table sorted by timestamp, ready for instant playback, timeline scrubbing, pinning, or re-exporting.

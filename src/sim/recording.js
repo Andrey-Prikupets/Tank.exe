@@ -705,6 +705,187 @@ export function deleteRecording(id) {
 }
 
 // ---------------------------------------------------------------------------
+// Replay Export & Import System (.sav)
+// ---------------------------------------------------------------------------
+export function formatLocalDatetimeForFilename(dateOrIso) {
+  const d = dateOrIso ? new Date(dateOrIso) : new Date();
+  if (Number.isNaN(d.getTime())) {
+    return formatLocalDatetimeForFilename(new Date());
+  }
+  const pad = (n) => String(n).padStart(2, '0');
+  const yr = d.getFullYear();
+  const mo = pad(d.getMonth() + 1);
+  const da = pad(d.getDate());
+  const hr = pad(d.getHours());
+  const mi = pad(d.getMinutes());
+  const se = pad(d.getSeconds());
+  return `${yr}-${mo}-${da}_${hr}-${mi}-${se}`;
+}
+
+export function formatScoreForFilename(metadata) {
+  const rawScore =
+    metadata?.score ||
+    (metadata?.redLost != null && metadata?.blueLost != null
+      ? `${metadata.redLost} - ${metadata.blueLost}`
+      : '0-0');
+  return String(rawScore).replace(/\s+/g, '').replace(/[^0-9a-zA-Z_-]/g, '') || '0-0';
+}
+
+export function getRecordingFileName(metadata) {
+  const localDt = formatLocalDatetimeForFilename(metadata?.savedAt);
+  const score = formatScoreForFilename(metadata);
+  return `tank.${localDt}_${score}.sav`;
+}
+
+export function serializeRecordingSave(metadata, base64Payload) {
+  return JSON.stringify(
+    {
+      magic: 'TANK_RECORDING',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      metadata: {
+        id: metadata.id,
+        savedAt: metadata.savedAt,
+        duration: metadata.duration,
+        mode: metadata.mode,
+        modeLabel: metadata.modeLabel,
+        aiLevel: metadata.aiLevel,
+        shootDist: metadata.shootDist,
+        winner: metadata.winner,
+        winnerLabel: metadata.winnerLabel,
+        score: metadata.score,
+        redLost: metadata.redLost,
+        blueLost: metadata.blueLost,
+        pinned: !!metadata.pinned,
+      },
+      payload: base64Payload,
+    },
+    null,
+    2
+  );
+}
+
+export async function parseRecordingSave(content) {
+  let json;
+  try {
+    json = typeof content === 'string' ? JSON.parse(content) : content;
+  } catch (err) {
+    throw new Error('Save file is not valid JSON.');
+  }
+
+  if (!json || typeof json !== 'object') {
+    throw new Error('Invalid save file structure.');
+  }
+
+  if (json.world && !json.payload && !json.base64Payload) {
+    throw new Error('File contains a world snapshot rather than a match recording.');
+  }
+
+  const payload = json.payload || json.base64Payload;
+  if (!payload || typeof payload !== 'string') {
+    throw new Error('Save file is missing match recording payload.');
+  }
+
+  let decoded;
+  try {
+    decoded = await decodeRecording(payload);
+  } catch (err) {
+    throw new Error(`Corrupted recording payload: ${err.message || err}`);
+  }
+
+  if (!decoded || !Array.isArray(decoded.frames)) {
+    throw new Error('Recording payload contains no valid frames.');
+  }
+
+  const rawMeta = json.metadata || {};
+  const duration =
+    typeof rawMeta.duration === 'number' && rawMeta.duration > 0
+      ? rawMeta.duration
+      : decoded.duration || 0;
+
+  const metadata = {
+    ...rawMeta,
+    id: `rec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    savedAt: rawMeta.savedAt || new Date().toISOString(),
+    duration,
+    mode: rawMeta.mode || 'HvH',
+    modeLabel:
+      rawMeta.modeLabel ||
+      (rawMeta.mode === 'HvH' ? 'Human vs Human' : rawMeta.mode || 'Combat Match'),
+    aiLevel: rawMeta.aiLevel || null,
+    shootDist: rawMeta.shootDist || C.SHELL_RANGE_M,
+    winner: rawMeta.winner !== undefined ? rawMeta.winner : null,
+    winnerLabel: rawMeta.winnerLabel || 'INCOMPLETE',
+    score:
+      rawMeta.score ||
+      (rawMeta.redLost != null && rawMeta.blueLost != null
+        ? `${rawMeta.redLost} - ${rawMeta.blueLost}`
+        : '0 - 0'),
+    redLost: rawMeta.redLost ?? 0,
+    blueLost: rawMeta.blueLost ?? 0,
+    pinned: false,
+  };
+
+  return { metadata, payload, decoded };
+}
+
+export async function importRecordingSave(content) {
+  const { metadata, payload } = await parseRecordingSave(content);
+  const success = saveRecording(metadata, payload);
+  if (!success) {
+    throw new Error('Failed to save to browser storage (quota exceeded).');
+  }
+  return metadata;
+}
+
+export async function exportRecordingFile(metadata, base64Payload) {
+  const filename = getRecordingFileName(metadata);
+  const jsonText = serializeRecordingSave(metadata, base64Payload);
+  const blob = new Blob([jsonText], { type: 'application/octet-stream' });
+
+  // Web Share API support check (on mobile devices where file sharing is supported)
+  if (
+    typeof navigator !== 'undefined' &&
+    typeof navigator.share === 'function' &&
+    typeof navigator.canShare === 'function'
+  ) {
+    try {
+      const file = new File([blob], filename, { type: 'application/octet-stream' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: filename,
+        });
+        return { success: true, method: 'share', filename };
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        return { success: false, aborted: true, filename };
+      }
+      console.warn('Web Share failed, falling back to download:', err);
+    }
+  }
+
+  // Desktop / fallback file download
+  downloadBlob(blob, filename);
+  return { success: true, method: 'download', filename };
+}
+
+export function downloadBlob(blob, filename) {
+  if (typeof document === 'undefined') return;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 1000);
+}
+
+// ---------------------------------------------------------------------------
 // Playback Controller & State Interpolator
 // ---------------------------------------------------------------------------
 export function createPlayback(decodedReplay, targetWorld, sfx) {

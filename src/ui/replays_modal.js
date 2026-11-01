@@ -1,5 +1,12 @@
 import * as C from '../constants.js';
-import { listRecordings, setPinned, deleteRecording } from '../sim/recording.js';
+import {
+  listRecordings,
+  setPinned,
+  deleteRecording,
+  loadRecording,
+  exportRecordingFile,
+  importRecordingSave,
+} from '../sim/recording.js';
 
 function formatDuration(sec) {
   const m = Math.floor(sec / 60);
@@ -38,6 +45,22 @@ const pinSvg = (pinned) => `
 </svg>
 `;
 
+const shareSvg = `
+<svg class="icon-share" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+  <polyline points="16 6 12 2 8 6"></polyline>
+  <line x1="12" y1="2" x2="12" y2="15"></line>
+</svg>
+`;
+
+const importSvg = `
+<svg class="icon-import" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+  <polyline points="8 12 12 16 16 12"></polyline>
+  <line x1="12" y1="2" x2="12" y2="16"></line>
+</svg>
+`;
+
 function getOutcomeInfo(r) {
   if (r.winner === 0) return { label: 'RED WINS', className: 'red' };
   if (r.winner === 1) return { label: 'BLUE WINS', className: 'blue' };
@@ -67,6 +90,35 @@ export function createReplaysModal(root) {
   let callbacks = null;
   let showPinnedOnly = false;
   let deleteConfirmId = null;
+  let toastMessage = null;
+  let toastType = 'success';
+  let toastTimer = null;
+
+  function showToast(msg, type = 'success') {
+    toastMessage = msg;
+    toastType = type;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toastMessage = null;
+      render();
+    }, 3500);
+    render();
+  }
+
+  async function processImportFile(file) {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const metadata = await importRecordingSave(text);
+      showPinnedOnly = false;
+      showToast(
+        `Imported: ${metadata.score || 'Match'} (${formatDatetime(metadata.savedAt)})`,
+        'success'
+      );
+    } catch (err) {
+      showToast(`Import failed: ${err.message || err}`, 'error');
+    }
+  }
 
   function render() {
     if (!root) return;
@@ -94,7 +146,7 @@ export function createReplaysModal(root) {
     } else if (replays.length === 0) {
       const msg = showPinnedOnly
         ? 'No pinned recordings found. Click the 📌 icon on any recording to pin it.'
-        : 'No recorded games found.<br><br>Enable <strong>Recording: ON</strong> in Options to record your matches.';
+        : 'No recorded games found.<br><br>Enable <strong>Recording: ON</strong> in Options to record your matches, or click <strong>Import (.sav)</strong> to load one.';
       contentHtml = `<div class="replays-empty">${msg}</div>`;
     } else {
       const rowsHtml = replays
@@ -125,6 +177,9 @@ export function createReplaysModal(root) {
               </td>
               <td class="col-actions">
                 <button type="button" class="rp-btn rp-btn-play" data-id="${r.id}">▶ Play</button>
+                <button type="button" class="rp-icon-btn export-btn" data-id="${r.id}" title="Export / Share recording (.sav)">
+                  ${shareSvg}
+                </button>
                 <button type="button" class="rp-icon-btn delete-btn" data-id="${r.id}" title="Delete recording">
                   ${trashSvg}
                 </button>
@@ -170,10 +225,18 @@ export function createReplaysModal(root) {
               <input type="checkbox" id="pinnedFilterCheckbox" ${showPinnedOnly ? 'checked' : ''} />
               <span>Show only pinned recordings</span>
             </label>
-            <div class="replays-count">
-              ${allReplays.length} match${allReplays.length === 1 ? '' : 'es'} (${allReplays.filter((r) => r.pinned).length} pinned)
+            <div class="replays-bar-right">
+              <button type="button" class="rp-btn rp-btn-import" id="btnImportReplay" title="Import game recording from .sav file">
+                ${importSvg}
+                <span>Import (.sav)</span>
+              </button>
+              <input type="file" id="replayFileInput" accept=".sav,application/json" class="hidden-file-input" />
+              <div class="replays-count">
+                ${allReplays.length} match${allReplays.length === 1 ? '' : 'es'} (${allReplays.filter((r) => r.pinned).length} pinned)
+              </div>
             </div>
           </div>
+          ${toastMessage ? `<div class="replays-toast ${toastType}">${toastMessage}</div>` : ''}
         </div>
         <div class="replays-body">
           ${contentHtml}
@@ -214,6 +277,72 @@ export function createReplaysModal(root) {
           deleteRecording(deleteConfirmId);
           deleteConfirmId = null;
           render();
+        }
+      };
+    }
+
+    // Export button clicks
+    root.querySelectorAll('.export-btn').forEach((btn) => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        const metadata = allReplays.find((r) => r.id === id);
+        const base64 = loadRecording(id);
+        if (!metadata || !base64) {
+          showToast('Could not load recording payload for export.', 'error');
+          return;
+        }
+        try {
+          const res = await exportRecordingFile(metadata, base64);
+          if (res && res.success) {
+            showToast(
+              res.method === 'share'
+                ? `Shared match recording: ${res.filename}`
+                : `Exported save file: ${res.filename}`,
+              'success'
+            );
+          }
+        } catch (err) {
+          showToast(`Export failed: ${err.message || err}`, 'error');
+        }
+      };
+    });
+
+    // Import button and hidden file input
+    const importBtn = root.querySelector('#btnImportReplay');
+    const fileInput = root.querySelector('#replayFileInput');
+    if (importBtn && fileInput) {
+      importBtn.onclick = (e) => {
+        e.stopPropagation();
+        fileInput.value = '';
+        fileInput.click();
+      };
+      fileInput.onchange = async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) {
+          await processImportFile(file);
+        }
+      };
+    }
+
+    // Drag and drop onto modal
+    const modalEl = root.querySelector('.replays-modal');
+    if (modalEl) {
+      modalEl.ondragover = (e) => {
+        e.preventDefault();
+        modalEl.classList.add('dragover');
+      };
+      modalEl.ondragleave = (e) => {
+        if (!modalEl.contains(e.relatedTarget)) {
+          modalEl.classList.remove('dragover');
+        }
+      };
+      modalEl.ondrop = async (e) => {
+        e.preventDefault();
+        modalEl.classList.remove('dragover');
+        const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (file) {
+          await processImportFile(file);
         }
       };
     }
@@ -264,12 +393,15 @@ export function createReplaysModal(root) {
   function open(cbs) {
     callbacks = cbs;
     deleteConfirmId = null;
+    toastMessage = null;
     root.classList.remove('hidden');
     render();
   }
 
   function close() {
     deleteConfirmId = null;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastMessage = null;
     root.classList.add('hidden');
     if (callbacks && callbacks.onClose) {
       callbacks.onClose();

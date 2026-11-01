@@ -1,5 +1,5 @@
 import * as C from '../constants.js';
-import { setPinned, deleteRecording } from '../sim/recording.js';
+import { setPinned, deleteRecording, loadRecording, exportRecordingFile } from '../sim/recording.js';
 
 function formatTime(sec) {
   const m = Math.floor(sec / 60);
@@ -21,6 +21,14 @@ const pinSvg = (pinned) => `
   <line x1="12" y1="17" x2="12" y2="22"></line>
   <path d="M5 17h14v-2l-2-2V5a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v8l-2 2v2z"></path>
   <circle cx="12" cy="4" r="1"></circle>
+</svg>
+`;
+
+const shareSvg = `
+<svg class="icon-share" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+  <polyline points="16 6 12 2 8 6"></polyline>
+  <line x1="12" y1="2" x2="12" y2="15"></line>
 </svg>
 `;
 
@@ -107,6 +115,9 @@ export function createPlaybackToolbar(root) {
         <button type="button" class="pb-btn pb-pin-btn" id="pbPinBtn" title="Pin / Unpin recording">
           ${pinSvg(false)}
         </button>
+        <button type="button" class="pb-btn pb-export-btn" id="pbExportBtn" title="Export / Share recording (.sav)">
+          ${shareSvg}
+        </button>
         <button type="button" class="pb-btn pb-trash-btn" id="pbTrashBtn" title="Delete recording">
           ${trashSvg}
         </button>
@@ -181,6 +192,22 @@ export function createPlaybackToolbar(root) {
       updatePinBtn();
       resetHideTimer();
     };
+
+    const exportBtn = root.querySelector('#pbExportBtn');
+    if (exportBtn) {
+      exportBtn.onclick = async (e) => {
+        e.stopPropagation();
+        if (!activeMetadata) return;
+        const base64 = loadRecording(activeMetadata.id);
+        if (!base64) return;
+        try {
+          await exportRecordingFile(activeMetadata, base64);
+        } catch (err) {
+          console.warn('Export from playback toolbar failed:', err);
+        }
+        resetHideTimer();
+      };
+    }
 
     trashBtn.onclick = (e) => {
       e.stopPropagation();
