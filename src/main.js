@@ -69,9 +69,9 @@ const HELP_DOCS = {
 };
 
 const HELP_TITLES = {
-  en: 'HELP — TANK.EXE MANUAL',
-  es: 'AYUDA — MANUAL TANK.EXE',
-  ru: 'ПОМОЩЬ — РУКОВОДСТВО TANK.EXE',
+  en: 'HELP',
+  es: 'AYUDA',
+  ru: 'ПОМОЩЬ',
 };
 
 const HELP_BACK_LABELS = {
