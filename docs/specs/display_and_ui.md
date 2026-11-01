@@ -131,4 +131,4 @@ Docked inside the bottom corner of each player's 3D viewport inside a semi-trans
   - Menu cards anchor to a fixed top offset and expand downwards to prevent vertical jitter when toggling mode options.
   - Fixed responsive width (`min(620px, 94vw)`) eliminates horizontal width shifting between submenus.
   - Hovering does not move keyboard navigation focus; selection requires explicit click or Enter.
-  - Help and History modals offer English, Spanish, and Russian translations with in-header language switchers and keyboard shortcut `L`.
+  - Help and History modals offer English, Spanish, and Russian translations with in-header language switchers and keyboard shortcut `L`. The Help screen documents playing modes (HvH, HvH Net, HvC, CvH, CvC), the two-step WebRTC handshake (QR / messenger string exchange), and the dual Split-Screen vs Single Player keyboard layouts.
