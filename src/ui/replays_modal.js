@@ -136,6 +136,7 @@ export function createReplaysModal(root) {
           </div>
           <div class="confirm-match-info">
             <span>${formatDatetime(confirmItem.savedAt)}</span> · <span>${formatReplayMode(confirmItem)}</span> · <span>${getOutcomeInfo(confirmItem).label}</span>
+            ${confirmItem.imported ? ' · <span class="imported-pill">IMPORTED</span>' : ''}
           </div>
           <div class="confirm-actions">
             <button type="button" class="rp-btn rp-btn-cancel" id="btnConfirmCancel">Cancel (Esc)</button>
@@ -159,7 +160,7 @@ export function createReplaysModal(root) {
             : '';
 
           return `
-            <tr class="replays-row" data-id="${r.id}">
+            <tr class="replays-row ${r.imported ? 'is-imported' : ''}" data-id="${r.id}">
               <td class="col-pin">
                 <button type="button" class="rp-icon-btn pin-toggle" data-id="${r.id}" title="${r.pinned ? 'Pinned (protected from auto-deletion)' : 'Click to pin'}">
                   ${pinSvg(r.pinned)}
@@ -174,6 +175,7 @@ export function createReplaysModal(root) {
               <td class="col-score">
                 <span class="outcome-tag ${outcome.className}">${outcome.label}</span>
                 <span class="score-tag">${r.score || ''}</span>
+                ${r.imported ? '<span class="imported-pill">IMPORTED</span>' : ''}
               </td>
               <td class="col-actions">
                 <button type="button" class="rp-btn rp-btn-play" data-id="${r.id}">▶ Play</button>

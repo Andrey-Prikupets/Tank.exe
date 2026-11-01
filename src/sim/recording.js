@@ -719,7 +719,7 @@ export function formatLocalDatetimeForFilename(dateOrIso) {
   const hr = pad(d.getHours());
   const mi = pad(d.getMinutes());
   const se = pad(d.getSeconds());
-  return `${yr}-${mo}-${da}_${hr}-${mi}-${se}`;
+  return `${yr}-${mo}-${da}.${hr}-${mi}-${se}`;
 }
 
 export function formatScoreForFilename(metadata) {
@@ -734,7 +734,7 @@ export function formatScoreForFilename(metadata) {
 export function getRecordingFileName(metadata) {
   const localDt = formatLocalDatetimeForFilename(metadata?.savedAt);
   const score = formatScoreForFilename(metadata);
-  return `tank.${localDt}_${score}.sav`;
+  return `tank.${localDt}.${score}.sav`;
 }
 
 export function serializeRecordingSave(metadata, base64Payload) {
@@ -757,6 +757,7 @@ export function serializeRecordingSave(metadata, base64Payload) {
         redLost: metadata.redLost,
         blueLost: metadata.blueLost,
         pinned: !!metadata.pinned,
+        imported: !!metadata.imported,
       },
       payload: base64Payload,
     },
@@ -824,6 +825,7 @@ export async function parseRecordingSave(content) {
     redLost: rawMeta.redLost ?? 0,
     blueLost: rawMeta.blueLost ?? 0,
     pinned: false,
+    imported: true,
   };
 
   return { metadata, payload, decoded };

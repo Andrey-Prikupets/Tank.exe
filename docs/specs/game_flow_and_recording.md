@@ -106,11 +106,12 @@ Accessed from the Title Menu via **Game playback**:
 
 ### 5.5 Replay Export & Mobile Sharing (`.sav`)
 - Players can export any recorded match from the Replays list (`ACTIONS` column) or directly from the active playback toolbar.
-- **File Naming Specification:** `tank.<local_date-time>_<score>.sav` (e.g. `tank.2026-11-01_23-21-06_15-3.sav`), constructed deterministically from the recording's local timestamp and final score.
+- **File Naming Specification:** `tank.<local_date.time>.<score>.sav` (e.g. `tank.2026-11-01.23-45-10.15-3.sav`), constructed deterministically from the recording's local timestamp and final score.
 - **Mobile Web Share API:** On supported mobile devices (iOS/Android), invokes `navigator.share({ files: [file] })` to summon the native system share sheet (AirDrop, WhatsApp, Telegram, Files, etc.). Seamlessly falls back to direct browser file download on desktop.
 - **Encapsulated JSON Save Structure:** Stores metadata together with the compressed binary Base64 frame payload under `magic: "TANK_RECORDING"`.
 
 ### 5.6 Replay Import & Verification (`.sav`)
 - Players can import `.sav` replay files into browser `localStorage` using the **Import (.sav)** button or by dragging and dropping `.sav` files onto the Replays modal.
 - **Integrity Verification:** Replay files are validated through real-time JSON decoding, binary magic check (`0x544e4b52`), Deflate decompression, and frame stream validation before saving. World state snapshots or corrupted files are rejected with explanatory notifications.
+- **Visual Cue & Tagging:** Imported recordings are explicitly flagged with `imported: true` and visually distinguished in the match list with a cyan `IMPORTED` pill badge alongside the score and a left accent border on the row.
 - **Instant Playback Availability:** Successfully imported replays are assigned collision-free identifiers and immediately listed in the table sorted by timestamp, ready for instant playback, timeline scrubbing, pinning, or re-exporting.

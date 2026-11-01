@@ -207,7 +207,7 @@ console.log('✔ LocalStorage manager, sorting, and pin operations verified.');
 console.log('Testing Export (.sav) Filename Generation...');
 const testIso = '2026-11-01T23:21:06.000Z';
 const localDt = formatLocalDatetimeForFilename(testIso);
-assert.match(localDt, /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/, 'Local datetime must match YYYY-MM-DD_HH-mm-ss');
+assert.match(localDt, /^\d{4}-\d{2}-\d{2}\.\d{2}-\d{2}-\d{2}$/, 'Local datetime must match YYYY-MM-DD.HH-mm-ss');
 
 const testMeta = {
   id: 'rec_test_123',
@@ -228,8 +228,8 @@ const testMeta = {
 const filename = getRecordingFileName(testMeta);
 assert.ok(filename.startsWith('tank.'), 'Filename must start with tank.');
 assert.ok(filename.endsWith('.sav'), 'Filename must end with .sav');
-assert.ok(filename.includes('_15-3.sav'), 'Filename must contain _<score>.sav');
-assert.strictEqual(filename, `tank.${localDt}_15-3.sav`, 'Filename format must match tank.<local_date-time>_<score>.sav');
+assert.ok(filename.includes('.15-3.sav'), 'Filename must contain .<score>.sav');
+assert.strictEqual(filename, `tank.${localDt}.15-3.sav`, 'Filename format must match tank.<local_date.time>.<score>.sav');
 
 console.log('Testing Serialization & Deserialization of .sav file...');
 const serialized = serializeRecordingSave(testMeta, base64Payload);
@@ -241,18 +241,21 @@ assert.strictEqual(parsed.metadata.mode, 'HvC');
 assert.strictEqual(parsed.metadata.winnerLabel, 'RED WINS');
 assert.strictEqual(parsed.metadata.score, '15 - 3');
 assert.strictEqual(parsed.metadata.pinned, false, 'Imported recording starts unpinned');
+assert.strictEqual(parsed.metadata.imported, true, 'Imported recording must have imported: true');
 assert.ok(parsed.metadata.id.startsWith('rec_'), 'Imported metadata gets unique id');
 
 console.log('Testing Import into LocalStorage...');
 mockStorage.clear();
 const importedMeta = await importRecordingSave(serialized);
 assert.ok(importedMeta.id.startsWith('rec_'));
+assert.strictEqual(importedMeta.imported, true, 'Imported metadata returned must have imported: true');
 
 // Must appear in recordings list
 const recordingsAfterImport = listRecordings();
 assert.strictEqual(recordingsAfterImport.length, 1);
 assert.strictEqual(recordingsAfterImport[0].id, importedMeta.id);
 assert.strictEqual(recordingsAfterImport[0].score, '15 - 3');
+assert.strictEqual(recordingsAfterImport[0].imported, true, 'Stored record must have imported: true');
 
 // Must be readable and decodable for playback
 const loadedBase64 = loadRecording(importedMeta.id);
