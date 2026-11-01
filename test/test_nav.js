@@ -216,35 +216,35 @@ console.log('Testing Slit Gun Sector Avoidance & Tactical Gate Ambush Posture...
     'Position past 50m physical shell reach (195, 50, dx=55m) must be outside enemy slit gun sector',
   );
   assert.strictEqual(
-    isInEnemySlitGunSector(230, 7.5, enemyOwner),
+    isInEnemySlitGunSector(230, 6.5, enemyOwner),
     false,
-    'North edge crawl corridor (230, 7.5) must be outside enemy slit gun sector',
+    'North edge crawl corridor (230, 6.5) must be outside enemy slit gun sector',
   );
   assert.strictEqual(
-    isInEnemySlitGunSector(230, 92.5, enemyOwner),
+    isInEnemySlitGunSector(230, 93.5, enemyOwner),
     false,
-    'South edge crawl corridor (230, 92.5) must be outside enemy slit gun sector',
+    'South edge crawl corridor (230, 93.5) must be outside enemy slit gun sector',
   );
 
-  // 2. Tactical Gate Ambush Posts (outside 45-degree slit gun traverse cone)
+  // 2. Tactical Gate Ambush Posts on the Forward Containment Arc (outside 32m slit gun reach)
   const ambushNorth = getGateAmbushPose({ x: 200, y: 25 }, 0, 'NORTH');
   const ambushSouth = getGateAmbushPose({ x: 200, y: 75 }, 0, 'SOUTH');
 
   assert.strictEqual(
     isInEnemySlitGunSector(ambushNorth.targetX, ambushNorth.targetY, enemyOwner),
     false,
-    'North Gate Ambush post (Y=30) must be outside slit gun firing sector',
+    'North Gate Ambush post (dx=36m, Y=30) must be outside slit gun firing sector',
   );
   assert.strictEqual(
     isInEnemySlitGunSector(ambushSouth.targetX, ambushSouth.targetY, enemyOwner),
     false,
-    'South Gate Ambush post (Y=70) must be outside slit gun firing sector',
+    'South Gate Ambush post (dx=36m, Y=70) must be outside slit gun firing sector',
   );
 
-  // 3. Ambush orientation aimed across gate doorway threshold
+  // 3. Ambush orientation aimed across gate doorway exit threshold
   assert.strictEqual(ambushNorth.doorwayAimY, C.GATE_CENTER_Y_M, 'Ambush aims at doorway center Y=50');
   assert.ok(
-    ambushNorth.aimHeading > 0.8 && ambushNorth.aimHeading < 1.5,
+    ambushNorth.aimHeading > 0.5 && ambushNorth.aimHeading < 1.5,
     'North ambush heading points down-right (+Y, +heading) toward doorway entrance',
   );
 

@@ -1,12 +1,12 @@
 import * as C from '../../constants.js';
-import { applyAction, gateX } from '../world.js';
+import { applyAction, gateX, inwardDir, baseHeading, windowY } from '../world.js';
 import { toLocal } from '../geometry.js';
 import { getAttackStandoffWaypoint, getGateCorridorPose, getGateAmbushPose, isInEnemySlitGunSector, evaluateKinematicTrajectoryArcs, applyKinematicCommands, gateReservationManager } from '../nav.js';
 import { normalizeAngle } from './math.js';
 import { isLineOfSightBlockedBySmoke, getPredictedEnemyState, isLineOfFireBlocked } from './perception.js';
 import { tryFireWeapon } from './weapons.js';
 import { getRoleWaypoint } from './roles.js';
-import { findAimSolution } from './aiming.js';
+import { findAimSolution, aimTurnCommandDeg } from './aiming.js';
 
 export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelName) {
   const owner = ctl.owner;
@@ -32,21 +32,39 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
     });
   }
 
-  // Tactical slit defense: if an enemy has penetrated close to gate and our tank is distant.
-  // Deterministic: an enemy must actually be inside the slit gun's coverage, and a cooldown after
-  // leaving the window prevents ping-pong between the tank and the window view.
+  // Tactical slit defense: if an enemy has penetrated close to gate and our tank is distant
+  // and not engaged in close combat itself. Verify the enemy is actually inside the 45-deg window cone!
   if (enemyField.length > 0 && profile.rearm && ctl.simTime >= (ctl.slitCooldownUntil || 0)) {
+    const minEnemyToTank = enemyField.reduce(
+      (minD, e) => Math.min(minD, Math.hypot(e.x - tank.x, e.y - tank.y)),
+      Infinity,
+    );
+    const wx = gateX(owner) + inwardDir(owner) * C.WINDOW_CAMERA_INSET_M;
+    const baseHead = baseHeading(owner);
+    const maxYaw = C.degToRad(C.WINDOW_MAX_YAW_DEG);
+    const canHitFromWindow = (e, idx) => {
+      const wy = windowY(owner, idx);
+      const d = Math.hypot(e.x - wx, e.y - wy);
+      if (d > C.AI_SLIT_MAX_FIRE_DIST_M) return false;
+      const relYaw = normalizeAngle(Math.atan2(e.y - wy, e.x - wx) - baseHead);
+      if (Math.abs(relYaw) > maxYaw) return false;
+      return !isLineOfFireBlocked(world, owner, wx, wy, e.x, e.y, null);
+    };
     const threat = enemyField
       .filter(
         (e) =>
           Math.abs(e.x - gateX(owner)) < C.AI_SLIT_DEFENSE_TRIGGER_DIST_M &&
-          Math.hypot(e.x - gateX(owner), e.y - C.GATE_CENTER_Y_M) <= C.AI_SLIT_MAX_FIRE_DIST_M,
+          (canHitFromWindow(e, 0) || canHitFromWindow(e, 1)),
       )
       .sort((a, b) => Math.abs(a.x - gateX(owner)) - Math.abs(b.x - gateX(owner)))[0];
     const timeSinceFire = ctl.simTime - (ctl.lastFiredTime || 0);
-    const canSwitchToSlit = ctl.sliceTimer >= C.AI_MIN_SLICE_S && timeSinceFire >= C.AI_POST_FIRE_HOLD_S;
+    const canSwitchToSlit =
+      ctl.sliceTimer >= C.AI_MIN_SLICE_S &&
+      timeSinceFire >= C.AI_POST_FIRE_HOLD_S &&
+      minEnemyToTank > 42.0;
     if (threat && Math.abs(tank.x - gateX(owner)) > C.AI_SLIT_ENTRY_MIN_TANK_DIST_M && canSwitchToSlit) {
-      const slitAction = threat.y < C.GATE_CENTER_Y_M ? 'WIN_L' : 'WIN_R';
+      const useWin0 = canHitFromWindow(threat, 0);
+      const slitAction = useWin0 ? 'WIN_L' : 'WIN_R';
       ctl.note(
         'SLIT',
         `Enemy ${Math.abs(threat.x - gateX(owner)).toFixed(0)} m from gate, field tanks far - manning slit window`,
@@ -292,33 +310,48 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
       navTargetX = ambushPose.doorwayAimX;
       navTargetY = ambushPose.doorwayAimY;
       maxSpeedOverride = 0; // pivot in place
-    } else if (!isAmbushRole && !assignedRole.includes('FLANK') && distToEnemyGate > 36.0) {
+    } else if (!isAmbushRole && !assignedRole.includes('FLANK') && distToEnemyGate > 40.0) {
       navTargetY += ctl.laneOffset * 0.5;
     }
   }
 
+  const gx = gateX(1 - owner);
+  const dir = (1 - owner) === 0 ? 1 : -1;
+  const containmentX = gx + dir * 37.0;
+  const containmentY = tank.y <= C.GATE_CENTER_Y_M ? 30.0 : 70.0;
+  const nearContainmentPost = Math.hypot(containmentX - tank.x, containmentY - tank.y) <= 8.0;
+
+  const isHoldingContainmentPost =
+    !isRearming &&
+    !isDoorwayMode &&
+    tank.shells > 0 &&
+    !isInEnemySlitGunSector(tank.x, tank.y, 1 - owner, 0) &&
+    nearContainmentPost &&
+    (!combatTarget || isInEnemySlitGunSector(combatTargetPos.x, combatTargetPos.y, 1 - owner));
+
   if (!isDoorwayMode && !isRearming) {
-    // Slit gun sector avoidance clamp: ensure no navigation waypoint forces tank into enemy slit gun sector
-    if (isInEnemySlitGunSector(navTargetX, navTargetY, 1 - owner)) {
-      const gx = gateX(1 - owner);
-      const dir = (1 - owner) === 0 ? 1 : -1;
-      navTargetX = gx + dir * 34.0;
-      if (navTargetY > 9.0 && navTargetY < C.FIELD_WIDTH_M - 9.0) {
-        navTargetY = tank.y <= C.GATE_CENTER_Y_M ? 7.5 : 92.5;
-      }
+    // Immediate escape waypoint if currently inside enemy slit-gun sector and no immediate enemy tank in range
+    if ((!combatTarget || combatTargetDist > 38.0) && isInEnemySlitGunSector(tank.x, tank.y, 1 - owner, 0)) {
+      navTargetX = gx + dir * 40.0;
+      navTargetY = tank.y <= C.GATE_CENTER_Y_M ? 28.0 : 72.0;
+      maxSpeedOverride = profile.maxSpeedKmh;
+    } else if (!isHoldingContainmentPost && isInEnemySlitGunSector(navTargetX, navTargetY, 1 - owner)) {
+      // Slit gun sector avoidance clamp: clamp waypoint onto the safe Forward Containment Arc
+      navTargetX = containmentX;
+      navTargetY = containmentY;
     }
     navTargetX = Math.max(4, Math.min(C.FIELD_LENGTH_M - 4, navTargetX));
     navTargetY = Math.max(4, Math.min(C.FIELD_WIDTH_M - 4, navTargetY));
   }
 
   const targetDist = Math.hypot(navTargetX - tank.x, navTargetY - tank.y);
-  const desiredHeading = Math.atan2(navTargetY - tank.y, navTargetX - tank.x);
 
   // 12-13. Hull aiming (fixed gun): stop and pivot the whole tank onto the target's lead point,
+  // or pre-aim at the enemy gate exit when holding on the Forward Containment Arc;
   // otherwise Kinematic Dynamic Window rollout & obstacle avoidance toward the waypoint.
   const rearming = profile.rearm && outOfShells;
   const aim =
-    !rearming && !isDoorwayMode && !isInEnemySlitGunSector(tank.x, tank.y, 1 - owner)
+    !rearming && !isDoorwayMode
       ? findAimSolution(world, owner, tank, combatTarget, combatTargetPos, profile)
       : null;
 
@@ -328,7 +361,33 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
       sig: combatTarget.id,
       gap: 2,
     });
-    applyKinematicCommands(world, owner, tank, aim.cmdSpeedKmh ?? 0, aim.turnDeg);
+    const creepHold =
+      isHoldingContainmentPost &&
+      Math.abs(aim.errRad) > 0.20 &&
+      !isInEnemySlitGunSector(
+        tank.x + Math.cos(tank.heading) * 4.5,
+        tank.y + Math.sin(tank.heading) * 4.5,
+        1 - owner,
+        0,
+      );
+    const holdSpeed = isHoldingContainmentPost ? (creepHold ? 6 : 0) : (aim.cmdSpeedKmh ?? 0);
+    const holdTurn = aimTurnCommandDeg(aim.errRad, tank.cmdTurnDeg || 0, holdSpeed !== 0);
+    applyKinematicCommands(world, owner, tank, holdSpeed, holdTurn);
+  } else if (isHoldingContainmentPost) {
+    const gateAimX = combatTargetPos ? combatTargetPos.x : gx + dir * 6.0;
+    const gateAimY = combatTargetPos ? combatTargetPos.y : C.GATE_CENTER_Y_M;
+    const errRad = normalizeAngle(Math.atan2(gateAimY - tank.y, gateAimX - tank.x) - tank.heading);
+    const creepSafe =
+      Math.abs(errRad) > 0.20 &&
+      !isInEnemySlitGunSector(
+        tank.x + Math.cos(tank.heading) * 4.5,
+        tank.y + Math.sin(tank.heading) * 4.5,
+        1 - owner,
+        0,
+      );
+    const cmdSpd = creepSafe ? 6 : 0;
+    const turnDeg = aimTurnCommandDeg(errRad, tank.cmdTurnDeg || 0, cmdSpd !== 0);
+    applyKinematicCommands(world, owner, tank, cmdSpd, turnDeg);
   } else {
     const traj = evaluateKinematicTrajectoryArcs(
       tank,

@@ -1,7 +1,7 @@
 import * as C from '../../constants.js';
 import { applyAction, gateX } from '../world.js';
 import { segmentVsObb, toLocal } from '../geometry.js';
-import { isInEnemySlitGunSector, MINE_LETHAL_RADIUS_M } from '../nav.js';
+import { isInEnemySlitGunSector, isSegmentInEnemySlitGunSector, MINE_LETHAL_RADIUS_M } from '../nav.js';
 import { isLineOfSightBlockedBySmoke, getPredictedEnemyState, isLineOfFireBlocked } from './perception.js';
 import { leadPoint, aimError, maxEngageDist } from './aiming.js';
 
@@ -113,7 +113,7 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
   const sfy = tank.y + Math.sin(tank.heading) * slitLookAhead;
   if (
     isInEnemySlitGunSector(tank.x, tank.y, 1 - owner) ||
-    isInEnemySlitGunSector(sfx, sfy, 1 - owner)
+    (Math.abs(tank.speed) > 0.5 && isSegmentInEnemySlitGunSector(tank.x, tank.y, sfx, sfy, 1 - owner, 1.5))
   ) {
     hazardScore = Math.max(hazardScore, 92);
   }
@@ -200,8 +200,12 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
       // Instant Parallel Volley Multiplexing: if this unit's gun is loaded and already pre-aligned
       // within firing tolerance on an unblocked target in range, boost to 98 so dispatcher switches
       // to it immediately to fire a multi-tank volley!
-      if (!smokeBlocked && tank.reload <= 0 && lead.muzzleDist <= maxEngageDist(profile, e.speed) + 2.2 && errDeg <= 4.5) {
-        score = Math.max(score, 98 + (Math.abs(e.speed || 0) > 1.5 ? 1 : 0));
+      if (!smokeBlocked && tank.reload <= 0 && lead.muzzleDist <= maxEngageDist(profile, e.speed) + 2.5) {
+        if (errDeg <= 5.5) {
+          score = Math.max(score, 98 + (Math.abs(e.speed || 0) > 1.5 ? 1 : 0));
+        } else if (errDeg <= 14.0) {
+          score = Math.max(score, 94 + (Math.abs(e.speed || 0) > 1.5 ? 1 : 0));
+        }
       }
 
       combatScore = Math.max(combatScore, score);
@@ -309,29 +313,18 @@ export function applySafeCruisingTrim(world, owner, tank, targetSpeedKmh = 18) {
     }
 
     // Enemy slit gun hit sector ahead (never cruise blindly into enemy gate slit gun crosshairs)
-    return isInEnemySlitGunSector(fx, fy, 1 - owner) || isInEnemySlitGunSector(tank.x, tank.y, 1 - owner);
+    return (
+      isSegmentInEnemySlitGunSector(tank.x, tank.y, fx, fy, 1 - owner, 1.5) ||
+      isInEnemySlitGunSector(tank.x, tank.y, 1 - owner)
+    );
   };
 
   let hazardAhead = hazardAlong(tank.heading);
 
   if (hazardAhead) {
-    // Instead of freezing in the open (a stationary tank is an easy target), creep away along the
-    // first clear heading offset to either side; the hand-off cannot steer afterwards, so use the
-    // gentlest turn step and a low speed. Stop only when no side is clear.
-    let turnDir = 0;
-    for (const off of C.AI_TRIM_ESCAPE_OFFSETS_RAD) {
-      if (!hazardAlong(tank.heading + off)) turnDir = 1;
-      else if (!hazardAlong(tank.heading - off)) turnDir = -1;
-      if (turnDir !== 0) break;
-    }
-    if (turnDir === 0) {
-      applyAction(world, owner, 'STOP');
-    } else {
-      applyAction(world, owner, turnDir > 0 ? 'TURN_R' : 'TURN_L');
-      for (let i = 0; i < 6 && tank.cmdSpeedKmh > C.AI_TRIM_ESCAPE_SPEED_KMH; i++) applyAction(world, owner, 'BACK');
-      for (let i = 0; i < 6 && tank.cmdSpeedKmh < C.AI_TRIM_ESCAPE_SPEED_KMH; i++) applyAction(world, owner, 'FORWARD');
-      hazardAhead = 'veer';
-    }
+    // Never leave a deselected tank with a latched TURN_L / TURN_R command circling into a hazard or slit sector;
+    // enforceUnselectedTanksSafety steers all unselected units on every tick, so stop cleanly before hand-off.
+    applyAction(world, owner, 'STOP');
   } else {
     for (let i = 0; i < 6 && tank.cmdSpeedKmh < targetSpeedKmh; i++) applyAction(world, owner, 'FORWARD');
     for (let i = 0; i < 6 && tank.cmdSpeedKmh > targetSpeedKmh; i++) applyAction(world, owner, 'BACK');

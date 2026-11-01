@@ -56,8 +56,8 @@ export function runDispatcher(ctl, world, myField, enemyField, profile, tank) {
   // Instant Parallel Volley: another tank has its gun pre-aligned & loaded on target right now!
   const instantVolleyReady =
     bestUrgencyInfo &&
-    bestUrgencyInfo.combatScore >= 97 &&
-    currUrgencyInfo.combatScore < 97 &&
+    bestUrgencyInfo.combatScore >= 94 &&
+    currUrgencyInfo.combatScore < 94 &&
     ctl.sliceTimer >= 0.08;
 
   const acuteCombatEmergency =
@@ -66,11 +66,24 @@ export function runDispatcher(ctl, world, myField, enemyField, profile, tank) {
     (currUrgencyInfo.combatScore < C.AI_URGENCY_COMBAT_AIMED - 8 ||
       (tank.reload > 0.25 && bestTank.reload <= 0.05 && bestUrgencyInfo.combatScore >= 82));
 
+  // Do not abandon a tank in active close combat (< 38m) for a distant tank unless the distant tank
+  // has an acute mine/pit hazard or an instant volley shot ready.
+  const holdCloseCombatFocus =
+    tank.shells > 0 &&
+    currUrgencyInfo.minEnemyDist <= 38.0 &&
+    currUrgencyInfo.combatScore >= 78 &&
+    bestUrgencyInfo &&
+    bestUrgencyInfo.minEnemyDist > currUrgencyInfo.minEnemyDist + 14.0 &&
+    bestUrgencyInfo.hazardScore < C.AI_URGENCY_HAZARD_MINE &&
+    bestUrgencyInfo.combatScore < 94;
+
   let shouldSwitch = false;
-  if (bestTank && bestTank.id !== tank.id) {
+  if (bestTank && bestTank.id !== tank.id && !holdCloseCombatFocus) {
     if (instantVolleyReady) {
       shouldSwitch = true;
-    } else if ((acuteHazardEmergency || acuteCombatEmergency) && fastPreemptMet) {
+    } else if (acuteCombatEmergency && fastPreemptMet) {
+      shouldSwitch = true;
+    } else if (acuteHazardEmergency && canSwitch) {
       shouldSwitch = true;
     } else if (
       forceSwitch &&

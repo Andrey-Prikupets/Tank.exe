@@ -5,3 +5,4 @@ dist/
 init.git.cmd
 vcr.log
 package-lock.json
+.commit_msg

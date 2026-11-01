@@ -23,22 +23,33 @@ export function updateSlit(ctl, world, dt, profile) {
   const timeSinceFire = ctl.simTime - (ctl.lastFiredTime || 0);
   const canExitSlit = ctl.slitTimer >= C.AI_SLIT_MIN_HOLD_S && timeSinceFire >= C.AI_POST_FIRE_HOLD_S;
 
-  // Critical hazard rescue: even if firing from window, save a field unit from lethal pit/mine
-  if (canExitSlit) {
+  // Critical hazard or close-combat rescue: even if in window view, never leave a field tank
+  // unattended when facing a hazard, active close combat, or when the window hasn't fired for > 2.5s
+  if (canExitSlit || (fieldTanks.length > 0 && timeSinceFire > 2.5 && ctl.slitTimer > 2.5)) {
+    let bestRescue = null;
+    let bestRescueScore = -Infinity;
     for (const t of fieldTanks) {
       if (!t.number) continue;
       const timeSince = ctl.simTime - (ctl.lastCommandedTime.get(t.id) || 0);
       const evalU = evaluateTankUrgency(world, owner, t, enemyField, profile, timeSince, ctl.enemyTracker, ctl.simTime);
-      if (evalU.hazardScore >= C.AI_URGENCY_HAZARD_PIT) {
-        ctl.slitTimer = 0;
-        ctl.slitCooldownUntil = ctl.simTime + C.AI_SLIT_REENTRY_COOLDOWN_S;
-        ctl.note('AVOID', `T${t.number} critical hazard - leaving window to rescue`, {
-          key: 'slit-rescue',
-          gap: 2,
-        });
-        applyAction(world, owner, 'SELECT', t.number);
-        return;
+      const urgentFieldNeed =
+        evalU.hazardScore >= C.AI_URGENCY_HAZARD_OBSTACLE ||
+        evalU.combatScore >= 78 ||
+        (timeSinceFire > 2.5 && ctl.slitTimer > 2.5);
+      if (urgentFieldNeed && evalU.urgency > bestRescueScore) {
+        bestRescueScore = evalU.urgency;
+        bestRescue = t;
       }
+    }
+    if (bestRescue) {
+      ctl.slitTimer = 0;
+      ctl.slitCooldownUntil = ctl.simTime + C.AI_SLIT_REENTRY_COOLDOWN_S;
+      ctl.note('AVOID', `T${bestRescue.number} needs active control - leaving window`, {
+        key: 'slit-rescue',
+        gap: 2,
+      });
+      applyAction(world, owner, 'SELECT', bestRescue.number);
+      return;
     }
   }
 
@@ -71,7 +82,8 @@ export function updateSlit(ctl, world, dt, profile) {
 
     const angle = Math.atan2(dy, dx);
     const relYaw = normalizeAngle(angle - baseHead);
-    if (Math.abs(relYaw) > maxYaw + 0.15) continue;
+    // Strict physical 45-degree traverse cone check (never lock onto targets in the wall dead-zone!)
+    if (Math.abs(relYaw) > maxYaw + 0.02) continue;
 
     if (isLineOfFireBlocked(world, owner, wx, wy, targetX, targetY, null)) continue;
 

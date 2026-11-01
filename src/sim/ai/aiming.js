@@ -1,8 +1,8 @@
 import * as C from '../../constants.js';
 import { normalizeAngle } from './math.js';
-import { isLineOfFireBlocked } from './perception.js';
+import { isLineOfSightBlockedBySmoke, isLineOfFireBlocked } from './perception.js';
 import { segmentVsObb, toLocal } from '../geometry.js';
-import { MINE_LETHAL_RADIUS_M } from '../nav.js';
+import { MINE_LETHAL_RADIUS_M, isSegmentInEnemySlitGunSector } from '../nav.js';
 
 const MUZZLE_OFFSET_M = C.TANK_LENGTH_M / 2 + C.SHELL_MUZZLE_OFFSET_M;
 
@@ -81,21 +81,34 @@ export function aimTurnCommandDeg(errRad, currentTurnDeg = 0, isMoving = false) 
 function isForwardArcHazardous(world, tank, checkDist = 11.0) {
   const fx = tank.x + Math.cos(tank.heading) * checkDist;
   const fy = tank.y + Math.sin(tank.heading) * checkDist;
-  if (fx < 6 || fx > C.FIELD_LENGTH_M - 6 || fy < 6 || fy > C.FIELD_WIDTH_M - 6) return true;
+  if (fx < 6 || fx > C.FIELD_LENGTH_M - 6 || fy < 6 || fy > C.FIELD_WIDTH_M - 6) return 'forward_hazard';
   if (world.mines) {
     for (const m of world.mines) {
-      if (Math.hypot(tank.x - m.x, tank.y - m.y) < MINE_LETHAL_RADIUS_M + 0.5) return true;
+      if (Math.hypot(tank.x - m.x, tank.y - m.y) < MINE_LETHAL_RADIUS_M + 0.5) return 'mine_proximity';
       const [mlx, mly] = toLocal(tank, m.x, m.y);
-      if (mlx > -1.0 && mlx < checkDist && Math.abs(mly) < MINE_LETHAL_RADIUS_M) return true;
+      if (mlx > -1.0 && mlx < checkDist && Math.abs(mly) < MINE_LETHAL_RADIUS_M) return 'forward_hazard';
     }
   }
   if (world.pits) {
     for (const pit of world.pits) {
-      const expPit = { x: pit.x, y: pit.y, h: pit.h, l: pit.l + 7.0, w: pit.w + 7.0 };
-      if (segmentVsObb(tank.x, tank.y, fx, fy, expPit) != null) return true;
+      const [tlx, tly] = toLocal(pit, tank.x, tank.y);
+      const startInOuter = Math.abs(tlx) < pit.l / 2 + 3.8 && Math.abs(tly) < pit.w / 2 + 3.8;
+      if (startInOuter) {
+        const corePit = { x: pit.x, y: pit.y, h: pit.h, l: pit.l + 2.4, w: pit.w + 2.4 };
+        if (segmentVsObb(tank.x, tank.y, fx, fy, corePit) != null) return 'forward_hazard';
+        if (Math.hypot(fx - pit.x, fy - pit.y) < Math.hypot(tank.x - pit.x, tank.y - pit.y) + 1.0) {
+          return 'forward_hazard';
+        }
+      } else {
+        const expPit = { x: pit.x, y: pit.y, h: pit.h, l: pit.l + 7.0, w: pit.w + 7.0 };
+        if (segmentVsObb(tank.x, tank.y, fx, fy, expPit) != null) return 'forward_hazard';
+      }
     }
   }
-  return false;
+  if (isSegmentInEnemySlitGunSector(tank.x, tank.y, fx, fy, 1 - tank.owner, 1.0)) {
+    return 'slit_ahead';
+  }
+  return null;
 }
 
 /**
@@ -119,9 +132,10 @@ export function findAimSolution(world, owner, tank, target, targetPos, profile) 
   if (lead.muzzleDist > maxMuzzleDist) return null;
   if (isLineOfFireBlocked(world, owner, tank.x, tank.y, lead.x, lead.y, tank.id)) return null;
 
-  // If a mine or pit is right in front of the hull, let full trajectory planner avoid it first
+  // If a mine or pit is right in front of the hull, let full trajectory planner avoid it first.
+  // If only the enemy slit-gun sector lies ahead, pivot in place (cmdSpeedKmh = 0) and shoot from outside!
   const hazardAhead = isForwardArcHazardous(world, tank, 12.0);
-  if (hazardAhead) return null;
+  if (hazardAhead === 'mine_proximity' || hazardAhead === 'forward_hazard') return null;
 
   const errRad = aimError(tank, lead.x, lead.y);
   const absErr = Math.abs(errRad);
@@ -129,7 +143,17 @@ export function findAimSolution(world, owner, tank, target, targetPos, profile) 
   // Moving tanks turn at 45 deg/s vs 30 deg/s when stopped!
   // Stay mobile while turning or closing range, and only slow down when nearly aligned inside range.
   let cmdSpeedKmh = 0;
-  if (lead.muzzleDist > maxEngageDist(profile, target.speed) - 1.0 && absErr < 1.0) {
+  if (hazardAhead === 'slit_ahead') {
+    const shortClear = !isSegmentInEnemySlitGunSector(
+      tank.x,
+      tank.y,
+      tank.x + Math.cos(tank.heading) * 4.5,
+      tank.y + Math.sin(tank.heading) * 4.5,
+      1 - tank.owner,
+      0,
+    );
+    cmdSpeedKmh = absErr > 0.20 && shortClear ? 6 : 0;
+  } else if (lead.muzzleDist > maxEngageDist(profile, target.speed) - 1.0 && absErr < 1.65) {
     cmdSpeedKmh = Math.min(profile.maxSpeedKmh || 36, 36);
   } else if (absErr > 0.16) {
     cmdSpeedKmh = Math.min(profile.maxSpeedKmh || 18, 18);

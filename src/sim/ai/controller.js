@@ -138,11 +138,12 @@ export class AiController {
       this.navGridTimer = 0;
     }
 
-    // 1. Slit window view (commander & visual tracking continue while we man the window)
+    // 1. Slit window view (commander, unselected tank steering & visual tracking continue while we man the window)
     if (pl.view === 'window') {
       const myField = world.tanks.filter((t) => t.owner === owner && t.status === 'field');
       const enemyField = world.tanks.filter((t) => t.owner !== owner && t.status === 'field');
       updateCommander(this, world, dt, myField, enemyField, profile);
+      enforceUnselectedTanksSafety(this, world, myField, null);
       const wx = gateX(owner) + inwardDir(owner) * C.WINDOW_CAMERA_INSET_M;
       const wy = windowY(owner, pl.windowIdx);
       updateEnemyTracking(this, world, { x: wx, y: wy, id: null }, enemyField);

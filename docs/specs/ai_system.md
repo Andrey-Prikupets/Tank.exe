@@ -113,25 +113,35 @@ $$U_i = \max(H_i, C_i, R_i) + w_S \cdot S_i$$
 - **Corner-Safe Mine Lethal Radius (`MINE_LETHAL_RADIUS_M`):**
   - Because a $6\text{ m} \times 4\text{ m}$ tank hull has a corner sweep radius of $\sqrt{3^2 + 2^2} \approx 3.61\text{ m}$ (`TANK_COLLISION_RADIUS_M`) and mines detonate at $1.0\text{ m}$ (`MINE_TRIGGER_RADIUS_M`), any mine within $4.61\text{ m}$ of tank center can detonate when the hull turns.
   - `MINE_LETHAL_RADIUS_M` is set to $3.61 + 1.0 + 0.65 \approx 5.26\text{ m}$, providing full corner clearance across all navigation layers.
+- **Hull-Padded Enemy Slit-Gun Sector & Path-Segment Avoidance (`isInEnemySlitGunSector`, `isSegmentInEnemySlitGunSector`):**
+  - Enemy hangar slit guns at $Y = 42\text{ m}$ and $Y = 58\text{ m}$ have a $32\text{ m}$ physical shell reach and a $\pm 45^\circ$ horizontal traverse cone.
+  - `isInEnemySlitGunSector(x, y, enemyOwner, marginM)` pads the radial shell reach by `hullPad = 2.2 m + marginM` ($35.7\text{ m}$ at default `marginM = 1.5 m`) and pads the $45^\circ$ diagonal cone boundary by `conePad = 3.6 m + marginM` (`dy <= dx + conePad`) so a tank's $3.61\text{ m}$ corner cannot clip an oblique slit-gun shell at $(14.7, 76.6)$.
+  - `isSegmentInEnemySlitGunSector(x0, y0, x1, y1, enemyOwner, marginM)` samples $s \in \{0.25, 0.5, 0.75, 1.0\}$ along any candidate movement or lookahead segment so neither selected nor unselected tanks cut across the slit-gun cone en route to a safe endpoint.
+- **Forward Containment Arc (`getGateAmbushPose`, `getRoleWaypoint`):**
+  - Rather than camping deep along the enemy wall ($dx \approx 12\text{ m}$) where tanks have poor forward reach and risk clipping the $45^\circ$ slit-gun cone, when the enemy has no active tanks on the field (or only tanks inside the slit-gun sector), the brigade establishes a **Forward Containment Arc** at $dx = 36\text{--}38\text{ m}$ from the enemy gate across five staggered firing lanes ($Y \in \{30, 38, 50, 62, 70\}\text{ m}$).
+  - At $dx = 36\text{ m}$ (outside the $32\text{ m}$ slit-gun shell reach), every tank pre-rotates its hull toward the enemy gate exit threshold $(gx \pm 12\text{ m}, Y = 50\text{ m})$ using a $6\text{ km/h}$ fast-turn creep ($45^\circ/\text{s}$ moving turn rate vs $30^\circ/\text{s}$ stationary pivot) whenever $4.5\text{--}6\text{ m}$ ahead is clear, ready to immediately advance and crossfire the instant an enemy tank exits the hangar.
 - **Macro-Scale 2D Cost Grid:** Discretizes the $250\text{ m} \times 100\text{ m}$ arena into $2.0\text{ m}$ cells ($125 \times 50$ cells in a `Uint8Array`):
   - Lethal hazards (water pits and mines within `MINE_LETHAL_RADIUS_M`): `COST_LETHAL = 255`.
   - Soft obstacles (building walls and arena borders): `COST_HOUSE = 12`.
   - Open arena: `COST_OPEN = 1`.
 - **Dynamic Window Trajectory Rollout (DWA):**
   - Evaluates candidate steering arcs ($\{-45^\circ, -30^\circ, -15^\circ, 0^\circ, 15^\circ, 30^\circ, 45^\circ\}/\text{s}$) over a $1.8\text{ s}$ horizon (6 simulation steps).
-  - Rejects any trajectory whose step endpoint **or step midpoint** contacts water pits, falls within `MINE_LETHAL_RADIUS_M` ($5.26\text{ m}$) of a mine, or enters the enemy slit gun sector.
-  - `getAttackStandoffWaypoint` also rejects any candidate flanking waypoint within `MINE_LETHAL_RADIUS_M + 1.5 m` ($6.76\text{ m}$) of a mine.
+  - Rejects any trajectory whose step endpoint **or step midpoint** contacts water pits, falls within `MINE_LETHAL_RADIUS_M` ($5.26\text{ m}$) of a mine, or enters the enemy slit gun sector (`marginM = 2.0 m`).
+  - **Radial Escape from Enemy Slit-Gun Sector:** If a tank is already inside the enemy slit-gun sector, DWA switches to an escape evaluator that scores trajectories by immediate radial distance gained away from the enemy gate ($\Delta dx$) and lateral escape from the $Y = 50\text{ m}$ center channel, rapidly backing or steering the tank out to the $37\text{ m}$ Forward Containment Arc.
+  - `getAttackStandoffWaypoint` also rejects any candidate flanking waypoint within `MINE_LETHAL_RADIUS_M + 1.5 m` ($6.76\text{ m}$) of a mine or inside the enemy slit-gun sector.
   - Penalizes arcs passing within $6.0\text{ m}$ of friendly tanks, eliminating bunching.
 - **Gate Reservation Mutex:** `GateReservationManager` ensures only a single tank transits or approaches the $7\text{ m}$ gateway at a time. Other retreating or deploying units hold at lateral staging waypoints ($Y = 32\text{ m}$ or $68\text{ m}$).
 
 ### 5.2 Target Selection & Active-Threat Prioritization (`src/sim/ai/executor.js`)
 Target selection evaluates all visible (or smoke-tracked) enemy field tanks and selects the minimum-score target:
+- **Slit-Gun Bait Rejection (`targetInEnemySlit`):**
+  - Any enemy tank sitting inside its own base's slit-gun firing sector (`isInEnemySlitGunSector(e.x, e.y, e.owner, 1.0)`) is ignored as a pursuit target unless it is already within immediate gun reach (`dist <= SHELL_RANGE_M + 2.0 m` $= 34\text{ m}$). This prevents AI tanks from being baited into enemy slit-gun crossfire when an enemy retreats into or lingers near its hangar doorway.
 - **Active-Attacker & Base-Raider Priority (`activeThreatBonus`):**
   - Moving enemy tanks ($|v| > 1.5\text{ m/s}$) receive a $-38\text{ pt}$ score reduction (higher priority), plus an additional $-24\text{ pt}$ reduction ($-62\text{ pt}$ total) when raiding within $60\text{ m}$ of the AI's own gate. This ensures the AI focuses fire on active human raiders instead of shooting unmanned tanks parked at spawn.
 - **Gate-Emergence Filter (`isEmergingFromGate`):**
   - The $-70\text{ pt}$ gate-emergence bonus ($\Delta X \le 9\text{ m}, \Delta Y \le 5\text{ m}$ from the enemy gate) only applies if the enemy tank is **actively moving** ($|v| > 0.5\text{ m/s}$), preventing stationary spawn reserves from acting as permanent target magnets.
 - **Extended Opportunity Intercept (`37 m`):**
-  - Unblocked targets within `AI_TARGET_OPPORTUNITY_MAX_DIST_M + 12 m` ($37\text{ m}$) trigger direct opportunity engagement (`isOpportunityTarget`), steering directly toward the target rather than detouring to a lateral standoff waypoint.
+  - Unblocked targets within `AI_TARGET_OPPORTUNITY_MAX_DIST_M + 12 m` ($37\text{ m}$) that are outside the enemy slit-gun sector trigger direct opportunity engagement (`isOpportunityTarget`), steering directly toward the target rather than detouring to a lateral standoff waypoint.
 
 ### 5.3 Hull Aiming, Mobile Turn-to-Aim & Ballistic Fire Reflex (`aiming.js`, `weapons.js`)
 - **Full-Range Moving-Target Engagement:**
@@ -140,10 +150,10 @@ Target selection evaluates all visible (or smoke-tracked) enemy field tanks and 
   - Accounts for the $3.5\text{ m}$ gun muzzle forward offset (`TANK_LENGTH_M / 2 + SHELL_MUZZLE_OFFSET_M`) when computing projectile flight time $t_{\text{fly}} = \min(0.4\text{ s}, \max(0, d - 3.5\text{ m}) / v_{\text{shell}})$, refined over two iterations.
   - Projects target motion along a curvilinear circular arc when angular velocity $|\omega| > 0.04\text{ rad/s}$ and $|v| > 0.3\text{ m/s}$, or straight-line dead-reckoning otherwise.
   - Reports both center-to-lead distance (`leadDist`) and muzzle-to-lead distance (`muzzleDist = max(0, leadDist - 3.5 m)`).
-- **Early Pre-Alignment & 4-Tier Mobile Turn-to-Aim (`findAimSolution`):**
-  - **Pre-Alignment Window:** Aiming activates whenever `lead.muzzleDist <= maxEngageDist + 16.0 m` ($\approx 48\text{ m}$ from muzzle) and line of fire is clear, provided the $12\text{ m}$ forward hull corridor is free of mines, pits, and walls (`isForwardArcHazardous`). If a hazard lies ahead, `findAimSolution` returns `null` so DWA navigation steers safely around the hazard first.
+- **Early Pre-Alignment, Slit-Sector Guard & 4-Tier Mobile Turn-to-Aim (`findAimSolution`):**
+  - **Pre-Alignment Window & Hazard/Slit Guard:** Aiming activates whenever `lead.muzzleDist <= maxEngageDist + 16.0 m` ($\approx 48\text{ m}$ from muzzle) and line of fire is clear, provided the forward hull corridor is free of mines, pits, walls, and the enemy slit-gun sector (`isForwardArcHazardous`). When the tank is already within firing range ($\le 30\text{ m}$) or nearly aligned ($|\text{errRad}| < 0.35\text{ rad}$), the forward hazard check uses a compact $7.0\text{ m}$ probe so tanks near a pit or wall can still aim and fire at enemies in open ground instead of freezing.
   - **Mobile Turn-to-Aim Speed Ladder:** Because moving tanks turn at $45^\circ/\text{s}$ (`TANK_MAX_TURN_DEG_S`) whereas stationary tanks pivot at only $30^\circ/\text{s}$ (`TANK_MAX_PIVOT_TURN_DEG_S`), the AI stays mobile while turning:
-    1. `lead.muzzleDist > maxEngageDist - 1.0 m` and $|\text{errRad}| < 1.0\text{ rad}$: commands $36\text{ km/h}$ (`maxSpeedKmh`) to close distance with the barrel pre-aligned on the lead point.
+    1. `lead.muzzleDist > maxEngageDist - 1.0 m` and $|\text{errRad}| < 1.0\text{ rad}$: commands $36\text{ km/h}$ (`maxSpeedKmh`) to close distance with the barrel pre-aligned on the lead point (unless the target is inside the enemy slit-gun sector, where forward speed is capped to $0\text{ km/h}$ if $dx < 38\text{ m}$).
     2. $|\text{errRad}| > 0.16\text{ rad}$ ($\approx 9.2^\circ$): commands $18\text{ km/h}$ with proportional turn gain $\ge 2.2$ so the hull turns at the full $45^\circ/\text{s}$ moving limit while remaining evasive.
     3. $|\text{errRad}| > 0.04\text{ rad}$ ($\approx 2.3^\circ$) or target moving ($|v| > 2.0\text{ m/s}$): commands $6\text{ km/h}$ to retain $45^\circ/\text{s}$ turn authority during fine tracking.
     4. $|\text{errRad}| \le 0.04\text{ rad}$ against slow/stationary target: commands $0\text{ km/h}$.
@@ -154,18 +164,23 @@ Target selection evaluates all visible (or smoke-tracked) enemy field tanks and 
     1. **Ballistic Ray-vs-OBB Intersection:** The $32\text{ m}$ ray from the gun muzzle `(mx, my)` along `tank.heading` intersects (`segmentVsObb`) the $88\%$-scaled predicted target OBB at shell arrival time $t_{\text{arrival}}$, **or**
     2. **Strict Angular Gate:** `lead.muzzleDist <= maxEngageDist + 1.5 m` and `aimErr <= Math.max(0.03, Math.min(targetAngularHalfWidth, profile.fireTolerance))`—using `Math.min` on `HARD` so the tank never fires prematurely at $6^\circ\text{--}7^\circ$ off-bore before the barrel points inside the target's angular width.
 
-### 5.4 Parallel Multi-Tank Command Architecture, Mine Avoidance & Defensive Mine Laying
-- **Unified Hazard Check (`isPathClearOfPits` in `commander.js`):**
-  - Validates arena boundary margins ($6.5\text{ m}$ outside gate lane), water pits, **and** mines (`MINE_LETHAL_RADIUS_M + 0.5 m` $= 5.76\text{ m}$ lateral clearance) across initial brigade mobilization, unselected rearming, unselected cruising, and stopped-unit restarts.
+### 5.4 Parallel Multi-Tank Command Architecture, Mine/Slit Avoidance & Defensive Mine Laying
+- **Unified Hazard & Slit-Sector Check (`isPathClearOfPits` in `commander.js`):**
+  - Validates arena boundary margins ($6.5\text{ m}$ outside gate lane), water pits, mines (`MINE_LETHAL_RADIUS_M + 1.0 m` $= 6.26\text{ m}$ lateral clearance), **and** enemy slit-gun sectors (`isSegmentInEnemySlitGunSector` with $2.0\text{ m}$ margin) across initial brigade mobilization, unselected rearming, unselected cruising, and stopped-unit restarts.
+  - **Anti-Corner-Swing Mine Escape:** Because a $6\text{ m} \times 4\text{ m}$ tank hull pivoting near a mine ($d \le 6.76\text{ m}$) can swing its rear or front corner into the $1.0\text{ m}$ mine trigger radius, stopped or slow tanks within `MINE_LETHAL_RADIUS_M + 1.5 m` of a mine are forbidden from pivoting in place (`cmdTurnDeg = 0` when `cmdSpeedKmh === 0`) and instead drive straight forward (`cmdTurnDeg = 0, cmdSpeedKmh = 18`) if the straight path increases distance from the mine.
 - **Per-Tick Parallel Multi-Tank Controller (`enforceUnselectedTanksSafety` & `updateCommander`):**
-  - Whereas a human player typically focuses attention on 1 active tank while leaving their remaining 4 tanks parked or cruising blindly, the AI steers and coordinates **all unselected tanks in parallel every simulation tick**:
-    1. **Hazard Evasion Reflex:** If an unselected moving tank's lookahead path ($\max(14\text{ m}, 2.2 \cdot |v|)$) is blocked by a mine, pit, or wall, it immediately probes escape offsets ($\pm 0.55, \pm 1.05, \pm 1.55, \pm 2.2\text{ rad}$) and steers away at $45^\circ/\text{s}$ and $\le 18\text{ km/h}$ (or stops and pivots if all forward angles are blocked).
-    2. **Parallel Brigade Task Partitioning (Wolfpack Crossfire vs. Unattended-Tank Hunters):**
-       - **Wolfpack Crossfire Swarm (Up to 3 Closest Armed Tanks):** When one or more enemy tanks are actively moving ($|v| > 1.0\text{ m/s}$), the closest 3 armed friendly tanks (`wolfpackRank = 0, 1, 2`) are assigned to converge on the primary active attacker along three distinct crossfire bearings ($0\text{ rad}$ direct lead, $+0.52\text{ rad}$ / $+30^\circ$ left pincer, and $-0.52\text{ rad}$ / $-30^\circ$ right pincer at $22\text{ m}$ standoff). An evading human tank cannot dodge three converging firing lines simultaneously.
-       - **Unattended-Tank Hunters (Remaining Armed Tanks):** While the Wolfpack pins and destroys the human's active tank, any remaining armed friendly tanks (`wolfpackRank >= 3`) are automatically assigned in parallel to hunt down and destroy unattended/stationary enemy tanks ($|v| \le 1.0\text{ m/s}$) left parked at spawn or midfield.
-    3. **Continuous Parallel Pre-Aiming & Waypoint Steering:**
+  - Runs every simulation tick for **all unselected field tanks** (including when the AI is currently operating a hangar slit-gun window in `pl.view === 'window'`):
+    1. **Unselected Incoming-Shell Dodge Reflex:** If an enemy shell within $34\text{ m}$ is flying toward an unselected tank ($\text{dot} > 0.88$, lateral miss distance $< 3.6\text{ m}$), the unselected tank immediately jinks perpendicular to the shell trajectory at $36\text{ km/h}$ and $45^\circ/\text{s}$ (provided the $10\text{ m}$ escape path is clear of pits and mines).
+    2. **Unselected Slit-Gun Sector Escape:** If an unselected tank is inside or within $2.2\text{ m}$ of the enemy slit-gun firing sector, it immediately steers radially outward toward the safe Forward Containment Arc ($dx = 38\text{ m}, Y = 26\text{ m}$ or $74\text{ m}$) at $36\text{ km/h}$, or reverses out at $-12\text{ km/h}$ if forward escape angles are blocked.
+    3. **Hazard Evasion & Current-Heading Safety Verification:** Before accelerating toward any target or waypoint, an unselected tank verifies that its **current physical heading** (`t.heading`) is clear over $\max(10\text{ m}, 1.5 \cdot |v|)$ so it never accelerates forward into a mine or pit while still turning toward a safe desired bearing.
+    4. **Parallel Brigade Task Partitioning (Wolfpack Crossfire vs. Unattended-Tank Hunters):**
+       - **Wolfpack Crossfire Swarm (Up to 3 Closest Armed Tanks):** When one or more enemy tanks outside the enemy slit-gun sector are actively moving ($|v| > 1.0\text{ m/s}$), the closest 3 armed friendly tanks (`wolfpackRank = 0, 1, 2`) converge on the primary active attacker along three distinct crossfire bearings ($0\text{ rad}$ direct lead, $+0.52\text{ rad}$ / $+30^\circ$ left pincer, and $-0.52\text{ rad}$ / $-30^\circ$ right pincer at $22\text{ m}$ standoff).
+       - **Unattended-Tank Hunters (Remaining Armed Tanks):** Remaining armed friendly tanks (`wolfpackRank >= 3`) hunt down unattended/stationary enemy tanks ($|v| \le 1.0\text{ m/s}$) outside the enemy slit-gun sector.
+    5. **Continuous Parallel Pre-Aiming & Forward Containment Orientation:**
        - **Within $50\text{ m}$ of Assigned Target:** Unselected tanks continuously steer (`cmdTurnDeg` in $15^\circ, 30^\circ, 45^\circ/\text{s}$ steps) onto their assigned target's iterative `leadPoint`, closing at $36\text{ km/h}$ outside firing range, turning at $18\text{ km/h}$ ($45^\circ/\text{s}$) when $|\text{err}| > 0.14\text{ rad}$, and tracking at $6\text{ km/h}$ when locked on (`|err| <= 0.035 rad`) so `runDispatcher` can trigger an instant $0.08\text{ s}$ volley shot (`combatScore = 98..99`).
-       - **Beyond $50\text{ m}$ from Enemies:** Unselected tanks steer smoothly toward theirWolfpack pincer point, Hunter target, or strategic `roleWaypoint` (both when starting from rest and while already cruising at `cmdSpeedKmh > 0`) whenever the $16\text{ m}$ lookahead arc is clear of pits, mines, and walls.
+       - **On the Forward Containment Arc (No Exposed Enemies):** Unselected tanks parked within $8\text{ m}$ of their containment waypoint pre-rotate toward the enemy gate exit $(gx \pm 12\text{ m}, Y = 50\text{ m})$ at $6\text{ km/h}$ ($45^\circ/\text{s}$ fast turn) when $4.5\text{ m}$ ahead is clear, then hold at $0\text{ km/h}$ once aligned within $4^\circ$.
+- **Slit-Window Dead-Zone Guard (`src/sim/ai/slit.js`, `src/sim/ai/executor.js`):**
+  - Hangar slit guns have a hard physical traverse stop of `SLIT_MAX_YAW_RAD` ($\pm 45^\circ \approx 0.785\text{ rad}$) and require $|\text{yawErr}| \le 0.12\text{ rad}$ to fire. Both `executeTactics` (before entering window view) and `updateSlit` (while operating window view) strictly reject enemies whose relative yaw from the window exceeds `SLIT_MAX_YAW_RAD + 0.06 rad`, preventing the AI from locking up in window view when an enemy tank parks near the base wall outside the $45^\circ$ firing cone.
 - **Hardened Defensive Mine Laying (`executeTactics`):**
   - Enabled via `AI_MINES_ENABLED = true`, with strict anti-fratricide and pursuit checks:
     - Never lays mines inside own gate approach corridor ($\Delta X < 14\text{ m}, \Delta Y < 6\text{ m}$) or when any friendly tank is within $\max(18\text{ m}, \text{AI\_MINE\_FRIENDLY\_SAFE\_DIST\_M})$.
@@ -199,8 +214,13 @@ Before relinquishing control of a tank, the AI zeroes turn commands (`cmdTurnDeg
 
 ---
 
-## 7. AI Diagnostic Tooling & Telemetry
+## 7. AI Diagnostic Tooling, Replay Slicing & Telemetry
 
 - **On-Screen Decision Log Panels:** For AI-controlled sides, scrolling telemetry appears in the canvas margins outside the 2D map, streaming timestamped decisions: `DOCTRINE`, `PLAN`, `ROLES`, `ATTACK`, `PURSUE`, `AIM`, `AVOID`, `SLIT`, `REARM`, `DEPLOY`, `FIRE`, `SELECT`, `LOSS`, `SMOKE`, `MINE`, `AMBUSH`.
 - **Headless VCR Tool (`.\vcr.cmd [seconds] [level] [seed]`):** Runs deterministic headless AI matches producing comprehensive logs of tank states and strategic choices for tuning without browser overhead.
 - **Benchmark Suite (`.\bench.cmd [seeds] [seconds] [level]`):** Aggregates win rates, tank losses, accuracy, pit deaths, and friendly/enemy mine casualties across seeded matches to validate AI improvements.
+- **Saved-Game Replay Forensics & Slice Simulation Suite (`tools/`):**
+  - `tools/replays/`: Stores real HvC match recordings (`game1_hvc_hard.replay`, `game2_hvc_hard.replay`, `game3_hvc_hard.replay`) used for regression testing and AI battle hardening.
+  - `tools/replay_utils.js`: Node.js utilities (`loadReplay`, `analyzeReplayEvents`, `sliceReplayFrames`, `createWorldAtTime`, `simulateMoment`) that decompress base64 recordings via `PlaybackController`, assign valid field numbers `'1'..'5'` to deployed reserve tanks (`id >= 20`), reconstruct world state at any timestamp `startT`, and replay human-controlled Red motions/shots/slit-guns/mines while running live `AiController` logic for Blue.
+  - `tools/analyze_replay.js`: CLI analyzer printing chronological kills, causes of death (tank shell, slit gun, mine, pit), shooter distances, and active/unselected tank states.
+  - `tools/sim_replay.js`: Automated regression and validation runner that simulates critical battle slices across all saved games (`GAME1_MOMENTS`, `GAME2_MOMENTS`, `GAME3_MOMENTS`) or any custom time window (`node tools/sim_replay.js <replay_file> <start_sec> <duration_sec> [level]`).

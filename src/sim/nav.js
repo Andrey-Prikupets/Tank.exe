@@ -226,44 +226,47 @@ export function predictTargetCurvilinear(target, dt) {
 }
 
 /**
- * Returns true if (x, y) is inside the lethal firing sector of the enemy base slit guns.
+ * Checks if position (x, y) is inside the enemy hangar slit gun firing cone.
+ * Accounts for the 3D tank hull OBB extent (`hullPad = 2.2m` radial, `conePad = 3.6m` lateral corner)
+ * so tank edges/corners cannot protrude into the 45-degree traverse cone or range circle of the slit guns.
  * For enemy base at gateX(enemyOwner):
- * - Slit windows are at y=42 and y=58. Firing range is up to 55m into the field.
- * - Direct frontal corridor y in [39, 61] within 45m is heavily dangerous.
- * - 45-degree yaw cones from each window extend to [42 - dx*0.95, 42 + dx*0.95] and [58 - dx*0.95, 58 + dx*0.95].
- * - Lateral positions hugging the wall (dx in [5, 14], y <= 35 or y >= 65) are SAFE outside the traverse arc.
+ * - Slit windows are at y=42 and y=58. Physical shell range is 32m (+ hull extent).
+ * - Safe Forward Containment Arc sits outside `reach` (~36-40m from enemy gate).
  */
-export function isInEnemySlitGunSector(x, y, enemyOwner, marginM = 2.0) {
+export function isInEnemySlitGunSector(x, y, enemyOwner, marginM = 1.5) {
   const gx = gateX(enemyOwner);
   const dir = enemyOwner === 0 ? 1 : -1;
   const dx = (x - gx) * dir; // distance into field from enemy wall
+  const hullPad = 2.2;
+  const conePad = 3.6 + marginM;
+  const reach = C.SHELL_RANGE_M + hullPad + marginM;
 
-  // Behind wall or beyond max physical reach (+ margin) is safe
-  if (dx < 1.0 || dx > C.SHELL_RANGE_M + marginM) return false;
+  // Behind wall or beyond max physical reach (+ hullPad + margin) is safe
+  if (dx < 0.5 || dx > reach) return false;
 
   // Safe edge crawl corridors along North and South arena boundaries
-  // Slit guns at y=42/58 with +/-45 deg traverse cannot hit y <= 9.0 or y >= 91.0
-  if (y <= 9.0 || y >= C.FIELD_WIDTH_M - 9.0) {
+  // Slit guns at y=42/58 with +/-45 deg traverse cannot hit y <= 7.0 or y >= 93.0
+  if (y <= 7.0 || y >= C.FIELD_WIDTH_M - 7.0) {
     return false;
   }
 
   // Direct frontal gate channel is deadly
-  if (dx <= 28.0 && y >= 36.0 && y <= 64.0) {
+  if (dx <= C.SHELL_RANGE_M + hullPad && y >= 35.0 && y <= 65.0) {
     return true;
   }
 
-  // Reach limit
-  const maxReachSq = (C.SHELL_RANGE_M + marginM) ** 2;
+  // Reach limit squared
+  const maxReachSq = reach * reach;
 
   // Window 0 (y = 42)
   const dy0 = Math.abs(y - 42.0);
-  if (dy0 <= dx + 1.0 && dx * dx + dy0 * dy0 <= maxReachSq) {
+  if (dy0 <= dx + conePad && dx * dx + dy0 * dy0 <= maxReachSq) {
     return true;
   }
 
   // Window 1 (y = 58)
   const dy1 = Math.abs(y - 58.0);
-  if (dy1 <= dx + 1.0 && dx * dx + dy1 * dy1 <= maxReachSq) {
+  if (dy1 <= dx + conePad && dx * dx + dy1 * dy1 <= maxReachSq) {
     return true;
   }
 
@@ -271,8 +274,25 @@ export function isInEnemySlitGunSector(x, y, enemyOwner, marginM = 2.0) {
 }
 
 /**
- * Computes safe tactical gate ambush coordinates outside the enemy slit gun sector,
- * with gun orientation aimed directly across the gate doorway to eliminate outgoing tanks.
+ * Checks whether a linear path segment (x0, y0) -> (x1, y1) passes through
+ * the enemy hangar slit gun firing cone at any sample point.
+ */
+export function isSegmentInEnemySlitGunSector(x0, y0, x1, y1, enemyOwner, marginM = 2.0) {
+  const samples = [0.25, 0.5, 0.75, 1.0];
+  for (const s of samples) {
+    const sx = x0 + (x1 - x0) * s;
+    const sy = y0 + (y1 - y0) * s;
+    if (isInEnemySlitGunSector(sx, sy, enemyOwner, marginM)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Computes safe tactical gate containment/ambush coordinates outside the enemy slit gun sector,
+ * positioned on the Forward Containment Arc (~36m from enemy gate, y=30 or y=70)
+ * with gun orientation pre-aimed directly at the gate exit to intercept emerging tanks.
  */
 export function getGateAmbushPose(tank, owner, preferredFlank = 'AUTO') {
   const enemyOwner = 1 - owner;
@@ -288,18 +308,20 @@ export function getGateAmbushPose(tank, owner, preferredFlank = 'AUTO') {
     useNorth = tank.y < C.GATE_CENTER_Y_M;
   }
 
-  // Ambush post: 8.5m into field from enemy wall, y=30.0 (North) or y=70.0 (South)
-  // This is strictly outside the 45-degree traverse cone of both slit guns (y=42, 58)
-  const ambushX = gx + dir * 8.5;
+  // Forward Containment Arc post: 36.0m from enemy wall, y=30.0 (North) or y=70.0 (South).
+  // Distance from slit guns (0,42)/(0,58) is hypot(36, 12) = 37.95m > 37.2m (completely safe
+  // from slit guns), while giving an immediate, unobstructed line of fire and fast advance
+  // onto any enemy tank emerging from the gate at (gx + dir * 6.0, 50.0).
+  const ambushX = gx + dir * 36.0;
   const ambushY = useNorth ? 30.0 : 70.0;
 
-  // Outgoing enemy tanks emerge at gate threshold (gx + dir * 2.0, 50.0)
-  const doorwayAimX = gx + dir * 2.0;
+  // Outgoing enemy tanks emerge along the gate exit channel (gx + dir * 6.0, 50.0)
+  const doorwayAimX = gx + dir * 6.0;
   const doorwayAimY = C.GATE_CENTER_Y_M;
   const aimHeading = Math.atan2(doorwayAimY - ambushY, doorwayAimX - ambushX);
 
   const distToAmbush = Math.hypot(ambushX - tank.x, ambushY - tank.y);
-  const isAtAmbush = distToAmbush < 3.5;
+  const isAtAmbush = distToAmbush < 4.5;
 
   return {
     targetX: ambushX,
@@ -421,8 +443,8 @@ export function getAttackStandoffWaypoint(tank, target, world, profile, simTime 
   if (!bestWaypoint) {
     const gx = gateX(enemyOwner);
     const dir = enemyOwner === 0 ? 1 : -1;
-    const safeX = gx + dir * 34.0;
-    const safeY = tank.y <= C.GATE_CENTER_Y_M ? 7.5 : 92.5;
+    const safeX = gx + dir * 38.0;
+    const safeY = tank.y <= C.GATE_CENTER_Y_M ? 28.0 : 72.0;
     return { x: safeX, y: safeY, predTarget };
   }
 
@@ -570,13 +592,8 @@ export function evaluateKinematicTrajectoryArcs(
   const candidateTurns = [-45, -30, -15, 0, 15, 30, 45];
   const candidateSpeeds = [maxSpeedKmh, Math.min(18, maxSpeedKmh), 0];
   const nearBoundary =
-    tank.x < 14 || tank.x > C.FIELD_LENGTH_M - 14 || tank.y < 14 || tank.y > C.FIELD_WIDTH_M - 14;
-  if (
-    targetDist < 6.0 ||
-    isInEnemySlitGunSector(tank.x, tank.y, 1 - tank.owner) ||
-    nearBoundary ||
-    Math.abs(tank.speed) < 0.5
-  ) {
+    tank.x < 9 || tank.x > C.FIELD_LENGTH_M - 9 || tank.y < 9 || tank.y > C.FIELD_WIDTH_M - 9;
+  if (nearBoundary) {
     candidateSpeeds.push(-6);
   }
 
@@ -592,8 +609,37 @@ export function evaluateKinematicTrajectoryArcs(
     (t) => t.id !== tank.id && t.status === 'field',
   );
 
+  // Detect if tank is currently inside the safety margin of a mine or pit so it can escape outward
+  const startInLethalGrid = navGrid ? navGrid.getCostAt(tank.x, tank.y) === COST_LETHAL : false;
+  let nearestCloseMine = null;
+  let nearestCloseMineDist = Infinity;
+  if (world.mines) {
+    for (const m of world.mines) {
+      const dm = Math.hypot(tank.x - m.x, tank.y - m.y);
+      if (dm < MINE_LETHAL_RADIUS_M && dm < nearestCloseMineDist) {
+        nearestCloseMineDist = dm;
+        nearestCloseMine = m;
+      }
+    }
+  }
+  if (nearestCloseMine && !candidateSpeeds.includes(-6)) {
+    candidateSpeeds.push(-6);
+  }
+  if (nearestCloseMine) {
+    // If close to a mine, default fallback must NOT pivot in place (pivoting swings hull corners into the mine!)
+    bestTurnDeg = 0;
+  }
+
   for (const cmdSpeed of candidateSpeeds) {
     for (const cmdTurn of candidateTurns) {
+      // Never pivot in place when inside the corner-swing radius of a mine!
+      if (nearestCloseMine && cmdSpeed === 0 && cmdTurn !== 0) {
+        continue;
+      }
+      // Never freeze stationary with zero turn when still far from the waypoint!
+      if (cmdSpeed === 0 && cmdTurn === 0 && targetDist > 4.0) {
+        continue;
+      }
       let simX = tank.x;
       let simY = tank.y;
       let simHeading = tank.heading;
@@ -605,6 +651,7 @@ export function evaluateKinematicTrajectoryArcs(
       let enemySlitSectorContact = 0;
       let minFriendlyDist = Infinity;
       let minEnemyDist = Infinity;
+      let hazardEscapeBonus = 0;
 
       for (let step = 1; step <= simSteps; step++) {
         const prevSimX = simX;
@@ -615,32 +662,41 @@ export function evaluateKinematicTrajectoryArcs(
 
         // 1. Boundary & Lethal Hazards (Cost Grid check)
         const cost = navGrid ? navGrid.getCostAt(simX, simY) : COST_OPEN;
-        if (cost === COST_LETHAL) {
+        if (cost === COST_LETHAL && (!startInLethalGrid || step >= 4)) {
           lethalCollision = true;
           break;
         }
-        if (cost >= COST_HOUSE) {
+        if (cost >= COST_HOUSE && cost !== COST_LETHAL) {
           houseContactCount++;
         }
 
         // Direct Pit geometry verification (point + trajectory segment)
         if (world.pits) {
           for (const pit of world.pits) {
+            const [startPlx, startPly] = toLocal(pit, tank.x, tank.y);
+            const startInPitMargin =
+              Math.abs(startPlx) < pit.l / 2 + PIT_LETHAL_MARGIN_M &&
+              Math.abs(startPly) < pit.w / 2 + PIT_LETHAL_MARGIN_M;
+            const margin = startInPitMargin ? 0.6 : PIT_LETHAL_MARGIN_M;
             const expPit = {
               x: pit.x,
               y: pit.y,
               h: pit.h,
-              l: pit.l + PIT_LETHAL_MARGIN_M * 2,
-              w: pit.w + PIT_LETHAL_MARGIN_M * 2,
+              l: pit.l + margin * 2,
+              w: pit.w + margin * 2,
             };
-            if (segmentVsObb(prevSimX, prevSimY, simX, simY, expPit) != null) {
-              lethalCollision = true;
-              break;
-            }
             const [plx, ply] = toLocal(pit, simX, simY);
-            if (
-              Math.abs(plx) < pit.l / 2 + PIT_LETHAL_MARGIN_M &&
-              Math.abs(ply) < pit.w / 2 + PIT_LETHAL_MARGIN_M
+            if (startInPitMargin) {
+              const prevDist = Math.hypot(prevSimX - pit.x, prevSimY - pit.y);
+              const currDist = Math.hypot(simX - pit.x, simY - pit.y);
+              if (currDist < prevDist - 0.02 || (Math.abs(plx) < pit.l / 2 + 0.5 && Math.abs(ply) < pit.w / 2 + 0.5)) {
+                lethalCollision = true;
+                break;
+              }
+              hazardEscapeBonus += (currDist - prevDist) * 80.0;
+            } else if (
+              segmentVsObb(prevSimX, prevSimY, simX, simY, expPit) != null ||
+              (Math.abs(plx) < pit.l / 2 + PIT_LETHAL_MARGIN_M && Math.abs(ply) < pit.w / 2 + PIT_LETHAL_MARGIN_M)
             ) {
               lethalCollision = true;
               break;
@@ -654,10 +710,19 @@ export function evaluateKinematicTrajectoryArcs(
           const midX = (prevSimX + simX) * 0.5;
           const midY = (prevSimY + simY) * 0.5;
           for (const m of world.mines) {
-            if (
-              Math.hypot(simX - m.x, simY - m.y) < MINE_LETHAL_RADIUS_M ||
-              Math.hypot(midX - m.x, midY - m.y) < MINE_LETHAL_RADIUS_M
-            ) {
+            const startDm = Math.hypot(tank.x - m.x, tank.y - m.y);
+            const currDm = Math.hypot(simX - m.x, simY - m.y);
+            const midDm = Math.hypot(midX - m.x, midY - m.y);
+            const prevDm = Math.hypot(prevSimX - m.x, prevSimY - m.y);
+            if (startDm < MINE_LETHAL_RADIUS_M) {
+              // Already inside safety buffer of this mine: must move strictly away and stay outside physical trigger
+              const hardTriggerR = C.MINE_TRIGGER_RADIUS_M + C.TANK_WIDTH_M / 2 + 0.25;
+              if (currDm < prevDm - 0.01 || currDm < hardTriggerR || midDm < hardTriggerR) {
+                lethalCollision = true;
+                break;
+              }
+              hazardEscapeBonus += (currDm - prevDm) * 120.0;
+            } else if (currDm < MINE_LETHAL_RADIUS_M || midDm < MINE_LETHAL_RADIUS_M) {
               lethalCollision = true;
               break;
             }
@@ -690,10 +755,9 @@ export function evaluateKinematicTrajectoryArcs(
 
       // Slit gun sector entry rejection: if tank is currently outside enemy slit sector,
       // never choose a trajectory that drives into it!
-      if (!isDoorwayMode && enemySlitSectorContact > 0) {
-        if (!isInEnemySlitGunSector(tank.x, tank.y, 1 - tank.owner)) {
-          continue;
-        }
+      const alreadyInSlit = !isDoorwayMode && isInEnemySlitGunSector(tank.x, tank.y, 1 - tank.owner);
+      if (!isDoorwayMode && enemySlitSectorContact > 0 && !alreadyInSlit) {
+        continue;
       }
 
       // Friendly tank collision avoidance penalty
@@ -705,20 +769,60 @@ export function evaluateKinematicTrajectoryArcs(
       // Soft house contact penalty: allowed, but penalized proportionally
       const housePenalty = houseContactCount * 18.0;
 
-      // Enemy slit gun hit sector avoidance penalty
-      const enemySlitPenalty = enemySlitSectorContact * 600.0;
+      // Enemy slit gun hit sector avoidance / radial escape incentive
+      let enemySlitPenalty = enemySlitSectorContact * 600.0;
+      if (alreadyInSlit) {
+        const enemyOwner = 1 - tank.owner;
+        const slitX = gateX(enemyOwner);
+        const slitY = tank.y < C.GATE_CENTER_Y_M ? 42.0 : 58.0;
+        const startSlitDist = Math.hypot(tank.x - slitX, tank.y - slitY);
+        const endSlitDist = Math.hypot(simX - slitX, simY - slitY);
+        enemySlitPenalty -= (endSlitDist - startSlitDist) * 180.0;
+      }
 
       // Progress to target
       const endDist = Math.hypot(targetWaypoint.x - simX, targetWaypoint.y - simY);
       const progress = targetDist - endDist;
 
-      // Heading alignment toward target
+      // Heading alignment toward target (for cmdSpeed <= 0, penalize headings that still point into a pit/mine ahead!)
       const angleToTarget = Math.atan2(targetWaypoint.y - simY, targetWaypoint.x - simX);
       const headingDiff = Math.abs(normalizeAngle(angleToTarget - simHeading));
-      const alignmentBonus = (1 - headingDiff / Math.PI) * 35.0;
+      let alignmentBonus = (1 - headingDiff / Math.PI) * 35.0;
+      if (cmdSpeed <= 0 && targetDist > 4.0) {
+        const probeX = simX + Math.cos(simHeading) * 14.0;
+        const probeY = simY + Math.sin(simHeading) * 14.0;
+        let forwardBlocked = false;
+        if (world.pits) {
+          for (const pit of world.pits) {
+            const expPit = {
+              x: pit.x,
+              y: pit.y,
+              h: pit.h,
+              l: pit.l + PIT_LETHAL_MARGIN_M * 2,
+              w: pit.w + PIT_LETHAL_MARGIN_M * 2,
+            };
+            if (segmentVsObb(simX, simY, probeX, probeY, expPit) != null) {
+              forwardBlocked = true;
+              break;
+            }
+          }
+        }
+        if (!forwardBlocked && world.mines) {
+          for (const m of world.mines) {
+            const [mlx, mly] = toLocal({ x: simX, y: simY, heading: simHeading }, m.x, m.y);
+            if (mlx > 0 && mlx < 14.0 && Math.abs(mly) < MINE_LETHAL_RADIUS_M) {
+              forwardBlocked = true;
+              break;
+            }
+          }
+        }
+        if (forwardBlocked) {
+          alignmentBonus -= 90.0;
+        }
+      }
 
       // Speed maintenance bonus: reward maintaining high cruising speed on HARD
-      const speedBonus = (cmdSpeed / 36) * 15.0;
+      const speedBonus = (cmdSpeed / 36) * 15.0 + (cmdSpeed > 0 && targetDist > 4.0 ? 22.0 : 0);
 
       // Steering smoothness bonus: prefer smaller turn adjustments
       const turnEffort = (Math.abs(cmdTurn - tank.cmdTurnDeg) / 45) * 4.0;
@@ -735,6 +839,7 @@ export function evaluateKinematicTrajectoryArcs(
         alignmentBonus +
         speedBonus +
         asymmetryBonus +
+        hazardEscapeBonus +
         noise -
         housePenalty -
         friendlyPenalty -

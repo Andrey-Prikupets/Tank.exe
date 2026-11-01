@@ -112,113 +112,89 @@ export function getRoleWaypoint(tank, role, plan, owner, enemyGateX, simTime = 0
 
   switch (role) {
     case 'NORTH_GATE_AMBUSH': {
-      // Advance along safe North edge crawl corridor (y=10.0m) until reaching pre-gate position
-      if (distToEnemyGate > 12.0) {
-        return {
-          x: enemyGateX + enemyDir * 10.0,
-          y: 10.0,
-        };
-      }
-      // Pre-gate vertical approach: turn vertically South into North Ambush Post (y=30.0)
+      // Forward Containment Arc North post: 36.0m from enemy gate, y=30.0m.
+      // Safe from slit guns (hypot(36, 12) = 37.95m > 37.2m) with direct line of fire onto gate exit.
       return {
-        x: enemyGateX + enemyDir * 8.5,
+        x: enemyGateX + enemyDir * 36.0,
         y: 30.0,
       };
     }
 
     case 'SOUTH_GATE_AMBUSH': {
-      // Advance along safe South edge crawl corridor (y=90.0m) until reaching pre-gate position
-      if (distToEnemyGate > 12.0) {
-        return {
-          x: enemyGateX + enemyDir * 10.0,
-          y: 90.0,
-        };
-      }
-      // Pre-gate vertical approach: turn vertically North into South Ambush Post (y=70.0)
+      // Forward Containment Arc South post: 36.0m from enemy gate, y=70.0m.
+      // Safe from slit guns (hypot(36, 12) = 37.95m > 37.2m) with direct line of fire onto gate exit.
       return {
-        x: enemyGateX + enemyDir * 8.5,
+        x: enemyGateX + enemyDir * 36.0,
         y: 70.0,
       };
     }
 
     case 'VANGUARD': {
-      const vanguardLaneY = owner === 0 ? C.AI_LANE_CENTER_Y - 6.0 : C.AI_LANE_CENTER_Y + 6.0;
-      // Stop at safe 34m standoff line before enemy slit gun firing zone!
-      if (distToEnemyGate <= 36.0) {
+      const vanguardLaneY = owner === 0 ? 34.0 : 66.0;
+      // Hold on the Forward Containment Arc outside enemy slit gun reach (hypot(37, 8) = 37.85m)
+      if (distToEnemyGate <= 40.0) {
         return {
-          x: enemyGateX + enemyDir * 34.0,
+          x: enemyGateX + enemyDir * 37.0,
           y: vanguardLaneY,
         };
       }
-      return { x: enemyGateX + enemyDir * 34.0, y: vanguardLaneY + weaveY };
+      return { x: enemyGateX + enemyDir * 37.0, y: vanguardLaneY + weaveY * 0.5 };
     }
 
     case 'NORTH_FLANK_LEAD': {
-      if (distToEnemyGate <= 14.0) {
-        return { x: enemyGateX + enemyDir * 8.5, y: 24.0 };
-      }
       return {
-        x: beforeMid ? midX : enemyGateX + enemyDir * 14.0,
-        y: 7.5,
+        x: beforeMid ? midX : enemyGateX + enemyDir * 35.0,
+        y: 20.0,
       };
     }
 
     case 'NORTH_FLANK_TRAIL': {
-      if (distToEnemyGate <= 18.0) {
-        return { x: enemyGateX + enemyDir * 12.0, y: 20.0 };
-      }
       return {
-        x: beforeMid ? (gateX(owner) + midX) / 2 : enemyGateX + enemyDir * 20.0,
-        y: 7.5,
+        x: beforeMid ? (gateX(owner) + midX) / 2 : enemyGateX + enemyDir * 40.0,
+        y: 24.0,
       };
     }
 
     case 'SOUTH_FLANK_LEAD': {
-      if (distToEnemyGate <= 14.0) {
-        return { x: enemyGateX + enemyDir * 8.5, y: 76.0 };
-      }
       return {
-        x: beforeMid ? midX : enemyGateX + enemyDir * 14.0,
-        y: 92.5,
+        x: beforeMid ? midX : enemyGateX + enemyDir * 35.0,
+        y: 80.0,
       };
     }
 
     case 'SOUTH_FLANK_TRAIL': {
-      if (distToEnemyGate <= 18.0) {
-        return { x: enemyGateX + enemyDir * 12.0, y: 80.0 };
-      }
       return {
-        x: beforeMid ? (gateX(owner) + midX) / 2 : enemyGateX + enemyDir * 20.0,
-        y: 92.5,
+        x: beforeMid ? (gateX(owner) + midX) / 2 : enemyGateX + enemyDir * 40.0,
+        y: 76.0,
       };
     }
 
     case 'SPEARHEAD_N': {
-      if (distToEnemyGate <= 36.0) {
-        return { x: enemyGateX + enemyDir * 34.0, y: C.AI_LANE_NORTH_Y };
+      if (distToEnemyGate <= 40.0) {
+        return { x: enemyGateX + enemyDir * 36.0, y: 32.0 };
       }
-      return { x: enemyGateX + enemyDir * 34.0, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
+      return { x: enemyGateX + enemyDir * 36.0, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
     }
 
     case 'SPEARHEAD_S': {
-      if (distToEnemyGate <= 36.0) {
-        return { x: enemyGateX + enemyDir * 34.0, y: C.AI_LANE_SOUTH_Y };
+      if (distToEnemyGate <= 40.0) {
+        return { x: enemyGateX + enemyDir * 36.0, y: 68.0 };
       }
-      return { x: enemyGateX + enemyDir * 34.0, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
+      return { x: enemyGateX + enemyDir * 36.0, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y + weaveY * 0.6 };
     }
 
     case 'ECHELON_N': {
-      if (distToEnemyGate <= 40.0) {
-        return { x: enemyGateX + enemyDir * 38.0, y: C.AI_LANE_NORTH_Y };
+      if (distToEnemyGate <= 42.0) {
+        return { x: enemyGateX + enemyDir * 40.0, y: 26.0 };
       }
-      return { x: enemyGateX + enemyDir * 38.0, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
+      return { x: enemyGateX + enemyDir * 40.0, y: C.AI_LANE_CENTER_Y - C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
     }
 
     case 'ECHELON_S': {
-      if (distToEnemyGate <= 40.0) {
-        return { x: enemyGateX + enemyDir * 38.0, y: C.AI_LANE_SOUTH_Y };
+      if (distToEnemyGate <= 42.0) {
+        return { x: enemyGateX + enemyDir * 40.0, y: 74.0 };
       }
-      return { x: enemyGateX + enemyDir * 38.0, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
+      return { x: enemyGateX + enemyDir * 40.0, y: C.AI_LANE_CENTER_Y + C.AI_WEDGE_SPACING_Y * 2 + weaveY * 0.6 };
     }
 
     case 'REARGUARD':
@@ -257,14 +233,10 @@ export function getRoleWaypoint(tank, role, plan, owner, enemyGateX, simTime = 0
 
     case 'PURSUER':
     default: {
-      if (distToEnemyGate <= 36.0) {
-        const edgeY = tank.y < C.GATE_CENTER_Y_M ? 7.5 : 92.5;
-        if (Math.abs(tank.y - edgeY) < 5.0) {
-          return { x: enemyGateX + enemyDir * 8.5, y: edgeY };
-        }
-        return { x: enemyGateX + enemyDir * 34.0, y: tank.y < 50 ? 25 : 75 };
+      if (distToEnemyGate <= 40.0) {
+        return { x: enemyGateX + enemyDir * 36.0, y: tank.y < 50 ? 28.0 : 72.0 };
       }
-      return { x: enemyGateX + enemyDir * 34.0, y: (tank.y < 50 ? 25 : 75) + weaveY };
+      return { x: enemyGateX + enemyDir * 36.0, y: (tank.y < 50 ? 28.0 : 72.0) + weaveY * 0.6 };
     }
   }
 }

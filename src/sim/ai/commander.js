@@ -1,12 +1,18 @@
 import * as C from '../../constants.js';
 import { gateX, selectedTank } from '../world.js';
-import { getGateCorridorPose, getGateAmbushPose, isInEnemySlitGunSector, MINE_LETHAL_RADIUS_M } from '../nav.js';
+import {
+  getGateCorridorPose,
+  getGateAmbushPose,
+  isInEnemySlitGunSector,
+  isSegmentInEnemySlitGunSector,
+  MINE_LETHAL_RADIUS_M,
+} from '../nav.js';
 import { normalizeAngle } from './math.js';
 import { segmentVsObb, toLocal } from '../geometry.js';
 import { assignBrigadeRoles, updateBrigadeRoles, getRoleWaypoint } from './roles.js';
 import { leadPoint } from './aiming.js';
 
-export function isPathClearOfPits(world, x0, y0, heading, dist = 24.0) {
+export function isPathClearOfPits(world, x0, y0, heading, dist = 24.0, enemyOwner = null) {
   const fx = x0 + Math.cos(heading) * dist;
   const fy = y0 + Math.sin(heading) * dist;
 
@@ -15,18 +21,48 @@ export function isPathClearOfPits(world, x0, y0, heading, dist = 24.0) {
   if (fy < 6.5 || fy > C.FIELD_WIDTH_M - 6.5) return false;
   if ((fx < 6.5 || fx > C.FIELD_LENGTH_M - 6.5) && !inGateLane) return false;
 
+  // Enemy slit gun sector check (unless already inside and moving farther away from enemy gate)
+  if (enemyOwner != null) {
+    const currentlyInSlit = isInEnemySlitGunSector(x0, y0, enemyOwner, 1.5);
+    if (!currentlyInSlit && isSegmentInEnemySlitGunSector(x0, y0, fx, fy, enemyOwner, 1.5)) {
+      return false;
+    }
+    if (currentlyInSlit) {
+      const gx = gateX(enemyOwner);
+      if (Math.abs(fx - gx) < Math.abs(x0 - gx) + 2.0) {
+        return false;
+      }
+    }
+  }
+
   if (world.pits && world.pits.length > 0) {
     for (const pit of world.pits) {
-      const expPit = {
-        x: pit.x,
-        y: pit.y,
-        h: pit.h,
-        l: pit.l + 8.0,
-        w: pit.w + 8.0,
-      };
-      if (segmentVsObb(x0, y0, fx, fy, expPit) != null) return false;
       const [tlx, tly] = toLocal(pit, x0, y0);
-      if (Math.abs(tlx) < pit.l / 2 + 5.0 && Math.abs(tly) < pit.w / 2 + 5.0) return false;
+      const startInOuterPitMargin =
+        Math.abs(tlx) < pit.l / 2 + 4.2 && Math.abs(tly) < pit.w / 2 + 4.2;
+      if (startInOuterPitMargin) {
+        // Already inside outer pit margin: allow heading if it moves away from pit and misses physical pit
+        const corePit = {
+          x: pit.x,
+          y: pit.y,
+          h: pit.h,
+          l: pit.l + 2.4,
+          w: pit.w + 2.4,
+        };
+        if (segmentVsObb(x0, y0, fx, fy, corePit) != null) return false;
+        const startDist = Math.hypot(x0 - pit.x, y0 - pit.y);
+        const endDist = Math.hypot(fx - pit.x, fy - pit.y);
+        if (endDist < startDist + 1.0) return false;
+      } else {
+        const expPit = {
+          x: pit.x,
+          y: pit.y,
+          h: pit.h,
+          l: pit.l + 7.2,
+          w: pit.w + 7.2,
+        };
+        if (segmentVsObb(x0, y0, fx, fy, expPit) != null) return false;
+      }
     }
   }
 
@@ -35,7 +71,11 @@ export function isPathClearOfPits(world, x0, y0, heading, dist = 24.0) {
     const probe = { x: x0, y: y0, heading };
     for (const m of world.mines) {
       const [mlx, mly] = toLocal(probe, m.x, m.y);
-      if (mlx > -1.0 && mlx < dist + 2.0 && Math.abs(mly) < MINE_LETHAL_RADIUS_M + 0.5) {
+      const dm = Math.hypot(x0 - m.x, y0 - m.y);
+      if (dm < MINE_LETHAL_RADIUS_M + 0.4) {
+        // Already near mine: reject any heading where mine is not strictly behind the motion vector
+        if (mlx > -0.5) return false;
+      } else if (mlx > -1.0 && mlx < dist + 2.0 && Math.abs(mly) < MINE_LETHAL_RADIUS_M + 0.5) {
         return false;
       }
     }
@@ -44,16 +84,29 @@ export function isPathClearOfPits(world, x0, y0, heading, dist = 24.0) {
   return true;
 }
 
+function setProportionalTurn(t, desiredH) {
+  const errDeg = C.radToDeg(normalizeAngle(desiredH - t.heading));
+  if (Math.abs(errDeg) > 3.5) {
+    const maxTurn = t.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
+    const stepTurn = Math.round((errDeg * 1.8) / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S;
+    t.cmdTurnDeg = Math.max(-maxTurn, Math.min(maxTurn, stepTurn || (errDeg > 0 ? 15 : -15)));
+  } else {
+    t.cmdTurnDeg = 0;
+  }
+}
+
 /**
  * Per-tick parallel multi-tank controller for all unselected field units:
- * 1. Immediate hazard avoidance (mines, pits, boundaries).
+ * 1. Immediate hazard avoidance (enemy slit-gun sector escape, incoming shell evasion, mines, pits, boundaries).
  * 2. Parallel Wolfpack crossfire enveloping against active human attackers (2-3 units converge
- *    from -32 deg, 0 deg, +32 deg crossfire angles and pre-aim their hulls simultaneously).
- * 3. Parallel Hunter steering toward unattended/parked enemy tanks outside enemy slit-gun arcs.
+ *    from -30 deg, 0 deg, +30 deg crossfire angles and pre-aim their hulls simultaneously).
+ * 3. Forward Containment Arc positioning & gate exit pre-aiming when no enemy tanks are on the field.
  */
 export function enforceUnselectedTanksSafety(ctl, world, myField, activeTank) {
   const owner = ctl.owner;
   const enemyOwner = 1 - owner;
+  const enemyGateX = gateX(enemyOwner);
+  const enemyDir = enemyOwner === 0 ? 1 : -1;
   const enemyField = world.tanks.filter((t) => t.owner === enemyOwner && t.status === 'field');
 
   // Identify active moving enemies vs stationary/unattended enemies
@@ -78,27 +131,128 @@ export function enforceUnselectedTanksSafety(ctl, world, myField, activeTank) {
 
   for (const t of myField) {
     if (t.status === 'field' && t.id !== activeTank?.id) {
-      const lookAhead = Math.max(14.0, Math.abs(t.speed) * 2.2);
-      if (t.cmdSpeedKmh !== 0 && !isPathClearOfPits(world, t.x, t.y, t.heading, lookAhead)) {
-        let clearAngle = null;
-        for (const off of [0.55, -0.55, 1.05, -1.05, 1.55, -1.55, 2.2, -2.2]) {
-          if (isPathClearOfPits(world, t.x, t.y, t.heading + off, lookAhead + 4.0)) {
-            clearAngle = t.heading + off;
-            break;
-          }
-        }
-        if (clearAngle != null) {
-          const errRad = normalizeAngle(clearAngle - t.heading);
-          t.cmdTurnDeg = Math.sign(errRad) * C.TANK_MAX_TURN_DEG_S;
-          t.cmdSpeedKmh = Math.min(Math.max(6, t.cmdSpeedKmh), 18);
+      // 1. Immediate escape if inside enemy slit-gun firing sector
+      if (isInEnemySlitGunSector(t.x, t.y, enemyOwner, 0.5)) {
+        const escapeX = enemyGateX + enemyDir * 40.0;
+        const escapeY = t.y < C.GATE_CENTER_Y_M ? 28.0 : 72.0;
+        const escapeAngle = Math.atan2(escapeY - t.y, escapeX - t.x);
+        const errRad = normalizeAngle(escapeAngle - t.heading);
+        if (
+          Math.abs(errRad) > 1.45 &&
+          isPathClearOfPits(world, t.x, t.y, t.heading + Math.PI, 8.0)
+        ) {
+          t.cmdSpeedKmh = -6;
+          t.cmdTurnDeg = -Math.sign(errRad || 1) * C.TANK_MAX_TURN_DEG_S;
+        } else if (isPathClearOfPits(world, t.x, t.y, t.heading, 11.0)) {
+          t.cmdSpeedKmh = 36;
+          setProportionalTurn(t, escapeAngle);
         } else {
           t.cmdSpeedKmh = 0;
-          t.cmdTurnDeg = C.TANK_MAX_PIVOT_TURN_DEG_S;
+          setProportionalTurn(t, escapeAngle);
         }
         continue;
       }
 
-      // Parallel combat steering & pre-aiming for armed unselected tanks
+      // 2. Incoming shell evasion for unselected tanks
+      if (world.shells && world.shells.length > 0) {
+        let evadedShell = false;
+        for (const s of world.shells) {
+          if (s.owner !== owner) {
+            const toMeX = t.x - s.x;
+            const toMeY = t.y - s.y;
+            const dist = Math.hypot(toMeX, toMeY);
+            const remainingRange = C.SHELL_RANGE_M - (s.dist || 0) + 3.5;
+            if (dist > 1.0 && dist < 28.0 && dist <= remainingRange) {
+              const dot = (s.dx * toMeX + s.dy * toMeY) / dist;
+              const perpDist = Math.abs(s.dx * toMeY - s.dy * toMeX);
+              if (dot > 0.88 && perpDist < 3.8) {
+                const cross = s.dx * toMeY - s.dy * toMeX;
+                const evadeAngle = Math.atan2(s.dy, s.dx) + (cross >= 0 ? Math.PI / 2 : -Math.PI / 2);
+                const headingParallelToShell = Math.abs(
+                  s.dx * Math.cos(t.heading) + s.dy * Math.sin(t.heading),
+                );
+                if (
+                  headingParallelToShell < 0.8 &&
+                  isPathClearOfPits(world, t.x, t.y, t.heading, 12.0, enemyOwner)
+                ) {
+                  t.cmdSpeedKmh = 36;
+                  setProportionalTurn(t, evadeAngle);
+                } else if (isPathClearOfPits(world, t.x, t.y, t.heading + Math.PI, 8.0, enemyOwner)) {
+                  t.cmdSpeedKmh = -6;
+                  t.cmdTurnDeg = C.TANK_MAX_TURN_DEG_S;
+                } else {
+                  t.cmdSpeedKmh = 0;
+                  setProportionalTurn(t, evadeAngle);
+                }
+                evadedShell = true;
+                break;
+              }
+            }
+          }
+        }
+        if (evadedShell) continue;
+      }
+
+      // 3. Forward hazard check on current heading (mines, pits, boundaries, enemy slit gun sector)
+      const lookAhead = Math.max(14.0, Math.abs(t.speed) * 2.2);
+      if (t.cmdSpeedKmh > 0 && !isPathClearOfPits(world, t.x, t.y, t.heading, lookAhead, enemyOwner)) {
+        let clearAngle = null;
+        for (const off of [0.55, -0.55, 1.05, -1.05, 1.55, -1.55, 2.2, -2.2]) {
+          if (isPathClearOfPits(world, t.x, t.y, t.heading + off, lookAhead + 4.0, enemyOwner)) {
+            clearAngle = t.heading + off;
+            break;
+          }
+        }
+        if (clearAngle != null && isPathClearOfPits(world, t.x, t.y, t.heading, 10.0, enemyOwner)) {
+          const errRad = normalizeAngle(clearAngle - t.heading);
+          t.cmdTurnDeg = Math.sign(errRad) * C.TANK_MAX_TURN_DEG_S;
+          t.cmdSpeedKmh = 12;
+        } else {
+          t.cmdSpeedKmh = 0;
+          t.cmdTurnDeg = clearAngle != null
+            ? Math.sign(normalizeAngle(clearAngle - t.heading) || 1) * C.TANK_MAX_PIVOT_TURN_DEG_S
+            : C.TANK_MAX_PIVOT_TURN_DEG_S;
+        }
+        continue;
+      }
+
+      // 4. Containment & Gate Pre-Aiming when no enemy tanks are on the field
+      if (t.shells > 0 && enemyField.length === 0) {
+        const role = ctl.tankRoles.get(t.id) || 'PURSUER';
+        const roleWp = getRoleWaypoint(t, role, ctl.currentPlan, owner, enemyGateX, ctl.simTime, world);
+        const distToWp = Math.hypot(roleWp.x - t.x, roleWp.y - t.y);
+        if (distToWp <= 5.5) {
+          // Hold on the Forward Containment Arc and pre-aim hull directly at the enemy gate exit!
+          // Use 6 km/h creep while turning > 12 deg (if 5m ahead is safe) to unlock 45 deg/s turn rate!
+          const gateAimX = enemyGateX + enemyDir * 6.0;
+          const gateAimY = C.GATE_CENTER_Y_M;
+          const aimH = Math.atan2(gateAimY - t.y, gateAimX - t.x);
+          const aimErrDeg = Math.abs(C.radToDeg(normalizeAngle(aimH - t.heading)));
+          const creepSafe =
+            aimErrDeg > 12.0 && isPathClearOfPits(world, t.x, t.y, t.heading, 6.0, enemyOwner);
+          t.cmdSpeedKmh = creepSafe ? 6 : 0;
+          setProportionalTurn(t, aimH);
+        } else {
+          const desiredH = Math.atan2(roleWp.y - t.y, roleWp.x - t.x);
+          const errDeg = Math.abs(C.radToDeg(normalizeAngle(desiredH - t.heading)));
+          const currentClear = isPathClearOfPits(world, t.x, t.y, t.heading, 14.0, enemyOwner);
+          if (isPathClearOfPits(world, t.x, t.y, desiredH, 16.0, enemyOwner)) {
+            if (errDeg > 20.0 && !currentClear) {
+              t.cmdSpeedKmh = 0;
+              setProportionalTurn(t, desiredH);
+            } else {
+              t.cmdSpeedKmh = distToWp > 14.0 ? 36 : 18;
+              setProportionalTurn(t, desiredH);
+            }
+          } else {
+            t.cmdSpeedKmh = 0;
+            setProportionalTurn(t, desiredH);
+          }
+        }
+        continue;
+      }
+
+      // 5. Parallel combat steering & pre-aiming for armed unselected tanks when enemies are on field
       if (t.shells > 0 && enemyField.length > 0) {
         let targetEnemy = null;
         let minScore = Infinity;
@@ -124,7 +278,7 @@ export function enforceUnselectedTanksSafety(ctl, world, myField, activeTank) {
             // Within 50m: pre-align hull gun directly onto enemy lead point so this tank is ready
             // for instant volley fire the moment the dispatcher selects it!
             const errDeg = Math.abs(C.radToDeg(normalizeAngle(desiredH - t.heading)));
-            desiredSpeed = lead.muzzleDist > C.SHELL_RANGE_M - 1.0 ? 36 : errDeg > 10 ? 18 : 6;
+            desiredSpeed = lead.muzzleDist > C.SHELL_RANGE_M - 1.0 ? 36 : errDeg > 4.5 ? 18 : 6;
           } else if (wolfpackOffsets.has(t.id) && Math.abs(targetEnemy.speed || 0) > 1.0) {
             // Beyond 50m: converge along assigned Wolfpack pincer crossfire angle (-30, 0, +30 deg)
             const angleToMe = Math.atan2(t.y - lead.y, t.x - lead.x);
@@ -141,21 +295,33 @@ export function enforceUnselectedTanksSafety(ctl, world, myField, activeTank) {
           }
 
           const checkDist = Math.max(14.0, (desiredSpeed / 3.6) * 1.5);
-          const projX = t.x + Math.cos(desiredH) * checkDist;
-          const projY = t.y + Math.sin(desiredH) * checkDist;
-          if (
-            isPathClearOfPits(world, t.x, t.y, desiredH, checkDist) &&
-            !isInEnemySlitGunSector(projX, projY, enemyOwner)
-          ) {
-            const errDeg = C.radToDeg(normalizeAngle(desiredH - t.heading));
-            t.cmdSpeedKmh = desiredSpeed;
-            if (Math.abs(errDeg) > 4.0) {
-              const maxTurn = t.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
-              const stepTurn = Math.round(errDeg / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S;
-              t.cmdTurnDeg = Math.max(-maxTurn, Math.min(maxTurn, stepTurn || (errDeg > 0 ? 15 : -15)));
+          const errDegAbs = Math.abs(C.radToDeg(normalizeAngle(desiredH - t.heading)));
+          const currentHeadingClear = isPathClearOfPits(
+            world,
+            t.x,
+            t.y,
+            t.heading,
+            Math.max(11.0, Math.abs(t.speed) * 1.8),
+            enemyOwner,
+          );
+
+          if (isPathClearOfPits(world, t.x, t.y, desiredH, checkDist, enemyOwner)) {
+            if (errDegAbs > 18.0 && !currentHeadingClear) {
+              // Current heading has a mine/pit/slit hazard ahead! Stop and pivot in place first
+              // instead of accelerating forward into the hazard while turning.
+              t.cmdSpeedKmh = 0;
+              setProportionalTurn(t, desiredH);
             } else {
-              t.cmdTurnDeg = 0;
+              t.cmdSpeedKmh = desiredSpeed;
+              setProportionalTurn(t, desiredH);
             }
+          } else {
+            // Desired combat vector enters a hazard or enemy slit-gun sector:
+            // Hold outside the sector (using 6 km/h creep if 6m ahead is safe so turn rate is 45 deg/s) and aim at target!
+            const creepSafe =
+              errDegAbs > 12.0 && isPathClearOfPits(world, t.x, t.y, t.heading, 6.0, enemyOwner);
+            t.cmdSpeedKmh = creepSafe ? 6 : 0;
+            setProportionalTurn(t, desiredH);
           }
         }
       }
