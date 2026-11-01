@@ -3,8 +3,8 @@ import * as C from './constants.js';
 const REPEATABLE = new Set(['FORWARD', 'BACK', 'TURN_L', 'TURN_R']);
 
 export function loadSavedKeys(layout = 'splitscreen') {
-  if (layout === 'network') {
-    return loadSavedNetworkKeys();
+  if (layout === 'single' || layout === 'network') {
+    return loadSavedSingleKeys();
   }
   try {
     const raw = localStorage.getItem(C.KEYS_SPLITSCREEN_SETTINGS_KEY) || localStorage.getItem(C.KEYS_SETTINGS_KEY);
@@ -18,9 +18,11 @@ export function loadSavedKeys(layout = 'splitscreen') {
   return JSON.parse(JSON.stringify(C.DEFAULT_KEYS));
 }
 
-export function loadSavedNetworkKeys() {
+export function loadSavedSingleKeys() {
   try {
-    const raw = localStorage.getItem(C.KEYS_NETWORK_SETTINGS_KEY);
+    const raw =
+      localStorage.getItem(C.KEYS_SINGLE_SETTINGS_KEY) ||
+      localStorage.getItem(C.KEYS_NETWORK_SETTINGS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.SELECT && parsed.FORWARD) {
@@ -28,15 +30,17 @@ export function loadSavedNetworkKeys() {
       }
     }
   } catch {}
-  return JSON.parse(JSON.stringify(C.DEFAULT_NETWORK_KEYS));
+  return JSON.parse(JSON.stringify(C.DEFAULT_SINGLE_KEYS));
 }
 
+export const loadSavedNetworkKeys = loadSavedSingleKeys;
+
 export class Input {
-  constructor(keys = loadSavedKeys(), networkKeys = loadSavedNetworkKeys()) {
+  constructor(keys = loadSavedKeys(), singleKeys = loadSavedSingleKeys()) {
     this.keys = keys;
-    this.networkKeys = networkKeys;
-    this.mode = 'splitscreen'; // 'splitscreen' | 'network'
-    this.localPlayer = 0; // 0 (Left/Blue) | 1 (Right/Red)
+    this.singleKeys = singleKeys;
+    this.mode = 'splitscreen'; // 'splitscreen' | 'single'
+    this.localPlayer = 0; // 0 (Left/Red) | 1 (Right/Blue)
     this.map = new Map();
     this.down = new Set();
     this.held = new Map();
@@ -45,7 +49,7 @@ export class Input {
   }
 
   setLayoutMode(mode, localPlayer = 0) {
-    this.mode = mode;
+    this.mode = mode === 'network' ? 'single' : mode;
     this.localPlayer = localPlayer;
     this.clear();
     this.rebuildMap();
@@ -68,20 +72,28 @@ export class Input {
     return this.keys;
   }
 
-  setNetworkKeys(keys) {
-    this.networkKeys = JSON.parse(JSON.stringify(keys));
+  setSingleKeys(keys) {
+    this.singleKeys = JSON.parse(JSON.stringify(keys));
     this.rebuildMap();
   }
 
+  getSingleKeys() {
+    return this.singleKeys;
+  }
+
+  setNetworkKeys(keys) {
+    this.setSingleKeys(keys);
+  }
+
   getNetworkKeys() {
-    return this.networkKeys;
+    return this.getSingleKeys();
   }
 
   rebuildMap() {
     this.map.clear();
-    if (this.mode === 'network') {
+    if (this.mode === 'single') {
       const player = this.localPlayer;
-      const side = this.networkKeys;
+      const side = this.singleKeys;
       (side.SELECT || []).forEach((code, i) => {
         if (code) this.map.set(code, { player, action: 'SELECT', arg: C.TANK_NUMBERS[player][i] });
       });
@@ -137,10 +149,10 @@ export class Input {
   }
 
   windowTurn(p) {
-    if (this.mode === 'network') {
+    if (this.mode === 'single') {
       if (p !== this.localPlayer) return 0;
-      const l = [].concat(this.networkKeys.TURN_L || []).some((c) => this.down.has(c));
-      const r = [].concat(this.networkKeys.TURN_R || []).some((c) => this.down.has(c));
+      const l = [].concat(this.singleKeys.TURN_L || []).some((c) => this.down.has(c));
+      const r = [].concat(this.singleKeys.TURN_R || []).some((c) => this.down.has(c));
       return (r ? 1 : 0) - (l ? 1 : 0);
     }
     const side = p === 0 ? this.keys.LEFT : this.keys.RIGHT;

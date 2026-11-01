@@ -30,8 +30,8 @@ Designed for two human players sharing a single physical keyboard:
 - Left Player (+X): Left = upper window ($Y = 42\text{ m}$), Right = lower window ($Y = 58\text{ m}$).
 - Right Player (-X): Left = lower window ($Y = 58\text{ m}$), Right = upper window ($Y = 42\text{ m}$).
 
-### 1.2 Dedicated Network Layout (`tank.exe.keys.network`)
-Automatically engaged when entering a serverless P2P network match, giving the local player full single-player keyboard access:
+### 1.2 Dedicated Single Player Layout (`tank.exe.keys.single`)
+Automatically engaged when playing against the computer (`HvC` or `CvH`) or entering a serverless P2P network match (`HvH_NET`), giving the local human player full single-player keyboard access:
 - Tank Selection: `1`, `2`, `3`, `4`, `5`
 - Speed & Steering: `↑` forward/accelerate, `↓` reverse/decelerate, `←` steer left, `→` steer right
 - Hangar Slit Windows: `Q` left window, `E` right window
@@ -51,12 +51,12 @@ Automatically engaged when entering a serverless P2P network match, giving the l
 
 Accessed via **Options → Keyboard layout**:
 - **104-Key Desktop Keyboard Visualizer:** Renders a complete QWERTY desktop chassis with function keys, main typing block, inverted-T navigation arrows, and numeric keypad.
-- **Color-Coded Overlays:** Assigned keycaps display tinted overlays (Red for Left player, Blue for Right player, Emerald Green for Network layout) with compact function badges.
+- **Color-Coded Overlays:** Assigned keycaps display tinted overlays (Red for Left player, Blue for Right player, Emerald Green for Single Player layout) with compact function badges.
 - **Drag-and-Drop & Click-to-Bind:**
   - Function frames from bottom palettes can be dragged directly onto keycaps.
   - Alternatively, clicking a function badge and subsequently clicking a keycap or pressing any physical key binds the action.
 - **OS & Browser Protection:** Essential system keys (`F1`..`F12`, `Win`/`Meta`, `ContextMenu`, `Escape`, `PrintScreen`) are locked with a `not-allowed` indicator and cannot be overwritten.
-- **Segmented Layout Switcher:** Allows players to toggle between customizing the Split-Screen layout and the Network layout independently.
+- **Segmented Layout Switcher:** Allows players to toggle between customizing the Split-Screen layout and the Single Player layout independently.
 
 ---
 

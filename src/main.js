@@ -387,12 +387,31 @@ const touch = createTouchControls({
   sfxResume: () => sfx.resume(),
 });
 
+function syncInputLayoutMode() {
+  if (networkSession) {
+    input.setLayoutMode('single', networkSession.localPlayer);
+    return;
+  }
+  const mode = currentMode();
+  if (mode.isNetwork) {
+    input.setLayoutMode('single', 0);
+  } else if (!mode.leftAi && mode.rightAi) {
+    input.setLayoutMode('single', 0);
+  } else if (mode.leftAi && !mode.rightAi) {
+    input.setLayoutMode('single', 1);
+  } else {
+    input.setLayoutMode('splitscreen', 0);
+  }
+}
+syncInputLayoutMode();
+
 // ---------------------------------------------------------------- screens ---
 function selectPlayerMode(idx) {
   if (idx < 0 || idx >= C.PLAYER_MODES.length) return;
   playerModeIndex = idx;
   localStorage.setItem(C.PLAYERS_SETTINGS_KEY, currentMode().id);
   aiControllers.forEach((c) => c.reset());
+  syncInputLayoutMode();
   resizeAll();
 }
 
@@ -506,11 +525,11 @@ function optionsScreen() {
             document.getElementById('menu').classList.add('hidden');
             kbScreen.open({
               getKeys: () => input.getKeys(),
-              getNetworkKeys: () => input.getNetworkKeys(),
-              initialTab: input.getLayoutMode() === 'network' ? 'network' : 'splitscreen',
-              onSave: (k, nk) => {
+              getSingleKeys: () => input.getSingleKeys(),
+              initialTab: input.getLayoutMode() === 'single' ? 'single' : 'splitscreen',
+              onSave: (k, sk) => {
                 input.setKeys(k);
-                if (nk) input.setNetworkKeys(nk);
+                if (sk) input.setSingleKeys(sk);
               },
               onClose: () => {
                 document.getElementById('menu').classList.remove('hidden');
@@ -655,6 +674,7 @@ function loadScreen() {
         aiControllers.forEach((c) => c.reset());
         appState = 'PLAYING';
         gameOverShown = world.over;
+        syncInputLayoutMode();
         input.clear();
         menu.clear();
         openPause();
@@ -694,7 +714,7 @@ function closeNetworkSession() {
   lastSentStickTurn = 0;
   touchSteer[0] = 0;
   touchSteer[1] = 0;
-  input.setLayoutMode('splitscreen');
+  syncInputLayoutMode();
   input.clear();
   resizeAll();
 }
@@ -775,7 +795,7 @@ function handleClientNetworkMessage(msg) {
 
     networkSession.localPlayer = msg.joinerPlayer;
     networkSession.remotePlayer = msg.hostPlayer;
-    input.setLayoutMode('network', networkSession.localPlayer);
+    input.setLayoutMode('single', networkSession.localPlayer);
 
     appState = 'PLAYING';
     gameOverShown = false;
@@ -823,7 +843,7 @@ function startNetworkGame(session) {
   if (session.isHost) {
     world = createWorld(options);
     world.isAiPlayer = () => false;
-    input.setLayoutMode('network', session.localPlayer);
+    input.setLayoutMode('single', session.localPlayer);
     // Send INIT to client with identical landscape and match rules
     session.p2p.send(createInitPayload(world, session.localPlayer, session.remotePlayer, options));
     appState = 'PLAYING';
@@ -850,6 +870,7 @@ function newGame() {
   aiControllers.forEach((c) => c.reset());
   appState = 'PLAYING';
   gameOverShown = false;
+  syncInputLayoutMode();
   input.clear();
   menu.clear();
   resizeAll();

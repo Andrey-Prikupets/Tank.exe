@@ -373,6 +373,7 @@ export const KEY_REPEAT_DELAY_MS = 300;
 export const KEY_REPEAT_MS = 150;
 export const KEYS_SETTINGS_KEY = 'tank.exe.keys';
 export const KEYS_SPLITSCREEN_SETTINGS_KEY = 'tank.exe.keys.splitscreen';
+export const KEYS_SINGLE_SETTINGS_KEY = 'tank.exe.keys.single';
 export const KEYS_NETWORK_SETTINGS_KEY = 'tank.exe.keys.network';
 export const DEFAULT_KEYS = {
   MENU: 'Escape',
@@ -401,7 +402,7 @@ export const DEFAULT_KEYS = {
     SMOKE: 'Period',
   },
 };
-export const DEFAULT_NETWORK_KEYS = {
+export const DEFAULT_SINGLE_KEYS = {
   MENU: 'Escape',
   SELECT: ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'],
   FORWARD: 'ArrowUp',
@@ -414,6 +415,7 @@ export const DEFAULT_NETWORK_KEYS = {
   MINE: 'KeyZ',
   SMOKE: 'KeyX',
 };
+export const DEFAULT_NETWORK_KEYS = DEFAULT_SINGLE_KEYS;
 export const KEYS = DEFAULT_KEYS;
 export const MENU_KEYS = {
   UP: ['ArrowUp', 'ArrowLeft'],

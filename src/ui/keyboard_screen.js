@@ -187,8 +187,8 @@ const ACTION_DEFS = [
 
 export function createKeyboardScreen(root) {
   let workingKeys = null;
-  let workingNetworkKeys = null;
-  let activeLayoutTab = 'splitscreen'; // 'splitscreen' | 'network'
+  let workingSingleKeys = null;
+  let activeLayoutTab = 'splitscreen'; // 'splitscreen' | 'single'
   let activeDrag = null;
   let selectedFn = null; // { player, type, action, index, name }
   let callbacks = { onSave: () => {}, onClose: () => {} };
@@ -201,17 +201,17 @@ export function createKeyboardScreen(root) {
   function getBindingForCode(code) {
     if (!code) return null;
 
-    if (activeLayoutTab === 'network') {
-      if (!workingNetworkKeys) return null;
+    if (activeLayoutTab === 'single') {
+      if (!workingSingleKeys) return null;
       for (let i = 0; i < 5; i++) {
-        if (workingNetworkKeys.SELECT && workingNetworkKeys.SELECT[i] === code) {
-          return { isNet: true, isTank: true, label: `${i + 1}`, short: `T${i + 1}`, full: `Tank ${i + 1}` };
+        if (workingSingleKeys.SELECT && workingSingleKeys.SELECT[i] === code) {
+          return { isSingle: true, isTank: true, type: 'select', index: i, label: `${i + 1}`, short: `T${i + 1}`, full: `Tank ${i + 1}` };
         }
       }
       for (const def of ACTION_DEFS) {
-        const val = workingNetworkKeys[def.action];
+        const val = workingSingleKeys[def.action];
         if (Array.isArray(val) ? val.includes(code) : val === code) {
-          return { isNet: true, isTank: false, action: def.action, short: def.short, full: def.label };
+          return { isSingle: true, isTank: false, type: 'action', action: def.action, short: def.short, full: def.label };
         }
       }
       return null;
@@ -221,37 +221,37 @@ export function createKeyboardScreen(root) {
     // Check Left player (0)
     for (let i = 0; i < 5; i++) {
       if (workingKeys.LEFT.SELECT && workingKeys.LEFT.SELECT[i] === code) {
-        return { player: 0, isTank: true, label: `${i + 1}`, short: `T${i + 1}`, full: `Tank ${i + 1}` };
+        return { player: 0, isTank: true, type: 'select', index: i, label: `${i + 1}`, short: `T${i + 1}`, full: `Tank ${i + 1}` };
       }
     }
     for (const def of ACTION_DEFS) {
       const val = workingKeys.LEFT[def.action];
       if (Array.isArray(val) ? val.includes(code) : val === code) {
-        return { player: 0, isTank: false, action: def.action, short: def.short, full: def.label };
+        return { player: 0, isTank: false, type: 'action', action: def.action, short: def.short, full: def.label };
       }
     }
     // Check Right player (1)
     for (let i = 0; i < 5; i++) {
       if (workingKeys.RIGHT.SELECT && workingKeys.RIGHT.SELECT[i] === code) {
-        return { player: 1, isTank: true, label: `${i + 1}`, short: `T${i + 1}`, full: `Tank ${i + 1}` };
+        return { player: 1, isTank: true, type: 'select', index: i, label: `${i + 1}`, short: `T${i + 1}`, full: `Tank ${i + 1}` };
       }
     }
     for (const def of ACTION_DEFS) {
       const val = workingKeys.RIGHT[def.action];
       if (Array.isArray(val) ? val.includes(code) : val === code) {
-        return { player: 1, isTank: false, action: def.action, short: def.short, full: def.label };
+        return { player: 1, isTank: false, type: 'action', action: def.action, short: def.short, full: def.label };
       }
     }
     return null;
   }
 
   function getKeyForFn(player, type, action, index) {
-    if (activeLayoutTab === 'network' || player === 'net') {
-      if (!workingNetworkKeys) return null;
+    if (activeLayoutTab === 'single' || player === 'single') {
+      if (!workingSingleKeys) return null;
       if (type === 'select') {
-        return (workingNetworkKeys.SELECT && workingNetworkKeys.SELECT[index]) || null;
+        return (workingSingleKeys.SELECT && workingSingleKeys.SELECT[index]) || null;
       }
-      const val = workingNetworkKeys[action];
+      const val = workingSingleKeys[action];
       if (Array.isArray(val)) return val[0] || null;
       return val || null;
     }
@@ -267,18 +267,18 @@ export function createKeyboardScreen(root) {
 
   function clearKeyFromAll(code) {
     if (!code) return;
-    if (activeLayoutTab === 'network') {
-      if (!workingNetworkKeys) return;
-      if (Array.isArray(workingNetworkKeys.SELECT)) {
-        workingNetworkKeys.SELECT = workingNetworkKeys.SELECT.map((c) => (c === code ? null : c));
+    if (activeLayoutTab === 'single') {
+      if (!workingSingleKeys) return;
+      if (Array.isArray(workingSingleKeys.SELECT)) {
+        workingSingleKeys.SELECT = workingSingleKeys.SELECT.map((c) => (c === code ? null : c));
       }
       for (const def of ACTION_DEFS) {
         const a = def.action;
-        if (Array.isArray(workingNetworkKeys[a])) {
-          workingNetworkKeys[a] = workingNetworkKeys[a].filter((c) => c !== code);
-          if (workingNetworkKeys[a].length === 0) workingNetworkKeys[a] = null;
-        } else if (workingNetworkKeys[a] === code) {
-          workingNetworkKeys[a] = null;
+        if (Array.isArray(workingSingleKeys[a])) {
+          workingSingleKeys[a] = workingSingleKeys[a].filter((c) => c !== code);
+          if (workingSingleKeys[a].length === 0) workingSingleKeys[a] = null;
+        } else if (workingSingleKeys[a] === code) {
+          workingSingleKeys[a] = null;
         }
       }
       return;
@@ -310,13 +310,13 @@ export function createKeyboardScreen(root) {
     // Clear code from previous binding anywhere in current layout
     clearKeyFromAll(code);
 
-    if (activeLayoutTab === 'network' || player === 'net') {
+    if (activeLayoutTab === 'single' || player === 'single') {
       if (type === 'select') {
-        workingNetworkKeys.SELECT[index] = code;
+        workingSingleKeys.SELECT[index] = code;
       } else {
-        workingNetworkKeys[action] = code;
+        workingSingleKeys[action] = code;
       }
-      statusMsg = `Mapped ${keyLabel(code)} to Network ${type === 'select' ? 'Tank ' + (index + 1) : action}`;
+      statusMsg = `Mapped ${keyLabel(code)} to Single Player ${type === 'select' ? 'Tank ' + (index + 1) : action}`;
       render();
       return;
     }
@@ -359,7 +359,7 @@ export function createKeyboardScreen(root) {
     // Overlay shade if mapped
     const binding = getBindingForCode(def.code);
     if (binding) {
-      if (binding.isNet) {
+      if (binding.isSingle) {
         cap.classList.add('mapped', 'net');
       } else {
         cap.classList.add('mapped', binding.player === 0 ? 'p0' : 'p1');
@@ -367,7 +367,7 @@ export function createKeyboardScreen(root) {
       cap.setAttribute('draggable', 'true');
       cap.addEventListener('dragstart', (e) => {
         activeDrag = {
-          player: binding.isNet ? 'net' : binding.player,
+          player: binding.isSingle ? 'single' : binding.player,
           type: binding.type,
           action: binding.action,
           index: binding.index,
@@ -388,14 +388,14 @@ export function createKeyboardScreen(root) {
       });
 
       const shade = document.createElement('div');
-      shade.className = `kb-shade ${binding.isNet ? 'net' : (binding.player === 0 ? 'red' : 'blue')}`;
+      shade.className = `kb-shade ${binding.isSingle ? 'net' : (binding.player === 0 ? 'red' : 'blue')}`;
 
       const badge = document.createElement('span');
       badge.className = `kb-badge ${binding.isTank ? 'circle' : 'rect'}`;
       badge.textContent = binding.short;
       shade.appendChild(badge);
       cap.appendChild(shade);
-      cap.title = `${binding.isNet ? '[NETWORK]' : (binding.player === 0 ? '[RED]' : '[BLUE]')} ${binding.full} (${def.code})`;
+      cap.title = `${binding.isSingle ? '[SINGLE PLAYER]' : (binding.player === 0 ? '[RED]' : '[BLUE]')} ${binding.full} (${def.code})`;
     } else if (isReserved) {
       cap.title = `${def.label} (${def.code}) — Reserved by Browser / OS`;
     } else {
@@ -589,7 +589,7 @@ export function createKeyboardScreen(root) {
     return panel;
   }
 
-  function renderNetworkPalette() {
+  function renderSinglePlayerPalette() {
     const panel = document.createElement('div');
     panel.className = 'kb-player-panel';
     panel.style.width = '100%';
@@ -598,7 +598,7 @@ export function createKeyboardScreen(root) {
     const title = document.createElement('div');
     title.className = 'kb-player-title';
     title.style.color = '#00ff66';
-    title.textContent = 'NETWORK PLAYER CONTROLS (SINGLE KEYBOARD)';
+    title.textContent = 'SINGLE PLAYER CONTROLS (HVC · CVH · NETWORK)';
     panel.appendChild(title);
 
     // Tanks row (circle frames)
@@ -610,7 +610,7 @@ export function createKeyboardScreen(root) {
     tanksRow.appendChild(tanksLabel);
 
     for (let i = 0; i < 5; i++) {
-      tanksRow.appendChild(createFunctionItem('net', 'select', null, i, `${i + 1}`, true));
+      tanksRow.appendChild(createFunctionItem('single', 'select', null, i, `${i + 1}`, true));
     }
     panel.appendChild(tanksRow);
 
@@ -618,7 +618,7 @@ export function createKeyboardScreen(root) {
     const actionsRow = document.createElement('div');
     actionsRow.className = 'kb-fn-row actions-row';
     ACTION_DEFS.forEach((def) => {
-      actionsRow.appendChild(createFunctionItem('net', 'action', def.action, null, def.label, false));
+      actionsRow.appendChild(createFunctionItem('single', 'action', def.action, null, def.label, false));
     });
     panel.appendChild(actionsRow);
 
@@ -640,7 +640,7 @@ export function createKeyboardScreen(root) {
     h1.textContent = 'KEYBOARD LAYOUT CONFIGURATION';
     hdr.appendChild(h1);
 
-    // Tab Switch between Split-Screen and Network
+    // Tab Switch between Split-Screen and Single Player
     const tabSwitch = document.createElement('div');
     tabSwitch.className = 'kb-tab-switch';
 
@@ -656,17 +656,17 @@ export function createKeyboardScreen(root) {
     });
     tabSwitch.appendChild(splitTabBtn);
 
-    const netTabBtn = document.createElement('button');
-    netTabBtn.className = `kb-tab-btn ${activeLayoutTab === 'network' ? 'active' : ''}`;
-    netTabBtn.textContent = 'NETWORK LAYOUT (SINGLE PLAYER)';
-    netTabBtn.addEventListener('click', () => {
-      if (activeLayoutTab === 'network') return;
-      activeLayoutTab = 'network';
+    const singleTabBtn = document.createElement('button');
+    singleTabBtn.className = `kb-tab-btn ${activeLayoutTab === 'single' ? 'active' : ''}`;
+    singleTabBtn.textContent = 'SINGLE PLAYER LAYOUT';
+    singleTabBtn.addEventListener('click', () => {
+      if (activeLayoutTab === 'single') return;
+      activeLayoutTab = 'single';
       selectedFn = null;
-      statusMsg = 'Switched to Network layout (Full keyboard controls).';
+      statusMsg = 'Switched to Single player layout (HvC, CvH & Network).';
       render();
     });
-    tabSwitch.appendChild(netTabBtn);
+    tabSwitch.appendChild(singleTabBtn);
     hdr.appendChild(tabSwitch);
 
     const sub = document.createElement('p');
@@ -688,8 +688,8 @@ export function createKeyboardScreen(root) {
     // Bottom Palettes
     const palettesWrap = document.createElement('div');
     palettesWrap.className = 'kb-palettes-wrap';
-    if (activeLayoutTab === 'network') {
-      palettesWrap.appendChild(renderNetworkPalette());
+    if (activeLayoutTab === 'single') {
+      palettesWrap.appendChild(renderSinglePlayerPalette());
     } else {
       palettesWrap.appendChild(renderPlayerPalette(0));
       palettesWrap.appendChild(renderPlayerPalette(1));
@@ -704,11 +704,12 @@ export function createKeyboardScreen(root) {
     resetBtn.className = 'kb-btn kb-btn-reset';
     resetBtn.textContent = 'RESET LAYOUT';
     resetBtn.addEventListener('click', () => {
-      if (activeLayoutTab === 'network') {
-        workingNetworkKeys = clone(C.DEFAULT_NETWORK_KEYS);
+      if (activeLayoutTab === 'single') {
+        workingSingleKeys = clone(C.DEFAULT_SINGLE_KEYS);
+        localStorage.removeItem(C.KEYS_SINGLE_SETTINGS_KEY);
         localStorage.removeItem(C.KEYS_NETWORK_SETTINGS_KEY);
         selectedFn = null;
-        statusMsg = 'Network layout reset to defaults.';
+        statusMsg = 'Single player layout reset to defaults.';
       } else {
         workingKeys = clone(C.DEFAULT_KEYS);
         localStorage.removeItem(C.KEYS_SETTINGS_KEY);
@@ -738,10 +739,11 @@ export function createKeyboardScreen(root) {
     okBtn.addEventListener('click', () => {
       localStorage.setItem(C.KEYS_SETTINGS_KEY, JSON.stringify(workingKeys));
       localStorage.setItem(C.KEYS_SPLITSCREEN_SETTINGS_KEY, JSON.stringify(workingKeys));
-      if (workingNetworkKeys) {
-        localStorage.setItem(C.KEYS_NETWORK_SETTINGS_KEY, JSON.stringify(workingNetworkKeys));
+      if (workingSingleKeys) {
+        localStorage.setItem(C.KEYS_SINGLE_SETTINGS_KEY, JSON.stringify(workingSingleKeys));
+        localStorage.setItem(C.KEYS_NETWORK_SETTINGS_KEY, JSON.stringify(workingSingleKeys));
       }
-      callbacks.onSave(workingKeys, workingNetworkKeys);
+      callbacks.onSave(workingKeys, workingSingleKeys);
       closeScreen();
     });
     btnsWrap.appendChild(okBtn);
@@ -752,7 +754,7 @@ export function createKeyboardScreen(root) {
 
   function closeScreen() {
     workingKeys = null;
-    workingNetworkKeys = null;
+    workingSingleKeys = null;
     selectedFn = null;
     activeDrag = null;
     statusMsg = '';
@@ -762,10 +764,11 @@ export function createKeyboardScreen(root) {
 
   const api = {
     isOpen: () => !root.classList.contains('hidden') && workingKeys !== null,
-    open({ getKeys, getNetworkKeys, onSave, onClose, initialTab }) {
+    open({ getKeys, getSingleKeys, getNetworkKeys, onSave, onClose, initialTab }) {
       workingKeys = clone(getKeys());
-      workingNetworkKeys = clone(getNetworkKeys ? getNetworkKeys() : C.DEFAULT_NETWORK_KEYS);
-      activeLayoutTab = initialTab || 'splitscreen';
+      const skFn = getSingleKeys || getNetworkKeys;
+      workingSingleKeys = clone(skFn ? skFn() : C.DEFAULT_SINGLE_KEYS);
+      activeLayoutTab = initialTab === 'network' || initialTab === 'single' ? 'single' : 'splitscreen';
       selectedFn = null;
       activeDrag = null;
       statusMsg = '';
