@@ -121,7 +121,7 @@ Docked inside the bottom corner of each player's 3D viewport inside a semi-trans
 ## 5. Menus & Navigation UX
 
 - **Title Menu:**
-  - Options: *Start game*, *Load game* (slots 1..10), *Game Mode*, *Level* (when Computer is selected), *Game Playback*, *Options*, *Help*, *History*.
+  - Options: *Start game*, *Load game* (slots 1..10), *Game Mode*, *Level* (cycles EASY -> MEDIUM -> HARD, when Computer is selected), *Game playback*, *Options*, *Help*, *History*.
 - **Pause Menu (`Esc`):**
   - Instantly suspends the fixed-step physics simulation.
   - Options: *Resume game*, *Save game*, *Load game*, *New game*, *Main menu*, *Game Mode*, *Level*, *Options*, *Help*, *History*.

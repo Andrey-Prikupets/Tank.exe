@@ -73,7 +73,7 @@ Allows configuring parameters and launching directly into matches via URL:
 
 ---
 
-## 5. Match Recording & Playback System (`Game Playback`)
+## 5. Match Recording & Playback System (`Game playback`)
 
 A deterministic, high-performance binary recording and playback engine:
 
@@ -87,7 +87,7 @@ A deterministic, high-performance binary recording and playback engine:
 - **Pinning (`📌`):** Players can pin valuable replays. Pinned matches are permanently immune to automatic pruning. Deleting a pinned match requires explicit confirmation.
 
 ### 5.3 Match Replays Grid Modal
-Accessed from the Title Menu via **Game Playback**:
+Accessed from the Title Menu via **Game playback**:
 - Sorted strictly by datetime descending (newest match first).
 - Filter toggle: `[ ] Show only pinned recordings`.
 - Telemetry Columns: Pin toggle (`📌`), Date & Time, Duration (`MM:SS`), Game Mode & Shooting Distance, Outcome & Final Score badge, Actions (`▶ Play`, `🗑 Delete`).

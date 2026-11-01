@@ -53,7 +53,7 @@ function getInitialHistoryLang() {
   try {
     const saved = localStorage.getItem('tank_history_lang');
     if (saved && HISTORY_DOCS[saved]) return saved;
-  } catch {}
+  } catch { }
   const navLang = (navigator.language || (navigator.languages && navigator.languages[0]) || '').toLowerCase();
   if (navLang.startsWith('ru') || navLang.startsWith('be') || navLang.startsWith('uk')) return 'ru';
   if (navLang.startsWith('es')) return 'es';
@@ -86,7 +86,7 @@ function getInitialHelpLang() {
     if (saved && HELP_DOCS[saved]) return saved;
     const historySaved = localStorage.getItem('tank_history_lang');
     if (historySaved && HELP_DOCS[historySaved]) return historySaved;
-  } catch {}
+  } catch { }
   const navLang = (navigator.language || (navigator.languages && navigator.languages[0]) || '').toLowerCase();
   if (navLang.startsWith('ru') || navLang.startsWith('be') || navLang.startsWith('uk')) return 'ru';
   if (navLang.startsWith('es')) return 'es';
@@ -109,7 +109,7 @@ if (savedMode) {
 }
 const currentMode = () => C.PLAYER_MODES[playerModeIndex];
 
-let aiLevelIndex = 1; // Default 'MEDIUM' (C.AI_LEVELS = ['HARD', 'MEDIUM', 'EASY'])
+let aiLevelIndex = 1; // Default 'MEDIUM' (C.AI_LEVELS = ['EASY', 'MEDIUM', 'HARD'])
 const savedLevel = localStorage.getItem(C.AI_LEVEL_SETTINGS_KEY);
 if (savedLevel) {
   const idx = C.AI_LEVELS.indexOf(savedLevel);
@@ -126,19 +126,19 @@ let savedObstacles = false;
 try {
   const val = localStorage.getItem(C.OBSTACLES_SETTINGS_KEY);
   if (val !== null) savedObstacles = JSON.parse(val);
-} catch {}
+} catch { }
 
 let savedPits = false;
 try {
   const val = localStorage.getItem(C.PITS_SETTINGS_KEY);
   if (val !== null) savedPits = JSON.parse(val);
-} catch {}
+} catch { }
 
 let savedRecording = false;
 try {
   const val = localStorage.getItem(C.RECORDING_SETTINGS_KEY);
   if (val !== null) savedRecording = JSON.parse(val);
-} catch {}
+} catch { }
 
 let recordingEnabled = savedRecording;
 
@@ -146,7 +146,7 @@ let savedTextures = true;
 try {
   const val = localStorage.getItem(C.TEXTURES_SETTINGS_KEY);
   if (val !== null) savedTextures = JSON.parse(val);
-} catch {}
+} catch { }
 
 let texturesEnabled = savedTextures;
 
@@ -541,7 +541,7 @@ function helpScreen() {
         helpLang = lang;
         try {
           localStorage.setItem('tank_help_lang', lang);
-        } catch {}
+        } catch { }
         menu.refresh();
       },
     },
@@ -604,7 +604,7 @@ function historyScreen() {
         historyLang = lang;
         try {
           localStorage.setItem('tank_history_lang', lang);
-        } catch {}
+        } catch { }
         menu.refresh();
       },
     },
@@ -686,7 +686,7 @@ function closeNetworkSession() {
   if (networkSession) {
     try {
       networkSession.p2p.close();
-    } catch {}
+    } catch { }
     networkSession = null;
   }
   remoteWindowTurn = 0;
@@ -958,7 +958,7 @@ function openTitle() {
       playersItem(),
       ...(currentMode().leftAi || currentMode().rightAi ? [levelItem()] : []),
       {
-        label: 'Game Playback',
+        label: 'Game playback',
         action: () => {
           document.getElementById('menu').classList.add('hidden');
           replaysModal.open({

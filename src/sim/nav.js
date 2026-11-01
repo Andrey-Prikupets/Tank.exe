@@ -12,7 +12,7 @@ export const COST_HOUSE = 12;
 export const COST_LETHAL = 255; // Pits and Mines (impassable)
 
 export const TANK_COLLISION_RADIUS_M = Math.hypot(C.TANK_LENGTH_M / 2, C.TANK_WIDTH_M / 2); // ~3.61m
-export const MINE_LETHAL_RADIUS_M = C.TANK_WIDTH_M / 2 + C.MINE_TRIGGER_RADIUS_M + 0.6;   // ~3.60m
+export const MINE_LETHAL_RADIUS_M = TANK_COLLISION_RADIUS_M + C.MINE_TRIGGER_RADIUS_M + 0.65; // ~5.26m (full corner + trigger clearance)
 export const PIT_LETHAL_MARGIN_M = 1.8;
 
 export const GRID_CELL_SIZE_M = 2.0; // 250m x 100m -> 125 x 50 grid cells
@@ -385,12 +385,20 @@ export function getAttackStandoffWaypoint(tank, target, world, profile, simTime 
     }
     if (losBlocked) continue;
 
-    // Check if waypoint is inside lethal pit
+    // Check if waypoint is inside lethal pit or mine
     let pitBlocked = false;
     if (world.pits) {
       for (const pit of world.pits) {
         const [plx, ply] = toLocal(pit, wx, wy);
         if (Math.abs(plx) < pit.l / 2 + 2.0 && Math.abs(ply) < pit.w / 2 + 2.0) {
+          pitBlocked = true;
+          break;
+        }
+      }
+    }
+    if (!pitBlocked && world.mines) {
+      for (const m of world.mines) {
+        if (Math.hypot(wx - m.x, wy - m.y) < MINE_LETHAL_RADIUS_M + 1.5) {
           pitBlocked = true;
           break;
         }
@@ -641,10 +649,15 @@ export function evaluateKinematicTrajectoryArcs(
         }
         if (lethalCollision) break;
 
-        // Direct Mine geometry verification
+        // Direct Mine geometry verification (endpoint + midpoint of step segment)
         if (world.mines) {
+          const midX = (prevSimX + simX) * 0.5;
+          const midY = (prevSimY + simY) * 0.5;
           for (const m of world.mines) {
-            if (Math.hypot(simX - m.x, simY - m.y) < MINE_LETHAL_RADIUS_M) {
+            if (
+              Math.hypot(simX - m.x, simY - m.y) < MINE_LETHAL_RADIUS_M ||
+              Math.hypot(midX - m.x, midY - m.y) < MINE_LETHAL_RADIUS_M
+            ) {
               lethalCollision = true;
               break;
             }

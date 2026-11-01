@@ -31,4 +31,8 @@
 
 - **Use Node.js 22 at `C:\Work\nodejs.22` for local npm commands** when running installs or CLI operations, as Vite 6 and npm dependencies in this repository are verified on Node 22 (avoiding Node 21 / Node 24 incompatibility issues).
 
+## 7. Search & Grep Commands
+
+- When running `grep` or `rg` via `run_command`, always invoke the binary directly (`grep ...`) inside the sandbox (`BypassSandbox: false`) without pipes (`|`), command substitutions (`$(...)`), variable expansions (`$VAR`), or brace expansions (`{a,b}`) so prefix-based auto-approval works.
+
 

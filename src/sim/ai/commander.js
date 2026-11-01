@@ -1,38 +1,87 @@
 import * as C from '../../constants.js';
 import { gateX, selectedTank } from '../world.js';
-import { getGateCorridorPose, getGateAmbushPose } from '../nav.js';
+import { getGateCorridorPose, getGateAmbushPose, isInEnemySlitGunSector, MINE_LETHAL_RADIUS_M } from '../nav.js';
 import { normalizeAngle } from './math.js';
 import { segmentVsObb, toLocal } from '../geometry.js';
 import { assignBrigadeRoles, updateBrigadeRoles, getRoleWaypoint } from './roles.js';
+import { leadPoint } from './aiming.js';
 
 export function isPathClearOfPits(world, x0, y0, heading, dist = 24.0) {
-  if (!world.pits || world.pits.length === 0) return true;
   const fx = x0 + Math.cos(heading) * dist;
   const fy = y0 + Math.sin(heading) * dist;
-  for (const pit of world.pits) {
-    const expPit = {
-      x: pit.x,
-      y: pit.y,
-      h: pit.h,
-      l: pit.l + 8.0,
-      w: pit.w + 8.0,
-    };
-    if (segmentVsObb(x0, y0, fx, fy, expPit) != null) return false;
-    const [tlx, tly] = toLocal(pit, x0, y0);
-    if (Math.abs(tlx) < pit.l / 2 + 5.0 && Math.abs(tly) < pit.w / 2 + 5.0) return false;
+
+  // Arena boundary check (keep away from top/bottom walls and end walls outside gate lane)
+  const inGateLane = Math.abs(fy - C.GATE_CENTER_Y_M) <= C.GATE_WIDTH_M / 2 + 1.0;
+  if (fy < 6.5 || fy > C.FIELD_WIDTH_M - 6.5) return false;
+  if ((fx < 6.5 || fx > C.FIELD_LENGTH_M - 6.5) && !inGateLane) return false;
+
+  if (world.pits && world.pits.length > 0) {
+    for (const pit of world.pits) {
+      const expPit = {
+        x: pit.x,
+        y: pit.y,
+        h: pit.h,
+        l: pit.l + 8.0,
+        w: pit.w + 8.0,
+      };
+      if (segmentVsObb(x0, y0, fx, fy, expPit) != null) return false;
+      const [tlx, tly] = toLocal(pit, x0, y0);
+      if (Math.abs(tlx) < pit.l / 2 + 5.0 && Math.abs(tly) < pit.w / 2 + 5.0) return false;
+    }
   }
+
+  // Also check mines along the path using full corner-safe trigger clearance
+  if (world.mines && world.mines.length > 0) {
+    const probe = { x: x0, y: y0, heading };
+    for (const m of world.mines) {
+      const [mlx, mly] = toLocal(probe, m.x, m.y);
+      if (mlx > -1.0 && mlx < dist + 2.0 && Math.abs(mly) < MINE_LETHAL_RADIUS_M + 0.5) {
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 
-/** Per-tick fast safety reflex for unselected tanks cruising on the field. */
+/**
+ * Per-tick parallel multi-tank controller for all unselected field units:
+ * 1. Immediate hazard avoidance (mines, pits, boundaries).
+ * 2. Parallel Wolfpack crossfire enveloping against active human attackers (2-3 units converge
+ *    from -32 deg, 0 deg, +32 deg crossfire angles and pre-aim their hulls simultaneously).
+ * 3. Parallel Hunter steering toward unattended/parked enemy tanks outside enemy slit-gun arcs.
+ */
 export function enforceUnselectedTanksSafety(ctl, world, myField, activeTank) {
-  if (!world.pits || world.pits.length === 0) return;
+  const owner = ctl.owner;
+  const enemyOwner = 1 - owner;
+  const enemyField = world.tanks.filter((t) => t.owner === enemyOwner && t.status === 'field');
+
+  // Identify active moving enemies vs stationary/unattended enemies
+  const movingEnemies = enemyField.filter((e) => Math.abs(e.speed || 0) > 1.0);
+  const primaryActiveEnemy = movingEnemies[0] || null;
+
+  // Assign closest 3 armed friendly tanks to Wolfpack crossfire slots (-0.52, 0, +0.52 rad)
+  const wolfpackOffsets = new Map();
+  if (primaryActiveEnemy) {
+    const armedSorted = myField
+      .filter((t) => t.status === 'field' && t.shells > 0)
+      .sort(
+        (a, b) =>
+          Math.hypot(a.x - primaryActiveEnemy.x, a.y - primaryActiveEnemy.y) -
+          Math.hypot(b.x - primaryActiveEnemy.x, b.y - primaryActiveEnemy.y),
+      );
+    const offsets = [0, 0.52, -0.52];
+    for (let i = 0; i < Math.min(3, armedSorted.length); i++) {
+      wolfpackOffsets.set(armedSorted[i].id, offsets[i]);
+    }
+  }
+
   for (const t of myField) {
-    if (t.status === 'field' && t.id !== activeTank?.id && t.cmdSpeedKmh > 0) {
-      const lookAhead = Math.max(12.0, Math.abs(t.speed) * 1.8);
-      if (!isPathClearOfPits(world, t.x, t.y, t.heading, lookAhead)) {
+    if (t.status === 'field' && t.id !== activeTank?.id) {
+      const lookAhead = Math.max(14.0, Math.abs(t.speed) * 2.2);
+      if (t.cmdSpeedKmh !== 0 && !isPathClearOfPits(world, t.x, t.y, t.heading, lookAhead)) {
         let clearAngle = null;
-        for (const off of [0.55, -0.55, 1.05, -1.05, 1.55, -1.55]) {
+        for (const off of [0.55, -0.55, 1.05, -1.05, 1.55, -1.55, 2.2, -2.2]) {
           if (isPathClearOfPits(world, t.x, t.y, t.heading + off, lookAhead + 4.0)) {
             clearAngle = t.heading + off;
             break;
@@ -41,10 +90,73 @@ export function enforceUnselectedTanksSafety(ctl, world, myField, activeTank) {
         if (clearAngle != null) {
           const errRad = normalizeAngle(clearAngle - t.heading);
           t.cmdTurnDeg = Math.sign(errRad) * C.TANK_MAX_TURN_DEG_S;
-          t.cmdSpeedKmh = Math.min(t.cmdSpeedKmh, 18);
+          t.cmdSpeedKmh = Math.min(Math.max(6, t.cmdSpeedKmh), 18);
         } else {
           t.cmdSpeedKmh = 0;
-          t.cmdTurnDeg = 45;
+          t.cmdTurnDeg = C.TANK_MAX_PIVOT_TURN_DEG_S;
+        }
+        continue;
+      }
+
+      // Parallel combat steering & pre-aiming for armed unselected tanks
+      if (t.shells > 0 && enemyField.length > 0) {
+        let targetEnemy = null;
+        let minScore = Infinity;
+        for (const e of enemyField) {
+          const d = Math.hypot(e.x - t.x, e.y - t.y);
+          // Wolfpack members prioritize the active moving human tank; other tanks hunt nearest enemy
+          const isWolfpackTarget = wolfpackOffsets.has(t.id) && Math.abs(e.speed || 0) > 1.0;
+          const score = d - (isWolfpackTarget ? 45.0 : Math.abs(e.speed || 0) > 1.5 ? 20.0 : 0);
+          if (score < minScore) {
+            minScore = score;
+            targetEnemy = e;
+          }
+        }
+
+        if (targetEnemy) {
+          const rawDist = Math.hypot(targetEnemy.x - t.x, targetEnemy.y - t.y);
+          const lead = leadPoint(t, targetEnemy.x, targetEnemy.y, targetEnemy.speed, targetEnemy.heading, 1.0, targetEnemy.turn || 0);
+
+          let desiredH = Math.atan2(lead.y - t.y, lead.x - t.x);
+          let desiredSpeed = 36;
+
+          if (rawDist <= 50.0) {
+            // Within 50m: pre-align hull gun directly onto enemy lead point so this tank is ready
+            // for instant volley fire the moment the dispatcher selects it!
+            const errDeg = Math.abs(C.radToDeg(normalizeAngle(desiredH - t.heading)));
+            desiredSpeed = lead.muzzleDist > C.SHELL_RANGE_M - 1.0 ? 36 : errDeg > 10 ? 18 : 6;
+          } else if (wolfpackOffsets.has(t.id) && Math.abs(targetEnemy.speed || 0) > 1.0) {
+            // Beyond 50m: converge along assigned Wolfpack pincer crossfire angle (-30, 0, +30 deg)
+            const angleToMe = Math.atan2(t.y - lead.y, t.x - lead.x);
+            const crossfireAngle = angleToMe + wolfpackOffsets.get(t.id);
+            const wpX = Math.max(12, Math.min(C.FIELD_LENGTH_M - 12, lead.x + Math.cos(crossfireAngle) * 26.0));
+            const wpY = Math.max(12, Math.min(C.FIELD_WIDTH_M - 12, lead.y + Math.sin(crossfireAngle) * 26.0));
+            if (!isInEnemySlitGunSector(wpX, wpY, enemyOwner)) {
+              desiredH = Math.atan2(wpY - t.y, wpX - t.x);
+            }
+            desiredSpeed = 36;
+          } else {
+            // Non-wolfpack tank beyond 50m: let role waypoint / flank approach guide it
+            continue;
+          }
+
+          const checkDist = Math.max(14.0, (desiredSpeed / 3.6) * 1.5);
+          const projX = t.x + Math.cos(desiredH) * checkDist;
+          const projY = t.y + Math.sin(desiredH) * checkDist;
+          if (
+            isPathClearOfPits(world, t.x, t.y, desiredH, checkDist) &&
+            !isInEnemySlitGunSector(projX, projY, enemyOwner)
+          ) {
+            const errDeg = C.radToDeg(normalizeAngle(desiredH - t.heading));
+            t.cmdSpeedKmh = desiredSpeed;
+            if (Math.abs(errDeg) > 4.0) {
+              const maxTurn = t.cmdSpeedKmh === 0 ? C.TANK_MAX_PIVOT_TURN_DEG_S : C.TANK_MAX_TURN_DEG_S;
+              const stepTurn = Math.round(errDeg / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S;
+              t.cmdTurnDeg = Math.max(-maxTurn, Math.min(maxTurn, stepTurn || (errDeg > 0 ? 15 : -15)));
+            } else {
+              t.cmdTurnDeg = 0;
+            }
+          }
         }
       }
     }
@@ -168,56 +280,42 @@ export function updateCommander(ctl, world, dt, myField, enemyField, profile) {
         const desiredTurn = Math.round(C.radToDeg(errRad) / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S;
         t.cmdTurnDeg = gatePose.isDoorwayMode ? 0 : Math.max(-C.TANK_MAX_TURN_DEG_S, Math.min(C.TANK_MAX_TURN_DEG_S, desiredTurn));
         t.cmdSpeedKmh = gatePose.speedLimitKmh || 18;
-      } else if (t.cmdSpeedKmh > 0 && !isAtAmbush) {
-        // Continuous hazard protection for moving unselected tanks: check forward trajectory
-        const forwardLookAhead = Math.max(18.0, Math.abs(t.speed) * 3.0);
-        if (!isPathClearOfPits(world, t.x, t.y, t.heading, forwardLookAhead)) {
-          let clearAngle = null;
-          for (const off of [0.5, -0.5, 0.9, -0.9, 1.3, -1.3, 1.7, -1.7]) {
-            if (isPathClearOfPits(world, t.x, t.y, t.heading + off, forwardLookAhead + 5.0)) {
-              clearAngle = t.heading + off;
-              break;
+      } else if (!isAtAmbush) {
+        // Continuous parallel waypoint steering for ALL unselected tanks (both moving and stopped)
+        // when not already within 50m combat pre-aim range of an enemy.
+        const nearEnemy = enemyField.some((e) => Math.hypot(e.x - t.x, e.y - t.y) <= 50.0);
+        if (!nearEnemy || t.cmdSpeedKmh === 0) {
+          const roleWaypoint = getRoleWaypoint(
+            t,
+            role,
+            ctl.currentPlan,
+            owner,
+            enemyGateX,
+            ctl.simTime,
+            world,
+          );
+          let wpAngle = Math.atan2(roleWaypoint.y - t.y, roleWaypoint.x - t.x);
+          const forwardLookAhead = Math.max(18.0, Math.abs(t.speed) * 3.0);
+          if (!isPathClearOfPits(world, t.x, t.y, wpAngle, forwardLookAhead)) {
+            let clearAngle = null;
+            for (const off of [0.5, -0.5, 0.9, -0.9, 1.3, -1.3, 1.7, -1.7]) {
+              if (isPathClearOfPits(world, t.x, t.y, wpAngle + off, forwardLookAhead)) {
+                clearAngle = wpAngle + off;
+                break;
+              }
+            }
+            if (clearAngle != null) wpAngle = clearAngle;
+            else {
+              t.cmdSpeedKmh = 0;
+              t.cmdTurnDeg = C.TANK_MAX_PIVOT_TURN_DEG_S;
+              continue;
             }
           }
-          if (clearAngle != null) {
-            const errRad = normalizeAngle(clearAngle - t.heading);
-            const desiredTurn = Math.round(C.radToDeg(errRad) / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S;
-            t.cmdTurnDeg = Math.max(-C.TANK_MAX_TURN_DEG_S, Math.min(C.TANK_MAX_TURN_DEG_S, desiredTurn));
-            t.cmdSpeedKmh = Math.min(t.cmdSpeedKmh, 18);
-          } else {
-            t.cmdSpeedKmh = 0;
-            t.cmdTurnDeg = 45;
-          }
+          const errRad = normalizeAngle(wpAngle - t.heading);
+          const desiredTurn = Math.round(C.radToDeg(errRad) / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S;
+          t.cmdTurnDeg = Math.max(-C.TANK_MAX_TURN_DEG_S, Math.min(C.TANK_MAX_TURN_DEG_S, desiredTurn));
+          t.cmdSpeedKmh = profile.maxSpeedKmh > 18 ? 36 : C.AI_MOBILIZE_CRUISE_KMH;
         }
-      } else if (t.cmdSpeedKmh === 0 && !isAtAmbush) {
-        const roleWaypoint = getRoleWaypoint(
-          t,
-          role,
-          ctl.currentPlan,
-          owner,
-          enemyGateX,
-          ctl.simTime,
-          world,
-        );
-        let wpAngle = Math.atan2(roleWaypoint.y - t.y, roleWaypoint.x - t.x);
-        if (!isPathClearOfPits(world, t.x, t.y, wpAngle)) {
-          let clearAngle = null;
-          for (const off of [0.6, -0.6, 1.1, -1.1]) {
-            if (isPathClearOfPits(world, t.x, t.y, wpAngle + off)) {
-              clearAngle = wpAngle + off;
-              break;
-            }
-          }
-          if (clearAngle != null) wpAngle = clearAngle;
-          else {
-            t.cmdSpeedKmh = 0;
-            continue;
-          }
-        }
-        const errRad = normalizeAngle(wpAngle - t.heading);
-        const desiredTurn = Math.round(C.radToDeg(errRad) / C.TURN_STEP_DEG_S) * C.TURN_STEP_DEG_S;
-        t.cmdTurnDeg = Math.max(-C.TANK_MAX_TURN_DEG_S, Math.min(C.TANK_MAX_TURN_DEG_S, desiredTurn));
-        t.cmdSpeedKmh = profile.maxSpeedKmh > 18 ? 27 : C.AI_MOBILIZE_CRUISE_KMH;
       }
     }
   }

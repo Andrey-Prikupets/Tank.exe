@@ -8,6 +8,7 @@ export function runDispatcher(ctl, world, myField, enemyField, profile, tank) {
   const timeSinceFire = ctl.simTime - (ctl.lastFiredTime || 0);
   const postFireHoldMet = timeSinceFire >= C.AI_POST_FIRE_HOLD_S;
   const minHoldMet = ctl.sliceTimer >= C.AI_MIN_SLICE_S;
+  const fastPreemptMet = ctl.sliceTimer >= 0.3 && postFireHoldMet;
   const canSwitch = minHoldMet && postFireHoldMet;
   const forceSwitch = ctl.sliceTimer >= C.AI_MAX_SLICE_S && postFireHoldMet;
 
@@ -52,17 +53,36 @@ export function runDispatcher(ctl, world, myField, enemyField, profile, tank) {
     bestUrgencyInfo.hazardScore >= C.AI_URGENCY_HAZARD_MINE &&
     currUrgencyInfo.hazardScore < C.AI_URGENCY_HAZARD_MINE;
 
+  // Instant Parallel Volley: another tank has its gun pre-aligned & loaded on target right now!
+  const instantVolleyReady =
+    bestUrgencyInfo &&
+    bestUrgencyInfo.combatScore >= 97 &&
+    currUrgencyInfo.combatScore < 97 &&
+    ctl.sliceTimer >= 0.08;
+
+  const acuteCombatEmergency =
+    bestUrgencyInfo &&
+    bestUrgencyInfo.combatScore >= C.AI_URGENCY_COMBAT_AIMED - 1 &&
+    (currUrgencyInfo.combatScore < C.AI_URGENCY_COMBAT_AIMED - 8 ||
+      (tank.reload > 0.25 && bestTank.reload <= 0.05 && bestUrgencyInfo.combatScore >= 82));
+
   let shouldSwitch = false;
   if (bestTank && bestTank.id !== tank.id) {
-    if (acuteHazardEmergency && canSwitch) {
+    if (instantVolleyReady) {
+      shouldSwitch = true;
+    } else if ((acuteHazardEmergency || acuteCombatEmergency) && fastPreemptMet) {
       shouldSwitch = true;
     } else if (
       forceSwitch &&
       currUrgencyInfo.hazardScore < C.AI_URGENCY_HAZARD_MINE &&
-      currUrgencyInfo.combatScore < C.AI_URGENCY_COMBAT_AIMED
+      currUrgencyInfo.combatScore < 80
     ) {
       shouldSwitch = true;
-    } else if (canSwitch && maxUrgency - currUrgency >= C.AI_DISPATCH_THRESHOLD_DELTA) {
+    } else if (
+      canSwitch &&
+      maxUrgency - currUrgency >= C.AI_DISPATCH_THRESHOLD_DELTA &&
+      (currUrgencyInfo.combatScore < 82 || bestUrgencyInfo.combatScore >= currUrgencyInfo.combatScore - 2 || bestUrgencyInfo.hazardScore >= C.AI_URGENCY_HAZARD_MINE)
+    ) {
       shouldSwitch = true;
     }
   }
@@ -71,7 +91,9 @@ export function runDispatcher(ctl, world, myField, enemyField, profile, tank) {
   if (
     myField.length < C.TANKS_ON_FIELD_MAX &&
     ctl.reserveDeployTimer >= 2.0 &&
-    canSwitch
+    canSwitch &&
+    currUrgencyInfo.combatScore < 80 &&
+    currUrgencyInfo.hazardScore < C.AI_URGENCY_HAZARD_MINE
   ) {
     const reserves = world.tanks.filter(
       (t) => t.owner === owner && t.status === 'hangar' && t.number != null,

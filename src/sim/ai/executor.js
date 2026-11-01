@@ -138,16 +138,24 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
       const isLocked = e.id === ctl.lockedTargetId;
       const noise = (Math.random() - 0.5) * C.AI_TARGET_NOISE_AMPLITUDE;
 
-      // Highest priority for enemy tanks emerging through the gate entrance!
+      // Highest priority for enemy tanks actively emerging through the gate entrance!
       const enemyGate = gateX(1 - owner);
       const isEmergingFromGate =
-        Math.abs(e.x - enemyGate) <= 9.0 && Math.abs(e.y - C.GATE_CENTER_Y_M) <= 5.0;
+        Math.abs(e.speed || 0) > 0.5 &&
+        Math.abs(e.x - enemyGate) <= 9.0 &&
+        Math.abs(e.y - C.GATE_CENTER_Y_M) <= 5.0;
       const emergingBonus = isEmergingFromGate ? 70.0 : 0;
+
+      // Prioritize active moving human attackers and base raiders over stationary spawn reserves
+      const ownGate = gateX(owner);
+      const isMovingThreat = Math.abs(e.speed || 0) > 1.5;
+      const isRaidingOurBase = Math.abs(e.x - ownGate) < 60.0;
+      const activeThreatBonus = (isMovingThreat ? 38.0 : 0) + (isRaidingOurBase && isMovingThreat ? 24.0 : 0);
 
       const isOpportunity =
         !blocked &&
         !smokeBlocked &&
-        d <= C.AI_TARGET_OPPORTUNITY_MAX_DIST_M &&
+        d <= C.AI_TARGET_OPPORTUNITY_MAX_DIST_M + 12.0 &&
         ang <= C.AI_TARGET_OPPORTUNITY_MAX_ANGLE_RAD &&
         tank.shells > 0;
 
@@ -161,6 +169,7 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
         (blocked ? C.AI_TARGET_LOS_BLOCKED_PENALTY : 0) +
         smokePenalty -
         emergingBonus -
+        activeThreatBonus -
         (facingUs ? C.AI_TARGET_FACING_US_BONUS : 0) -
         (isOpportunity ? C.AI_TARGET_OPPORTUNITY_BONUS : 0) -
         (isLocked ? C.AI_TARGET_STICKINESS_BONUS : 0) +
@@ -265,7 +274,7 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
     if (combatTarget && combatTargetPos && tank.shells > 0) {
       const isOpportunityTarget =
         !isLineOfFireBlocked(world, owner, tank.x, tank.y, combatTargetPos.x, combatTargetPos.y, tank.id) &&
-        combatTargetDist <= C.AI_TARGET_OPPORTUNITY_MAX_DIST_M;
+        combatTargetDist <= C.AI_TARGET_OPPORTUNITY_MAX_DIST_M + 12.0;
 
       if (isOpportunityTarget) {
         // Opportunity fire diversion: divert directly toward target to line up and shoot
@@ -319,7 +328,7 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
       sig: combatTarget.id,
       gap: 2,
     });
-    applyKinematicCommands(world, owner, tank, 0, aim.turnDeg);
+    applyKinematicCommands(world, owner, tank, aim.cmdSpeedKmh ?? 0, aim.turnDeg);
   } else {
     const traj = evaluateKinematicTrajectoryArcs(
       tank,
@@ -382,11 +391,17 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
       Math.abs(tank.x - ownGateX) < 14.0 &&
       Math.abs(tank.y - C.GATE_CENTER_Y_M) < 6.0;
 
-    // Check if an enemy is pursuing in our trailing wake corridor
+    // Check if an enemy is actively pursuing in our trailing wake corridor
     let pursuerBehind = false;
     for (const e of enemyField) {
       const [elx, ely] = toLocal(tank, e.x, e.y);
-      if (elx < -2.0 && elx > -26.0 && Math.abs(ely) < 5.5) {
+      if (
+        elx < -2.0 &&
+        elx > -24.0 &&
+        Math.abs(ely) < 5.0 &&
+        (e.speed || 0) > 1.5 &&
+        Math.cos(e.heading - tank.heading) > 0.35
+      ) {
         pursuerBehind = true;
         break;
       }
@@ -397,10 +412,13 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
         t.owner === owner &&
         t.id !== tank.id &&
         t.status === 'field' &&
-        Math.hypot(t.x - tank.x, t.y - tank.y) < C.AI_MINE_FRIENDLY_SAFE_DIST_M,
+        Math.hypot(t.x - tank.x, t.y - tank.y) < Math.max(18.0, C.AI_MINE_FRIENDLY_SAFE_DIST_M),
     );
 
-    const isDefendingBase = assignedRole.includes('DEFENSE') && gateThreat;
+    const gateThreat = enemyField.some(
+      (e) => Math.abs(e.x - ownGateX) <= C.AI_MINE_GATE_THREAT_DIST_M && (e.speed || 0) > 1.0,
+    );
+    const isDefendingBase = assignedRole.includes('DEFENSE') && gateThreat && pursuerBehind;
 
     if (!inOwnGateLane && !friendlyNear && (pursuerBehind || isDefendingBase)) {
       // Must be moving forward away from the mine

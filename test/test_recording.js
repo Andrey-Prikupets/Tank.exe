@@ -170,20 +170,24 @@ setPinned(metadata.id, true);
 list = listRecordings();
 assert.strictEqual(list[0].pinned, true);
 
-// Save recording 2 (with older timestamp)
+// Save recording 2 (with older timestamp and legacy inverted score)
 const metadata2 = {
   ...metadata,
   id: 'rec_older',
   savedAt: new Date(Date.now() - 60000).toISOString(),
   pinned: false,
+  redLost: 7,
+  blueLost: 15,
+  score: '0 - 8', // legacy format
 };
 saveRecording(metadata2, base64Payload);
 
-// List must be sorted datetime descending (newest on top)
+// List must be sorted datetime descending (newest on top) and heal legacy score
 list = listRecordings();
 assert.strictEqual(list.length, 2);
 assert.strictEqual(list[0].id, metadata.id, 'Newer match must be first');
 assert.strictEqual(list[1].id, 'rec_older', 'Older match must be second');
+assert.strictEqual(list[1].score, '7 - 15', 'Legacy score 0 - 8 must be healed to 7 - 15');
 
 // Delete recording 2
 deleteRecording('rec_older');

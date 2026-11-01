@@ -1,14 +1,19 @@
 import * as C from '../../constants.js';
 import { normalizeAngle } from './math.js';
 import { isLineOfFireBlocked } from './perception.js';
+import { segmentVsObb, toLocal } from '../geometry.js';
+import { MINE_LETHAL_RADIUS_M } from '../nav.js';
+
+const MUZZLE_OFFSET_M = C.TANK_LENGTH_M / 2 + C.SHELL_MUZZLE_OFFSET_M;
 
 /**
- * Maximum distance at which the AI engages a target. Moving targets are only engaged inside an
- * effective range (shell flight time makes long shots at moving tanks mostly wasted ammunition).
+ * Maximum distance (from gun muzzle to target hull) at which the AI engages a target.
  */
 export function maxEngageDist(profile, targetSpeed) {
   const max = profile.maxFireDist || C.SHELL_RANGE_M;
-  return Math.abs(targetSpeed || 0) > C.AI_MOVING_TARGET_SPEED_MS ? Math.min(max, C.AI_EFFECTIVE_MOVING_RANGE_M) : max;
+  return Math.abs(targetSpeed || 0) > C.AI_MOVING_TARGET_SPEED_MS
+    ? Math.min(max, C.AI_EFFECTIVE_MOVING_RANGE_M)
+    : max;
 }
 
 /**
@@ -17,14 +22,41 @@ export function maxEngageDist(profile, targetSpeed) {
  */
 
 /** Point the shell must be aimed at: target position advanced by its motion over the shell flight time. */
-export function leadPoint(tank, targetX, targetY, targetSpeed, targetHeading, leadFactor) {
-  const dist = Math.hypot(targetX - tank.x, targetY - tank.y);
+export function leadPoint(tank, targetX, targetY, targetSpeed, targetHeading, leadFactor, targetTurn = 0) {
+  const rawDist = Math.hypot(targetX - tank.x, targetY - tank.y);
   const shellSpeed = C.SHELL_RANGE_M / C.SHELL_FLIGHT_TIME_S;
-  const tFly = dist / shellSpeed;
+  const v = (targetSpeed || 0) * leadFactor;
+  const omega = (targetTurn || 0) * leadFactor;
+
+  const projectAt = (tFly) => {
+    if (Math.abs(omega) > 0.04 && Math.abs(v) > 0.3) {
+      const endH = targetHeading + omega * tFly;
+      return {
+        x: targetX + (v / omega) * (Math.sin(endH) - Math.sin(targetHeading)),
+        y: targetY - (v / omega) * (Math.cos(endH) - Math.cos(targetHeading)),
+      };
+    }
+    return {
+      x: targetX + Math.cos(targetHeading) * v * tFly,
+      y: targetY + Math.sin(targetHeading) * v * tFly,
+    };
+  };
+
+  // Two-step iterative flight-time refinement from the gun muzzle (capped at max shell flight time)
+  let tFly = Math.min(C.SHELL_FLIGHT_TIME_S, Math.max(0, rawDist - MUZZLE_OFFSET_M) / shellSpeed);
+  let pt = projectAt(tFly);
+  let leadDist = Math.hypot(pt.x - tank.x, pt.y - tank.y);
+  tFly = Math.min(C.SHELL_FLIGHT_TIME_S, Math.max(0, leadDist - MUZZLE_OFFSET_M) / shellSpeed);
+  pt = projectAt(tFly);
+  leadDist = Math.hypot(pt.x - tank.x, pt.y - tank.y);
+  const muzzleDist = Math.max(0, leadDist - MUZZLE_OFFSET_M);
+
   return {
-    x: targetX + Math.cos(targetHeading) * targetSpeed * tFly * leadFactor,
-    y: targetY + Math.sin(targetHeading) * targetSpeed * tFly * leadFactor,
-    dist,
+    x: pt.x,
+    y: pt.y,
+    dist: rawDist,
+    leadDist,
+    muzzleDist,
   };
 }
 
@@ -34,27 +66,83 @@ export function aimError(tank, aimX, aimY) {
 }
 
 /** Turn-rate command (deg/s, positive = right) that drives the heading error to zero without hunting. */
-export function aimTurnCommandDeg(errRad, currentTurnDeg = 0) {
+export function aimTurnCommandDeg(errRad, currentTurnDeg = 0, isMoving = false) {
   let errDeg = C.radToDeg(errRad);
   if (Math.abs(errDeg) <= C.AI_AIM_DEADBAND_DEG) return 0;
   // Hysteresis around the 180-degree blind spot to prevent rapid +/- flipping
   if (Math.abs(errDeg) > 170 && Math.abs(currentTurnDeg) > 0) {
     errDeg = currentTurnDeg > 0 ? 180 : -180;
   }
-  const limit = C.TANK_MAX_PIVOT_TURN_DEG_S; // aiming is done while stopped: pivot limit
-  return Math.max(-limit, Math.min(limit, errDeg * C.AI_AIM_GAIN_PER_S));
+  const limit = isMoving ? C.TANK_MAX_TURN_DEG_S : C.TANK_MAX_PIVOT_TURN_DEG_S;
+  const gain = isMoving ? Math.max(2.2, C.AI_AIM_GAIN_PER_S) : C.AI_AIM_GAIN_PER_S;
+  return Math.max(-limit, Math.min(limit, errDeg * gain));
+}
+
+function isForwardArcHazardous(world, tank, checkDist = 11.0) {
+  const fx = tank.x + Math.cos(tank.heading) * checkDist;
+  const fy = tank.y + Math.sin(tank.heading) * checkDist;
+  if (fx < 6 || fx > C.FIELD_LENGTH_M - 6 || fy < 6 || fy > C.FIELD_WIDTH_M - 6) return true;
+  if (world.mines) {
+    for (const m of world.mines) {
+      if (Math.hypot(tank.x - m.x, tank.y - m.y) < MINE_LETHAL_RADIUS_M + 0.5) return true;
+      const [mlx, mly] = toLocal(tank, m.x, m.y);
+      if (mlx > -1.0 && mlx < checkDist && Math.abs(mly) < MINE_LETHAL_RADIUS_M) return true;
+    }
+  }
+  if (world.pits) {
+    for (const pit of world.pits) {
+      const expPit = { x: pit.x, y: pit.y, h: pit.h, l: pit.l + 7.0, w: pit.w + 7.0 };
+      if (segmentVsObb(tank.x, tank.y, fx, fy, expPit) != null) return true;
+    }
+  }
+  return false;
 }
 
 /**
- * Decides whether the tank should stop and aim at the chosen target. Returns the aim solution
- * ({x, y, errRad, turnDeg}) or null when aiming is not appropriate/possible (out of range,
- * blocked line of fire, ...).
+ * Decides whether the tank should aim at the chosen target. Returns the aim solution
+ * ({x, y, errRad, turnDeg, cmdSpeedKmh}) or null when aiming is not appropriate/possible.
  */
 export function findAimSolution(world, owner, tank, target, targetPos, profile) {
   if (!target || !targetPos || tank.shells <= 0) return null;
-  const lead = leadPoint(tank, targetPos.x, targetPos.y, target.speed, target.heading, profile.leadFactor);
-  if (lead.dist > maxEngageDist(profile, target.speed)) return null;
+  const lead = leadPoint(
+    tank,
+    targetPos.x,
+    targetPos.y,
+    target.speed,
+    target.heading,
+    profile.leadFactor,
+    target.turn || 0,
+  );
+  // Pre-align hull gun early (up to +16m before max shell reach) while closing at full speed
+  // so the barrel is already dead-on the lead point the instant the enemy crosses max range!
+  const maxMuzzleDist = maxEngageDist(profile, target.speed) + 16.0;
+  if (lead.muzzleDist > maxMuzzleDist) return null;
   if (isLineOfFireBlocked(world, owner, tank.x, tank.y, lead.x, lead.y, tank.id)) return null;
+
+  // If a mine or pit is right in front of the hull, let full trajectory planner avoid it first
+  const hazardAhead = isForwardArcHazardous(world, tank, 12.0);
+  if (hazardAhead) return null;
+
   const errRad = aimError(tank, lead.x, lead.y);
-  return { x: lead.x, y: lead.y, errRad, turnDeg: aimTurnCommandDeg(errRad, tank.cmdTurnDeg || 0) };
+  const absErr = Math.abs(errRad);
+
+  // Moving tanks turn at 45 deg/s vs 30 deg/s when stopped!
+  // Stay mobile while turning or closing range, and only slow down when nearly aligned inside range.
+  let cmdSpeedKmh = 0;
+  if (lead.muzzleDist > maxEngageDist(profile, target.speed) - 1.0 && absErr < 1.0) {
+    cmdSpeedKmh = Math.min(profile.maxSpeedKmh || 36, 36);
+  } else if (absErr > 0.16) {
+    cmdSpeedKmh = Math.min(profile.maxSpeedKmh || 18, 18);
+  } else if (absErr > 0.04 || Math.abs(target.speed || 0) > 2.0) {
+    cmdSpeedKmh = 6;
+  }
+
+  const isMoving = cmdSpeedKmh !== 0;
+  return {
+    x: lead.x,
+    y: lead.y,
+    errRad,
+    turnDeg: aimTurnCommandDeg(errRad, tank.cmdTurnDeg || 0, isMoving),
+    cmdSpeedKmh,
+  };
 }

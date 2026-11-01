@@ -271,7 +271,7 @@ export function createRecorder(initialWorld, options = {}) {
         : winner === 0
           ? 'RED WINS'
           : 'BLUE WINS';
-    const score = `${15 - b.lost} - ${15 - a.lost}`;
+    const score = `${a.lost} - ${b.lost}`;
 
     const shootDist =
       finalWorld?.shellRange ||
@@ -607,6 +607,21 @@ export function listRecordings() {
     if (!raw) return [];
     const list = JSON.parse(raw);
     if (!Array.isArray(list)) return [];
+    let modified = false;
+    for (const r of list) {
+      if (typeof r.redLost === 'number' && typeof r.blueLost === 'number') {
+        const expectedScore = `${r.redLost} - ${r.blueLost}`;
+        if (r.score !== expectedScore) {
+          r.score = expectedScore;
+          modified = true;
+        }
+      }
+    }
+    if (modified) {
+      try {
+        localStorage.setItem(C.REPLAY_INDEX_KEY, JSON.stringify(list));
+      } catch { }
+    }
     list.sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime());
     return list;
   } catch {
@@ -679,7 +694,7 @@ export function deleteRecording(id) {
   const payloadKey = `${C.REPLAY_KEY_PREFIX}${id}`;
   try {
     localStorage.removeItem(payloadKey);
-  } catch {}
+  } catch { }
   const index = listRecordings().filter((it) => it.id !== id);
   try {
     localStorage.setItem(C.REPLAY_INDEX_KEY, JSON.stringify(index));

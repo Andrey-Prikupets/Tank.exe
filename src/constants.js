@@ -89,7 +89,7 @@ export const PLAYER_MODES = [
     rightAi: true,
   },
 ];
-export const AI_LEVELS = ['HARD', 'MEDIUM', 'EASY'];
+export const AI_LEVELS = ['EASY', 'MEDIUM', 'HARD'];
 export const AI_MAX_FIRE_DIST_M = 32;
 export const AI_ENGAGE_FAR_DIST_M = 35;
 export const AI_SMOKE_LOW_AMMO_DIST_M = 22;
@@ -163,9 +163,9 @@ export const AI_STRATEGY_PLANS = {
   CHARLIE: 'BASE_DEFENSE',
   DELTA: 'PURSUIT',
 };
-export const AI_PLAN_DEFENSE_TRIGGER_DIST_M = 30;
-export const AI_PLAN_DEFENSE_CLEAR_DIST_M = 40;
-export const AI_PLAN_DEFENSE_INNER_DIST_M = 20; // a single enemy this close triggers Charlie
+export const AI_PLAN_DEFENSE_TRIGGER_DIST_M = 45;
+export const AI_PLAN_DEFENSE_CLEAR_DIST_M = 55;
+export const AI_PLAN_DEFENSE_INNER_DIST_M = 35; // a single enemy this close triggers Charlie
 export const AI_PLAN_DEFENSE_MIN_THREATS = 2; // enemies within trigger distance needed otherwise
 export const AI_PLAN_MIN_DWELL_S = 4.0; // minimum time in a plan before a non-emergency exit
 export const AI_WEDGE_MIN_TANKS = 4;
@@ -177,10 +177,10 @@ export const AI_PURSUIT_OUTNUMBERED_RATIO = 3.0;
 export const AI_COMMANDER_EVAL_INTERVAL_S = 0.8;
 
 // Dispatcher & Urgency
-export const AI_MIN_SLICE_S = 2.0;
+export const AI_MIN_SLICE_S = 1.2;
 export const AI_MAX_SLICE_S = 4.0;
-export const AI_POST_FIRE_HOLD_S = 0.5;
-export const AI_DISPATCH_THRESHOLD_DELTA = 15;
+export const AI_POST_FIRE_HOLD_S = 0.4;
+export const AI_DISPATCH_THRESHOLD_DELTA = 10;
 export const AI_URGENCY_HAZARD_PIT = 95;
 export const AI_URGENCY_HAZARD_MINE = 90;
 export const AI_URGENCY_HAZARD_OBSTACLE = 80;
@@ -197,7 +197,7 @@ export const AI_URGENCY_GATE_TARGET_BONUS = 5;
 export const AI_GATE_EMERGE_X_M = 9;
 export const AI_GATE_EMERGE_Y_M = 5;
 export const AI_MOVING_TARGET_SPEED_MS = 1.5;
-export const AI_EFFECTIVE_MOVING_RANGE_M = 24;
+export const AI_EFFECTIVE_MOVING_RANGE_M = 32;
 export const AI_URGENCY_COMBAT_SHELL_INCOMING = 75;
 export const AI_URGENCY_COMBAT_ENGAGING = 65;
 export const AI_URGENCY_REARM = 50;

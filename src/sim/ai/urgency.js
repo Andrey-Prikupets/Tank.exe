@@ -1,7 +1,7 @@
 import * as C from '../../constants.js';
 import { applyAction, gateX } from '../world.js';
 import { segmentVsObb, toLocal } from '../geometry.js';
-import { isInEnemySlitGunSector } from '../nav.js';
+import { isInEnemySlitGunSector, MINE_LETHAL_RADIUS_M } from '../nav.js';
 import { isLineOfSightBlockedBySmoke, getPredictedEnemyState, isLineOfFireBlocked } from './perception.js';
 import { leadPoint, aimError, maxEngageDist } from './aiming.js';
 
@@ -69,12 +69,16 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
     }
   }
 
-  // Mines: check forward path for active maneuvering requirement
+  // Mines: check forward path and immediate corner radius for active maneuvering requirement
   if (world.mines && world.mines.length > 0) {
-    const mineSafetyR = C.TANK_WIDTH_M / 2 + C.MINE_TRIGGER_RADIUS_M + 1.2;
     for (const m of world.mines) {
+      const dMine = Math.hypot(m.x - tank.x, m.y - tank.y);
+      if (dMine < MINE_LETHAL_RADIUS_M + 0.8) {
+        hazardScore = Math.max(hazardScore, C.AI_URGENCY_HAZARD_MINE);
+        break;
+      }
       const [mlx, mly] = toLocal(tank, m.x, m.y);
-      if (mlx > -1.0 && mlx < lookAhead + 4 && Math.abs(mly) < mineSafetyR + 1.2) {
+      if (mlx > -1.5 && mlx < lookAhead + 4 && Math.abs(mly) < MINE_LETHAL_RADIUS_M + 0.8) {
         hazardScore = Math.max(hazardScore, C.AI_URGENCY_HAZARD_MINE);
         break;
       }
@@ -118,23 +122,30 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
   for (const s of world.shells) {
     if (s.owner !== owner) {
       const sDist = Math.hypot(s.x - tank.x, s.y - tank.y);
-      if (sDist < C.AI_SMOKE_INCOMING_SHELL_DIST_M) {
+      if (sDist < C.AI_SMOKE_INCOMING_SHELL_DIST_M + 4) {
         const toMeX = tank.x - s.x;
         const toMeY = tank.y - s.y;
-        const dot = (s.dx * toMeX + s.dy * toMeY) / sDist;
+        const dot = (s.dx * toMeX + s.dy * toMeY) / Math.max(0.1, sDist);
         if (dot > C.AI_SMOKE_SHELL_DOT_THRESHOLD) {
-          combatScore = Math.max(combatScore, C.AI_URGENCY_COMBAT_SHELL_INCOMING);
+          combatScore = Math.max(combatScore, C.AI_URGENCY_COMBAT_SHELL_INCOMING + 10);
           break;
         }
       }
     }
   }
 
-  // Shot allocation: only one gun fires at a time, so give it to the tank that can deliver a
-  // shot soonest (remaining reload vs. time to pivot the fixed gun onto the lead point).
+  let minEnemyDist = Infinity;
+  for (const e of enemyField) {
+    const d = Math.hypot(e.x - tank.x, e.y - tank.y);
+    if (d < minEnemyDist) minEnemyDist = d;
+  }
+
+  // Shot allocation & close-threat defense: give control to the tank that can deliver a shot
+  // soonest or is actively threatened by a closing enemy tank.
   if (tank.shells > 0 && enemyField.length > 0) {
     const enemyGate = gateX(1 - owner);
     for (const e of enemyField) {
+      const rawDist = Math.hypot(e.x - tank.x, e.y - tank.y);
       const smokeBlocked = isLineOfSightBlockedBySmoke(world, tank.x, tank.y, e.x, e.y);
       let targetX = e.x;
       let targetY = e.y;
@@ -146,33 +157,57 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
         targetY = pred.predY;
       }
 
-      const lead = leadPoint(tank, targetX, targetY, e.speed, e.heading, profile.leadFactor);
-      if (lead.dist > maxEngageDist(profile, e.speed)) continue;
+      const lead = leadPoint(tank, targetX, targetY, e.speed, e.heading, profile.leadFactor, e.turn || 0);
+      const engageLimit = maxEngageDist(profile, e.speed) + 4.5;
+
+      // Active close-range threat / intercept urgency (up to 48m, before enemy fires first)
+      if (rawDist <= 48.0) {
+        const toMeAngle = Math.atan2(tank.y - e.y, tank.x - e.x);
+        const enemyClosing = Math.cos(e.heading - toMeAngle) * (e.speed || 0) > 1.5;
+        const closeThreatScore =
+          80 +
+          Math.max(0, (48.0 - rawDist) * 0.3) +
+          (enemyClosing ? 5 : 0) -
+          (tank.reload > 0.3 ? 6 : 0);
+        combatScore = Math.max(combatScore, closeThreatScore);
+      }
+
+      if (lead.muzzleDist > engageLimit) continue;
       if (isLineOfFireBlocked(world, owner, tank.x, tank.y, lead.x, lead.y, tank.id)) continue;
 
       const errDeg = C.radToDeg(Math.abs(aimError(tank, lead.x, lead.y)));
-      const turnS = errDeg / C.TANK_MAX_PIVOT_TURN_DEG_S;
+      const turnS = errDeg / C.TANK_MAX_TURN_DEG_S;
       const timeToShot = Math.max(tank.reload, turnS);
       let score =
         C.AI_URGENCY_COMBAT_AIMED -
         Math.min(C.AI_URGENCY_SHOT_PENALTY_MAX, timeToShot * C.AI_URGENCY_SHOT_PENALTY_PER_S);
+
+      // Prioritize active moving threats over parked spawn tanks
+      if (Math.abs(e.speed || 0) > 1.5) {
+        score += 6;
+      }
       const emerging =
-        Math.abs(e.x - enemyGate) <= C.AI_GATE_EMERGE_X_M && Math.abs(e.y - C.GATE_CENTER_Y_M) <= C.AI_GATE_EMERGE_Y_M;
+        Math.abs(e.speed || 0) > 0.5 &&
+        Math.abs(e.x - enemyGate) <= C.AI_GATE_EMERGE_X_M &&
+        Math.abs(e.y - C.GATE_CENTER_Y_M) <= C.AI_GATE_EMERGE_Y_M;
       if (emerging) score += C.AI_URGENCY_GATE_TARGET_BONUS;
 
       // Opportunity target boost: unblocked enemy within reach requiring short turn
-      if (!smokeBlocked && lead.dist <= C.AI_TARGET_OPPORTUNITY_MAX_DIST_M && errDeg <= 75) {
-        score = Math.max(score, C.AI_URGENCY_COMBAT_OPPORTUNITY - turnS * 4);
+      if (!smokeBlocked && lead.muzzleDist <= C.SHELL_RANGE_M && errDeg <= 75) {
+        score = Math.max(score, C.AI_URGENCY_COMBAT_OPPORTUNITY - turnS * 4 + (Math.abs(e.speed || 0) > 1.5 ? 4 : 0));
       }
+
+      // Instant Parallel Volley Multiplexing: if this unit's gun is loaded and already pre-aligned
+      // within firing tolerance on an unblocked target in range, boost to 98 so dispatcher switches
+      // to it immediately to fire a multi-tank volley!
+      if (!smokeBlocked && tank.reload <= 0 && lead.muzzleDist <= maxEngageDist(profile, e.speed) + 2.2 && errDeg <= 4.5) {
+        score = Math.max(score, 98 + (Math.abs(e.speed || 0) > 1.5 ? 1 : 0));
+      }
+
       combatScore = Math.max(combatScore, score);
     }
     // Armed combatant engagement/advance baseline when enemies are on the field
     if (combatScore === 0) {
-      let minEnemyDist = Infinity;
-      for (const e of enemyField) {
-        const d = Math.hypot(e.x - tank.x, e.y - tank.y);
-        if (d < minEnemyDist) minEnemyDist = d;
-      }
       combatScore = Math.max(45, C.AI_URGENCY_COMBAT_ENGAGING - (minEnemyDist / C.FIELD_LENGTH_M) * 20);
     }
   }
@@ -182,13 +217,27 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
     rearmScore = C.AI_URGENCY_REARM;
   }
 
-  // 4. Starvation
-  const starvationScore = Math.min(C.AI_STARVATION_MAX, timeSinceCommand * C.AI_STARVATION_RATE_PER_S);
+  // 4. Starvation (dampened for distant tanks when any teammate is in close combat < 48m)
+  let anyTeammateInCloseCombat = false;
+  for (const f of world.tanks) {
+    if (f.owner !== owner || f.status !== 'field') continue;
+    for (const e of enemyField) {
+      if (Math.hypot(e.x - f.x, e.y - f.y) < 48.0) {
+        anyTeammateInCloseCombat = true;
+        break;
+      }
+    }
+    if (anyTeammateInCloseCombat) break;
+  }
+
+  const rawStarvation = Math.min(C.AI_STARVATION_MAX, timeSinceCommand * C.AI_STARVATION_RATE_PER_S);
+  const starvationWeight = anyTeammateInCloseCombat && minEnemyDist > 56.0 ? 0.2 : 0.75;
+  const starvationScore = rawStarvation;
 
   const acuteScore = Math.max(hazardScore, combatScore, rearmScore);
-  const urgency = acuteScore + starvationScore * 0.8;
+  const urgency = acuteScore + starvationScore * starvationWeight;
 
-  return { urgency, hazardScore, combatScore, rearmScore, starvationScore };
+  return { urgency, hazardScore, combatScore, rearmScore, starvationScore, minEnemyDist };
 }
 
 /** Pre-switch safe cruising trim: locks zero turn rate and safe forward vector before deselecting unit. */
@@ -243,12 +292,12 @@ export function applySafeCruisingTrim(world, owner, tank, targetSpeedKmh = 18) {
       }
     }
 
-    // Mines
+    // Mines (full corner-safe radius)
     if (world.mines) {
-      const mineSafetyR = C.TANK_WIDTH_M / 2 + C.MINE_TRIGGER_RADIUS_M + 0.8;
       for (const m of world.mines) {
+        if (Math.hypot(tank.x - m.x, tank.y - m.y) < MINE_LETHAL_RADIUS_M + 0.5) return true;
         const [mlx, mly] = toLocal(probe, m.x, m.y);
-        if (mlx > -0.5 && mlx < lookAheadDist && Math.abs(mly) < mineSafetyR) return true;
+        if (mlx > -1.0 && mlx < lookAheadDist && Math.abs(mly) < MINE_LETHAL_RADIUS_M + 0.4) return true;
       }
     }
 

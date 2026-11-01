@@ -1,56 +1,62 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Tank.exe — 90s Split-Screen 3D Tank Game</title>
-    <meta name="description" content="Retro 90s-style split-screen 3D tank duel for two players on one keyboard." />
-    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet" />
-  </head>
-  <body>
-    <main id="app">
-      <section id="mapWrap" aria-label="Strategic map"><canvas id="map"></canvas></section>
-      <section id="glWrap" aria-label="Player views">
-        <canvas id="gl"></canvas>
-        <div class="pane left" id="pane0">
-          <div class="winmask top"></div><div class="winmask bottom"></div>
-          <div class="cross"></div>
-          <div class="banner" id="banner0"></div>
-          <div class="inv-overlay left" id="inv0"></div>
-        </div>
-        <div class="pane right" id="pane1">
-          <div class="winmask top"></div><div class="winmask bottom"></div>
-          <div class="cross"></div>
-          <div class="banner" id="banner1"></div>
-          <div class="inv-overlay right" id="inv1"></div>
-        </div>
-        <div id="playbackToolbar" class="pb-toolbar hidden" aria-label="Playback controls"></div>
-      </section>
-      <div id="menu" class="hidden">
-        <div class="card">
-          <div class="m-lang-switch hidden" id="historyLangSwitch" role="group" aria-label="Language selection">
-            <button type="button" class="lang-btn" data-lang="en">EN</button>
-            <button type="button" class="lang-btn" data-lang="es">ES</button>
-            <button type="button" class="lang-btn" data-lang="ru">RU</button>
-          </div>
-          <h1 class="m-title"></h1>
-          <div class="m-version"></div>
-          <div class="m-scroll-wrap">
-            <div class="m-text"></div>
-          </div>
-          <ul class="m-items"></ul>
-          <p class="m-hint">↑ ↓ select &nbsp;·&nbsp; Space / Enter confirm &nbsp;·&nbsp; Esc back</p>
-        </div>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Tank.exe — 90s Split-Screen 3D Tank Game</title>
+  <meta name="description" content="Retro 90s-style split-screen 3D tank duel for two players on one keyboard." />
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+</head>
+
+<body>
+  <main id="app">
+    <section id="mapWrap" aria-label="Strategic map"><canvas id="map"></canvas></section>
+    <section id="glWrap" aria-label="Player views">
+      <canvas id="gl"></canvas>
+      <div class="pane left" id="pane0">
+        <div class="winmask top"></div>
+        <div class="winmask bottom"></div>
+        <div class="cross"></div>
+        <div class="banner" id="banner0"></div>
+        <div class="inv-overlay left" id="inv0"></div>
       </div>
-      <div id="keyboardScreen" class="hidden"></div>
-      <div id="replaysScreen" class="hidden" aria-label="Game Playback"></div>
-      <div id="networkScreen" class="hidden" aria-label="Network Multiplayer"></div>
-    </main>
-    <script type="module" src="/src/main.js"></script>
-  </body>
+      <div class="pane right" id="pane1">
+        <div class="winmask top"></div>
+        <div class="winmask bottom"></div>
+        <div class="cross"></div>
+        <div class="banner" id="banner1"></div>
+        <div class="inv-overlay right" id="inv1"></div>
+      </div>
+      <div id="playbackToolbar" class="pb-toolbar hidden" aria-label="Playback controls"></div>
+    </section>
+    <div id="menu" class="hidden">
+      <div class="card">
+        <div class="m-lang-switch hidden" id="historyLangSwitch" role="group" aria-label="Language selection">
+          <button type="button" class="lang-btn" data-lang="en">EN</button>
+          <button type="button" class="lang-btn" data-lang="es">ES</button>
+          <button type="button" class="lang-btn" data-lang="ru">RU</button>
+        </div>
+        <h1 class="m-title"></h1>
+        <div class="m-version"></div>
+        <div class="m-scroll-wrap">
+          <div class="m-text"></div>
+        </div>
+        <ul class="m-items"></ul>
+        <p class="m-hint">↑ ↓ select &nbsp;·&nbsp; Space / Enter confirm &nbsp;·&nbsp; Esc back</p>
+      </div>
+    </div>
+    <div id="keyboardScreen" class="hidden"></div>
+    <div id="replaysScreen" class="hidden" aria-label="Game playback"></div>
+    <div id="networkScreen" class="hidden" aria-label="Network Multiplayer"></div>
+  </main>
+  <script type="module" src="/src/main.js"></script>
+</body>
+
 </html>
