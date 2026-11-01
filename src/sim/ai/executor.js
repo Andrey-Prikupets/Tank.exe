@@ -2,7 +2,7 @@ import * as C from '../../constants.js';
 import { applyAction, gateX, inwardDir, baseHeading, windowY } from '../world.js';
 import { toLocal } from '../geometry.js';
 import { getAttackStandoffWaypoint, getGateCorridorPose, getGateAmbushPose, isInEnemySlitGunSector, evaluateKinematicTrajectoryArcs, applyKinematicCommands, gateReservationManager } from '../nav.js';
-import { normalizeAngle } from './math.js';
+import { normalizeAngle, fuzz } from './math.js';
 import { isLineOfSightBlockedBySmoke, getPredictedEnemyState, isLineOfFireBlocked } from './perception.js';
 import { tryFireWeapon } from './weapons.js';
 import { getRoleWaypoint } from './roles.js';
@@ -53,16 +53,16 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
     const threat = enemyField
       .filter(
         (e) =>
-          Math.abs(e.x - gateX(owner)) < C.AI_SLIT_DEFENSE_TRIGGER_DIST_M &&
+          Math.abs(e.x - gateX(owner)) < fuzz(C.AI_SLIT_DEFENSE_TRIGGER_DIST_M, profile, 14.0, 34.0) &&
           (canHitFromWindow(e, 0) || canHitFromWindow(e, 1)),
       )
       .sort((a, b) => Math.abs(a.x - gateX(owner)) - Math.abs(b.x - gateX(owner)))[0];
     const timeSinceFire = ctl.simTime - (ctl.lastFiredTime || 0);
     const canSwitchToSlit =
-      ctl.sliceTimer >= C.AI_MIN_SLICE_S &&
-      timeSinceFire >= C.AI_POST_FIRE_HOLD_S &&
-      minEnemyToTank > 42.0;
-    if (threat && Math.abs(tank.x - gateX(owner)) > C.AI_SLIT_ENTRY_MIN_TANK_DIST_M && canSwitchToSlit) {
+      ctl.sliceTimer >= fuzz(C.AI_MIN_SLICE_S, profile, 0.6, 2.0) &&
+      timeSinceFire >= fuzz(C.AI_POST_FIRE_HOLD_S, profile, 0.2, 0.7) &&
+      minEnemyToTank > fuzz(42.0, profile, 25.0, 60.0);
+    if (threat && Math.abs(tank.x - gateX(owner)) > fuzz(C.AI_SLIT_ENTRY_MIN_TANK_DIST_M, profile, 22.0, 55.0) && canSwitchToSlit) {
       const useWin0 = canHitFromWindow(threat, 0);
       const slitAction = useWin0 ? 'WIN_L' : 'WIN_R';
       ctl.note(
@@ -77,10 +77,10 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
   }
 
   // 8. Stuck recovery
-  if (tank.contacts.length > 0 && Math.abs(tank.speed) < 0.6) {
+  if (tank.contacts.length > 0 && Math.abs(tank.speed) < fuzz(0.6, profile, 0.1, 2.0)) {
     ctl.stuckTimer += dt;
-    if (ctl.stuckTimer > 0.4) {
-      ctl.reverseTimer = 1.0;
+    if (ctl.stuckTimer > fuzz(0.4, profile, 0.15, 1.2)) {
+      ctl.reverseTimer = fuzz(1.0, profile, 0.4, 2.0);
       ctl.stuckTimer = 0;
       ctl.note('AVOID', `T${tank.number} stuck on contact - reversing`, { key: `stuck${tank.id}`, gap: 2 });
     }
@@ -152,29 +152,32 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
       const blocked = isLineOfFireBlocked(world, owner, tank.x, tank.y, targetX, targetY, tank.id);
       const toUs = Math.atan2(tank.y - targetY, tank.x - targetX);
       const facingUs =
-        Math.abs(normalizeAngle(toUs - e.heading)) < 0.35 && d < profile.maxFireDist;
+        Math.abs(normalizeAngle(toUs - e.heading)) < fuzz(0.35, profile, 0.1, 0.9) &&
+        d < fuzz(profile.maxFireDist, profile, 8.0, 36.0);
       const isLocked = e.id === ctl.lockedTargetId;
-      const noise = (Math.random() - 0.5) * C.AI_TARGET_NOISE_AMPLITUDE;
+      const noise = (Math.random() - 0.5) * C.AI_TARGET_NOISE_AMPLITUDE * (1 + (profile.noiseFactor || 0) * 3);
 
       // Highest priority for enemy tanks actively emerging through the gate entrance!
       const enemyGate = gateX(1 - owner);
       const isEmergingFromGate =
-        Math.abs(e.speed || 0) > 0.5 &&
-        Math.abs(e.x - enemyGate) <= 9.0 &&
-        Math.abs(e.y - C.GATE_CENTER_Y_M) <= 5.0;
-      const emergingBonus = isEmergingFromGate ? 70.0 : 0;
+        Math.abs(e.speed || 0) > fuzz(0.5, profile, 0.1, 3.0) &&
+        Math.abs(e.x - enemyGate) <= fuzz(9.0, profile, 4.0, 16.0) &&
+        Math.abs(e.y - C.GATE_CENTER_Y_M) <= fuzz(5.0, profile, 2.0, 10.0);
+      const emergingBonus = isEmergingFromGate ? fuzz(70.0, profile, 35.0, 100.0) : 0;
 
       // Prioritize active moving human attackers and base raiders over stationary spawn reserves
       const ownGate = gateX(owner);
-      const isMovingThreat = Math.abs(e.speed || 0) > 1.5;
-      const isRaidingOurBase = Math.abs(e.x - ownGate) < 60.0;
-      const activeThreatBonus = (isMovingThreat ? 38.0 : 0) + (isRaidingOurBase && isMovingThreat ? 24.0 : 0);
+      const isMovingThreat = Math.abs(e.speed || 0) > fuzz(1.5, profile, 0.3, 5.0);
+      const isRaidingOurBase = Math.abs(e.x - ownGate) < fuzz(60.0, profile, 30.0, 95.0);
+      const activeThreatBonus =
+        (isMovingThreat ? fuzz(38.0, profile, 18.0, 60.0) : 0) +
+        (isRaidingOurBase && isMovingThreat ? fuzz(24.0, profile, 10.0, 42.0) : 0);
 
       const isOpportunity =
         !blocked &&
         !smokeBlocked &&
-        d <= C.AI_TARGET_OPPORTUNITY_MAX_DIST_M + 12.0 &&
-        ang <= C.AI_TARGET_OPPORTUNITY_MAX_ANGLE_RAD &&
+        d <= fuzz(C.AI_TARGET_OPPORTUNITY_MAX_DIST_M + 12.0, profile, 18.0, 48.0) &&
+        ang <= fuzz(C.AI_TARGET_OPPORTUNITY_MAX_ANGLE_RAD, profile, 0.5, 2.2) &&
         tank.shells > 0;
 
       const anglePenalty = isOpportunity
@@ -275,16 +278,16 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
       }
     }
 
-    if (nearestThreat && nearestThreatDist < 35.0) {
+    if (nearestThreat && nearestThreatDist < fuzz(35.0, profile, 18.0, 55.0)) {
       // Sprint to hangar to escape the armed pursuer!
       maxSpeedOverride = profile.maxSpeedKmh;
 
       // If enemy is directly in our path to the gate, add lateral evasive jinking
       const toGateX = navTargetX - tank.x;
       const toEnemyX = nearestThreat.x - tank.x;
-      if (Math.sign(toGateX) === Math.sign(toEnemyX) && nearestThreatDist < 18.0) {
+      if (Math.sign(toGateX) === Math.sign(toEnemyX) && nearestThreatDist < fuzz(18.0, profile, 8.0, 28.0)) {
         const jinkDir = tank.y < nearestThreat.y ? -1 : 1;
-        navTargetY = Math.max(12, Math.min(88, navTargetY + jinkDir * 16.0));
+        navTargetY = Math.max(12, Math.min(88, navTargetY + jinkDir * fuzz(16.0, profile, 8.0, 24.0)));
       }
     }
   } else {
@@ -292,7 +295,7 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
     if (combatTarget && combatTargetPos && tank.shells > 0) {
       const isOpportunityTarget =
         !isLineOfFireBlocked(world, owner, tank.x, tank.y, combatTargetPos.x, combatTargetPos.y, tank.id) &&
-        combatTargetDist <= C.AI_TARGET_OPPORTUNITY_MAX_DIST_M + 12.0;
+        combatTargetDist <= fuzz(C.AI_TARGET_OPPORTUNITY_MAX_DIST_M + 12.0, profile, 18.0, 48.0);
 
       if (isOpportunityTarget) {
         // Opportunity fire diversion: divert directly toward target to line up and shoot
@@ -363,7 +366,7 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
     });
     const creepHold =
       isHoldingContainmentPost &&
-      Math.abs(aim.errRad) > 0.20 &&
+      Math.abs(aim.errRad) > fuzz(0.20, profile, 0.06, 0.5) &&
       !isInEnemySlitGunSector(
         tank.x + Math.cos(tank.heading) * 4.5,
         tank.y + Math.sin(tank.heading) * 4.5,
@@ -371,14 +374,14 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
         0,
       );
     const holdSpeed = isHoldingContainmentPost ? (creepHold ? 6 : 0) : (aim.cmdSpeedKmh ?? 0);
-    const holdTurn = aimTurnCommandDeg(aim.errRad, tank.cmdTurnDeg || 0, holdSpeed !== 0);
+    const holdTurn = aimTurnCommandDeg(aim.errRad, tank.cmdTurnDeg || 0, holdSpeed !== 0, profile);
     applyKinematicCommands(world, owner, tank, holdSpeed, holdTurn);
   } else if (isHoldingContainmentPost) {
-    const gateAimX = combatTargetPos ? combatTargetPos.x : gx + dir * 6.0;
+    const gateAimX = combatTargetPos ? combatTargetPos.x : gx + dir * fuzz(6.0, profile, 3.0, 12.0);
     const gateAimY = combatTargetPos ? combatTargetPos.y : C.GATE_CENTER_Y_M;
     const errRad = normalizeAngle(Math.atan2(gateAimY - tank.y, gateAimX - tank.x) - tank.heading);
     const creepSafe =
-      Math.abs(errRad) > 0.20 &&
+      Math.abs(errRad) > fuzz(0.20, profile, 0.06, 0.5) &&
       !isInEnemySlitGunSector(
         tank.x + Math.cos(tank.heading) * 4.5,
         tank.y + Math.sin(tank.heading) * 4.5,
@@ -386,7 +389,7 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
         0,
       );
     const cmdSpd = creepSafe ? 6 : 0;
-    const turnDeg = aimTurnCommandDeg(errRad, tank.cmdTurnDeg || 0, cmdSpd !== 0);
+    const turnDeg = aimTurnCommandDeg(errRad, tank.cmdTurnDeg || 0, cmdSpd !== 0, profile);
     applyKinematicCommands(world, owner, tank, cmdSpd, turnDeg);
   } else {
     const traj = evaluateKinematicTrajectoryArcs(
@@ -404,17 +407,17 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
   if (tank.smokes > 0) {
     let threat =
       tank.shells <= 1 &&
-      targetDist < C.AI_SMOKE_LOW_AMMO_DIST_M &&
+      targetDist < fuzz(C.AI_SMOKE_LOW_AMMO_DIST_M, profile, 8.0, 32.0) &&
       Math.random() < profile.useSmoke;
     if (!threat) {
       for (const s of world.shells) {
         if (s.owner !== owner) {
           const sDist = Math.hypot(s.x - tank.x, s.y - tank.y);
-          if (sDist < C.AI_SMOKE_INCOMING_SHELL_DIST_M) {
+          if (sDist < fuzz(C.AI_SMOKE_INCOMING_SHELL_DIST_M, profile, 8.0, 30.0)) {
             const toMeX = tank.x - s.x;
             const toMeY = tank.y - s.y;
             const dot = (s.dx * toMeX + s.dy * toMeY) / sDist;
-            if (dot > C.AI_SMOKE_SHELL_DOT_THRESHOLD && Math.random() < profile.useSmoke) {
+            if (dot > fuzz(C.AI_SMOKE_SHELL_DOT_THRESHOLD, profile, 0.4, 0.98) && Math.random() < profile.useSmoke) {
               threat = true;
               break;
             }
@@ -430,8 +433,8 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
       !assignedRole.includes('DEFENSE') &&
       assignedRole !== 'RELOADER' &&
       assignedRole !== 'SENTRY' &&
-      distToEnemyGate >= C.AI_ASSAULT_SMOKE_MIN_DIST_M &&
-      distToEnemyGate <= C.AI_ASSAULT_SMOKE_MAX_DIST_M &&
+      distToEnemyGate >= fuzz(C.AI_ASSAULT_SMOKE_MIN_DIST_M, profile, 12.0, 36.0) &&
+      distToEnemyGate <= fuzz(C.AI_ASSAULT_SMOKE_MAX_DIST_M, profile, 28.0, 56.0) &&
       Math.random() < profile.useSmoke
     ) {
       applyAction(world, owner, 'SMOKE');
@@ -455,11 +458,11 @@ export function executeTactics(ctl, world, dt, tank, enemyField, profile, levelN
     for (const e of enemyField) {
       const [elx, ely] = toLocal(tank, e.x, e.y);
       if (
-        elx < -2.0 &&
-        elx > -24.0 &&
-        Math.abs(ely) < 5.0 &&
-        (e.speed || 0) > 1.5 &&
-        Math.cos(e.heading - tank.heading) > 0.35
+        elx < fuzz(-2.0, profile, -5.0, -1.0) &&
+        elx > fuzz(-24.0, profile, -35.0, -12.0) &&
+        Math.abs(ely) < fuzz(5.0, profile, 2.5, 8.0) &&
+        (e.speed || 0) > fuzz(1.5, profile, 0.3, 4.0) &&
+        Math.cos(e.heading - tank.heading) > fuzz(0.35, profile, 0.1, 0.7)
       ) {
         pursuerBehind = true;
         break;

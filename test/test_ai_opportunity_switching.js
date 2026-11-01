@@ -6,6 +6,7 @@ import { runDispatcher } from '../src/sim/ai/dispatcher.js';
 import { updateSlit } from '../src/sim/ai/slit.js';
 import { PROFILES } from '../src/sim/ai/profiles.js';
 import { isLineOfSightBlockedBySmoke, getPredictedEnemyState } from '../src/sim/ai/perception.js';
+import { fuzz, resolveNoiseFactor } from '../src/sim/ai/math.js';
 
 console.log('\n--- Running AI Opportunity Targeting, Hold Times & Vector Tests ---');
 
@@ -127,6 +128,30 @@ console.log('\n--- Running AI Opportunity Targeting, Hold Times & Vector Tests -
 
   const predOld = getPredictedEnemyState(tracker, { id: 99 }, 15.0, 'HARD');
   assert.ok(predOld.hitProb < predFresh.hitProb, 'Confidence decays over time');
+}
+
+// 5. Generic threshold fuzzing (fuzz) & domain boundary preservation across EASY / MEDIUM / HARD
+{
+  assert.ok(
+    resolveNoiseFactor('EASY') > resolveNoiseFactor('MEDIUM') &&
+      resolveNoiseFactor('MEDIUM') > resolveNoiseFactor('HARD') &&
+      resolveNoiseFactor('HARD') > 0,
+    'Noise factor scales EASY > MEDIUM > HARD > 0',
+  );
+
+  for (let i = 0; i < 200; i++) {
+    // Positive values (time, distance, speed) must never become <= 0 even with huge noiseFactor
+    const posTime = fuzz(0.5, 5.0);
+    assert.ok(posTime > 0, 'Positive threshold must never become negative or zero');
+
+    // Negative values (rear local offset) must never become >= 0
+    const negOffset = fuzz(-2.0, 5.0);
+    assert.ok(negOffset < 0, 'Negative threshold must never flip positive');
+
+    // Explicit [min, max] bounds must be strictly respected
+    const bounded = fuzz(20.0, PROFILES.EASY, 15.0, 25.0);
+    assert.ok(bounded >= 15.0 && bounded <= 25.0, 'Explicit [min, max] domain bounds must hold');
+  }
 }
 
 console.log('✔ AI Opportunity Targeting, Hold Times & Vector Tests passed\n');

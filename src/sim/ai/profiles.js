@@ -7,6 +7,7 @@ export const PROFILES = {
     aimTolerance: 0.12,      // ~7 deg
     fireTolerance: 0.18,     // ~10 deg
     leadFactor: 0.0,         // direct aiming, no lead
+    noiseFactor: C.AI_NOISE_FACTOR_EASY, // high threshold distortion (~32%)
     maxSpeedKmh: 18,
     maxFireDist: 16,         // holds fire until within 16m
     standoffDist: 12,        // stops advancing at 12m
@@ -22,6 +23,7 @@ export const PROFILES = {
     aimTolerance: 0.08,      // ~4.5 deg
     fireTolerance: 0.14,     // ~8 deg
     leadFactor: 0.5,         // partial lead
+    noiseFactor: C.AI_NOISE_FACTOR_MEDIUM, // moderate threshold distortion (~14%)
     maxSpeedKmh: 36,
     maxFireDist: 22,         // holds fire until within 22m
     standoffDist: 15,        // stops advancing at 15m
@@ -37,6 +39,7 @@ export const PROFILES = {
     aimTolerance: 0.05,      // ~3 deg
     fireTolerance: 0.10,     // ~5.7 deg
     leadFactor: 1.0,         // full predictive lead
+    noiseFactor: C.AI_NOISE_FACTOR_HARD, // low threshold jitter (~3%) to break symmetric loops
     maxSpeedKmh: 36,
     maxFireDist: C.SHELL_RANGE_M, // 32m maximum physical shell reach
     standoffDist: 18,        // stops advancing at 18m

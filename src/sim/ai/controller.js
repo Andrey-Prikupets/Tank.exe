@@ -10,6 +10,7 @@ import { updateCommander, enforceUnselectedTanksSafety } from './commander.js';
 import { updateSlit } from './slit.js';
 import { runDispatcher } from './dispatcher.js';
 import { executeTactics } from './executor.js';
+import { fuzz } from './math.js';
 
 export class AiController {
   constructor(owner) {
@@ -124,6 +125,8 @@ export class AiController {
   update(world, dt, levelName = 'MEDIUM') {
     if (world.over) return;
     const profile = PROFILES[levelName] || PROFILES.MEDIUM;
+    this.level = levelName;
+    this.profile = profile;
     const owner = this.owner;
     const pl = world.players[owner];
 
@@ -133,7 +136,7 @@ export class AiController {
     this.navGridTimer += dt;
     this.windowTurn = 0;
 
-    if (this.navGridTimer >= 0.8 || this.simTime <= dt) {
+    if (this.navGridTimer >= fuzz(0.8, profile, 0.1, 2.0) || this.simTime <= dt) {
       this.navGrid.update(world);
       this.navGridTimer = 0;
     }

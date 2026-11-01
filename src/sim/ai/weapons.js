@@ -1,7 +1,7 @@
 import * as C from '../../constants.js';
 import { applyAction } from '../world.js';
 import { segmentVsObb } from '../geometry.js';
-import { normalizeAngle } from './math.js';
+import { normalizeAngle, fuzz } from './math.js';
 import { isLineOfSightBlockedBySmoke, getPredictedEnemyState, isLineOfFireBlocked } from './perception.js';
 import { leadPoint, maxEngageDist } from './aiming.js';
 
@@ -47,23 +47,22 @@ export function tryFireWeapon(world, owner, tank, enemyField, profile, enemyTrac
       }
     }
 
-    const effectiveLead = isHard
-      ? profile.leadFactor
-      : profile.leadFactor * (0.9 + Math.random() * 0.2);
+    const effectiveLead =
+      profile.leadFactor > 0 ? fuzz(profile.leadFactor, profile, 0, 1.2) : 0;
     const lead = leadPoint(tank, targetX, targetY, targetSpeed, targetHeading, effectiveLead, targetTurn);
 
     // Account for target hull extents (3m half-length / 2m half-width) so shots that physically
     // intersect the target hull within the 32m shell travel are taken immediately.
-    if (lead.muzzleDist > maxEngageDist(profile, targetSpeed) + 2.6) continue;
+    if (lead.muzzleDist > maxEngageDist(profile, targetSpeed) + fuzz(2.6, profile, 0.5, 4.0)) continue;
 
     const aimAngle = Math.atan2(lead.y - tank.y, lead.x - tank.x);
     const aimErr = Math.abs(normalizeAngle(aimAngle - tank.heading));
 
-    const effDist = Math.max(4.0, lead.leadDist);
+    const effDist = Math.max(fuzz(4.0, profile, 1.0, 8.0), lead.leadDist);
     const targetAngularHalfWidth = Math.atan2(C.TANK_WIDTH_M / 2 - 0.1, effDist);
     const allowedTol = isHard
-      ? Math.max(0.03, Math.min(targetAngularHalfWidth, profile.fireTolerance))
-      : Math.max(targetAngularHalfWidth, Math.min(profile.fireTolerance, 0.16) * (0.92 + Math.random() * 0.16));
+      ? Math.max(0.03, Math.min(targetAngularHalfWidth, fuzz(profile.fireTolerance, profile, 0.03, 0.2)))
+      : Math.max(targetAngularHalfWidth, fuzz(Math.min(profile.fireTolerance, 0.16), profile, 0.04, 0.35));
 
     // Exact ballistic ray intersection against predicted target hull OBB at shell arrival
     const tArrival = Math.min(C.SHELL_FLIGHT_TIME_S, lead.muzzleDist / (shellRange / C.SHELL_FLIGHT_TIME_S));
@@ -76,7 +75,12 @@ export function tryFireWeapon(world, owner, tank, enemyField, profile, enemyTrac
     };
     const rayHitsPredictedHull = !smokeBlocked && segmentVsObb(mx, my, rayEndX, rayEndY, predObb) != null;
 
-    if ((rayHitsPredictedHull || (lead.muzzleDist <= maxEngageDist(profile, targetSpeed) + 1.5 && aimErr <= allowedTol)) && (isHard || Math.random() < 0.96)) {
+    if (
+      (rayHitsPredictedHull ||
+        (lead.muzzleDist <= maxEngageDist(profile, targetSpeed) + fuzz(1.5, profile, 0.2, 3.0) &&
+          aimErr <= allowedTol)) &&
+      (isHard || Math.random() < fuzz(0.96, profile, 0.65, 1.0))
+    ) {
       if (!isLineOfFireBlocked(world, owner, tank.x, tank.y, lead.x, lead.y, tank.id)) {
         applyAction(world, owner, 'FIRE');
         return e;

@@ -1,5 +1,5 @@
 import * as C from '../../constants.js';
-import { normalizeAngle } from './math.js';
+import { normalizeAngle, fuzz } from './math.js';
 import { isLineOfSightBlockedBySmoke, isLineOfFireBlocked } from './perception.js';
 import { segmentVsObb, toLocal } from '../geometry.js';
 import { MINE_LETHAL_RADIUS_M, isSegmentInEnemySlitGunSector } from '../nav.js';
@@ -11,7 +11,7 @@ const MUZZLE_OFFSET_M = C.TANK_LENGTH_M / 2 + C.SHELL_MUZZLE_OFFSET_M;
  */
 export function maxEngageDist(profile, targetSpeed) {
   const max = profile.maxFireDist || C.SHELL_RANGE_M;
-  return Math.abs(targetSpeed || 0) > C.AI_MOVING_TARGET_SPEED_MS
+  return Math.abs(targetSpeed || 0) > fuzz(C.AI_MOVING_TARGET_SPEED_MS, profile, 0.1, 8.0)
     ? Math.min(max, C.AI_EFFECTIVE_MOVING_RANGE_M)
     : max;
 }
@@ -66,15 +66,15 @@ export function aimError(tank, aimX, aimY) {
 }
 
 /** Turn-rate command (deg/s, positive = right) that drives the heading error to zero without hunting. */
-export function aimTurnCommandDeg(errRad, currentTurnDeg = 0, isMoving = false) {
+export function aimTurnCommandDeg(errRad, currentTurnDeg = 0, isMoving = false, profile = null) {
   let errDeg = C.radToDeg(errRad);
-  if (Math.abs(errDeg) <= C.AI_AIM_DEADBAND_DEG) return 0;
+  if (Math.abs(errDeg) <= fuzz(C.AI_AIM_DEADBAND_DEG, profile, 0.1, 8.0)) return 0;
   // Hysteresis around the 180-degree blind spot to prevent rapid +/- flipping
-  if (Math.abs(errDeg) > 170 && Math.abs(currentTurnDeg) > 0) {
+  if (Math.abs(errDeg) > fuzz(170, profile, 145, 179) && Math.abs(currentTurnDeg) > 0) {
     errDeg = currentTurnDeg > 0 ? 180 : -180;
   }
   const limit = isMoving ? C.TANK_MAX_TURN_DEG_S : C.TANK_MAX_PIVOT_TURN_DEG_S;
-  const gain = isMoving ? Math.max(2.2, C.AI_AIM_GAIN_PER_S) : C.AI_AIM_GAIN_PER_S;
+  const gain = isMoving ? Math.max(fuzz(2.2, profile, 1.0, 4.0), C.AI_AIM_GAIN_PER_S) : C.AI_AIM_GAIN_PER_S;
   return Math.max(-limit, Math.min(limit, errDeg * gain));
 }
 
@@ -117,28 +117,34 @@ function isForwardArcHazardous(world, tank, checkDist = 11.0) {
  */
 export function findAimSolution(world, owner, tank, target, targetPos, profile) {
   if (!target || !targetPos || tank.shells <= 0) return null;
+  const fuzzedLead = profile.leadFactor > 0 ? fuzz(profile.leadFactor, profile, 0, 1.2) : 0;
   const lead = leadPoint(
     tank,
     targetPos.x,
     targetPos.y,
     target.speed,
     target.heading,
-    profile.leadFactor,
+    fuzzedLead,
     target.turn || 0,
   );
   // Pre-align hull gun early (up to +16m before max shell reach) while closing at full speed
   // so the barrel is already dead-on the lead point the instant the enemy crosses max range!
-  const maxMuzzleDist = maxEngageDist(profile, target.speed) + 16.0;
+  const maxMuzzleDist = maxEngageDist(profile, target.speed) + fuzz(16.0, profile, 4.0, 26.0);
   if (lead.muzzleDist > maxMuzzleDist) return null;
   if (isLineOfFireBlocked(world, owner, tank.x, tank.y, lead.x, lead.y, tank.id)) return null;
 
-  // If a mine or pit is right in front of the hull, let full trajectory planner avoid it first.
-  // If only the enemy slit-gun sector lies ahead, pivot in place (cmdSpeedKmh = 0) and shoot from outside!
-  const hazardAhead = isForwardArcHazardous(world, tank, 12.0);
-  if (hazardAhead === 'mine_proximity' || hazardAhead === 'forward_hazard') return null;
-
   const errRad = aimError(tank, lead.x, lead.y);
   const absErr = Math.abs(errRad);
+
+  // If a mine or pit is right in front of the hull, let full trajectory planner avoid it first.
+  // Use a compact probe when already within firing range or nearly aligned so tanks near a pit
+  // can still aim and fire at enemies in open ground instead of freezing.
+  const probeDist =
+    lead.muzzleDist <= fuzz(30.0, profile, 18.0, 38.0) || absErr < fuzz(0.35, profile, 0.1, 0.8)
+      ? fuzz(6.5, profile, 4.5, 8.0)
+      : fuzz(11.0, profile, 7.5, 15.0);
+  const hazardAhead = isForwardArcHazardous(world, tank, probeDist);
+  if (hazardAhead === 'mine_proximity' || hazardAhead === 'forward_hazard') return null;
 
   // Moving tanks turn at 45 deg/s vs 30 deg/s when stopped!
   // Stay mobile while turning or closing range, and only slow down when nearly aligned inside range.
@@ -152,12 +158,15 @@ export function findAimSolution(world, owner, tank, target, targetPos, profile) 
       1 - tank.owner,
       0,
     );
-    cmdSpeedKmh = absErr > 0.20 && shortClear ? 6 : 0;
-  } else if (lead.muzzleDist > maxEngageDist(profile, target.speed) - 1.0 && absErr < 1.65) {
+    cmdSpeedKmh = absErr > fuzz(0.20, profile, 0.05, 0.6) && shortClear ? 6 : 0;
+  } else if (
+    lead.muzzleDist > maxEngageDist(profile, target.speed) - fuzz(1.0, profile, 0.1, 4.0) &&
+    absErr < fuzz(1.65, profile, 0.5, Math.PI)
+  ) {
     cmdSpeedKmh = Math.min(profile.maxSpeedKmh || 36, 36);
-  } else if (absErr > 0.16) {
+  } else if (absErr > fuzz(0.16, profile, 0.03, 0.6)) {
     cmdSpeedKmh = Math.min(profile.maxSpeedKmh || 18, 18);
-  } else if (absErr > 0.04 || Math.abs(target.speed || 0) > 2.0) {
+  } else if (absErr > fuzz(0.04, profile, 0.01, 0.25) || Math.abs(target.speed || 0) > fuzz(2.0, profile, 0.2, 8.0)) {
     cmdSpeedKmh = 6;
   }
 
@@ -166,7 +175,7 @@ export function findAimSolution(world, owner, tank, target, targetPos, profile) 
     x: lead.x,
     y: lead.y,
     errRad,
-    turnDeg: aimTurnCommandDeg(errRad, tank.cmdTurnDeg || 0, isMoving),
+    turnDeg: aimTurnCommandDeg(errRad, tank.cmdTurnDeg || 0, isMoving, profile),
     cmdSpeedKmh,
   };
 }

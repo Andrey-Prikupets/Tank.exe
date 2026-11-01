@@ -175,9 +175,9 @@ export const GAME3_MOMENTS = [
   },
 ];
 
-async function runSuite(label, replayPath, moments) {
+async function runSuite(label, replayPath, moments, level = 'HARD') {
   console.log(`\n################################################################################`);
-  console.log(`### ${label} (${replayPath})`);
+  console.log(`### ${label} [${level}] (${replayPath})`);
   console.log(`################################################################################`);
   const rec = await loadReplay(replayPath);
 
@@ -190,13 +190,13 @@ async function runSuite(label, replayPath, moments) {
     console.log(`\n================================================================================`);
     console.log(m.name);
     console.log(`  [RECORDED GAME] -> ${m.replayOutcome}`);
-    const res = simulateMoment(rec, { startT: m.startT, duration: m.duration, level: 'HARD' });
+    const res = simulateMoment(rec, { startT: m.startT, duration: m.duration, level });
     totalBlueShots += res.blueShots;
     totalRedKilled += res.redKilled;
     totalBlueLost += res.blueKilled;
     totalSlitExposure += res.blueSlitExposureSeconds;
     console.log(
-      `  [SIMULATED AI]  -> Blue Shots: ${res.blueShots} | Red Killed: ${res.redKilled} | Blue Lost: ${res.blueKilled} | Slit Exposure: ${res.blueSlitExposureSeconds.toFixed(1)}s`
+      `  [SIMULATED ${level}] -> Blue Shots: ${res.blueShots} | Red Killed: ${res.redKilled} | Blue Lost: ${res.blueKilled} | Slit Exposure: ${res.blueSlitExposureSeconds.toFixed(1)}s`
     );
     for (const ev of res.events) {
       console.log(`    - ${ev}`);
@@ -205,14 +205,33 @@ async function runSuite(label, replayPath, moments) {
 
   console.log(`\n--------------------------------------------------------------------------------`);
   console.log(
-    `SUITE TOTAL (${label}): Blue Shots=${totalBlueShots} | Red Killed=${totalRedKilled} | Blue Lost=${totalBlueLost} | Total Slit Exposure=${totalSlitExposure.toFixed(1)}s`
+    `SUITE TOTAL (${label} [${level}]): Blue Shots=${totalBlueShots} | Red Killed=${totalRedKilled} | Blue Lost=${totalBlueLost} | Total Slit Exposure=${totalSlitExposure.toFixed(1)}s`
   );
   console.log(`--------------------------------------------------------------------------------`);
-  return { totalBlueShots, totalRedKilled, totalBlueLost, totalSlitExposure };
+  return { level, totalBlueShots, totalRedKilled, totalBlueLost, totalSlitExposure };
 }
 
 async function main() {
   const args = process.argv.slice(2);
+  if (args[0] === '--levels') {
+    const summary = [];
+    for (const lvl of ['EASY', 'MEDIUM', 'HARD']) {
+      const r3 = await runSuite('GAME 3 (LATEST SAVED GAME)', 'tools/replays/game3_hvc_hard.replay', GAME3_MOMENTS, lvl);
+      const r2 = await runSuite('GAME 2 (PREVIOUS SAVED GAME)', 'tools/replays/game2_hvc_hard.replay', GAME2_MOMENTS, lvl);
+      const r1 = await runSuite('GAME 1 (INITIAL SAVED GAME)', 'tools/replays/game1_hvc_hard.replay', GAME1_MOMENTS, lvl);
+      summary.push({ lvl, r3, r2, r1 });
+    }
+    console.log(`\n================================================================================`);
+    console.log(`MULTI-LEVEL RANDOMNESS & HARDENING SUMMARY (EASY vs MEDIUM vs HARD)`);
+    console.log(`================================================================================`);
+    for (const s of summary) {
+      console.log(
+        `Level ${s.lvl.padEnd(6)} | Game3: Killed=${s.r3.totalRedKilled}, Lost=${s.r3.totalBlueLost}, Shots=${s.r3.totalBlueShots} | Game2: Killed=${s.r2.totalRedKilled}, Lost=${s.r2.totalBlueLost}, Shots=${s.r2.totalBlueShots} | Game1: Killed=${s.r1.totalRedKilled}, Lost=${s.r1.totalBlueLost}, Shots=${s.r1.totalBlueShots}`,
+      );
+    }
+    return;
+  }
+
   if (args.length >= 3) {
     const replayPath = args[0];
     const startT = parseFloat(args[1]);

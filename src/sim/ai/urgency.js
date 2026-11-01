@@ -4,6 +4,7 @@ import { segmentVsObb, toLocal } from '../geometry.js';
 import { isInEnemySlitGunSector, isSegmentInEnemySlitGunSector, MINE_LETHAL_RADIUS_M } from '../nav.js';
 import { isLineOfSightBlockedBySmoke, getPredictedEnemyState, isLineOfFireBlocked } from './perception.js';
 import { leadPoint, aimError, maxEngageDist } from './aiming.js';
+import { fuzz } from './math.js';
 
 /** Human-readable reason why a tank scored high urgency (for the AI decision log). */
 export function urgencyReason(info) {
@@ -40,7 +41,10 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
   let rearmScore = 0;
 
   // 1. Hazards: Course projection
-  const lookAhead = Math.max(C.AI_MINE_LOOKAHEAD_MIN_M, Math.abs(tank.speed) * 2.5);
+  const lookAhead = Math.max(
+    fuzz(C.AI_MINE_LOOKAHEAD_MIN_M, profile, 8.0, 26.0),
+    Math.abs(tank.speed) * fuzz(2.5, profile, 1.2, 4.0),
+  );
   const fx = tank.x + Math.cos(tank.heading) * lookAhead;
   const fy = tank.y + Math.sin(tank.heading) * lookAhead;
 
@@ -92,7 +96,7 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
       ? (fx < 8 ? (!inOwnGateLane || fx < -C.AI_REARM_PENETRATION_DEPTH_M) : fx > C.FIELD_LENGTH_M - 8)
       : (fx > C.FIELD_LENGTH_M - 8 ? (!inOwnGateLane || fx > C.FIELD_LENGTH_M + C.AI_REARM_PENETRATION_DEPTH_M) : fx < 8);
     if (fy < 8 || fy > C.FIELD_WIDTH_M - 8 || xOob) {
-      if (Math.abs(tank.speed) > 1.5) {
+      if (Math.abs(tank.speed) > fuzz(1.5, profile, 0.2, 5.0)) {
         hazardScore = Math.max(hazardScore, C.AI_URGENCY_HAZARD_OBSTACLE);
       }
     }
@@ -108,12 +112,13 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
   }
 
   // Slit gun sector hazard (acute priority: steer away or stop before entering enemy crosshairs)
-  const slitLookAhead = Math.max(18.0, Math.abs(tank.speed) * 3.0);
+  const slitLookAhead = Math.max(fuzz(18.0, profile, 10.0, 28.0), Math.abs(tank.speed) * fuzz(3.0, profile, 1.5, 4.5));
   const sfx = tank.x + Math.cos(tank.heading) * slitLookAhead;
   const sfy = tank.y + Math.sin(tank.heading) * slitLookAhead;
   if (
     isInEnemySlitGunSector(tank.x, tank.y, 1 - owner) ||
-    (Math.abs(tank.speed) > 0.5 && isSegmentInEnemySlitGunSector(tank.x, tank.y, sfx, sfy, 1 - owner, 1.5))
+    (Math.abs(tank.speed) > fuzz(0.5, profile, 0.1, 2.0) &&
+      isSegmentInEnemySlitGunSector(tank.x, tank.y, sfx, sfy, 1 - owner, 1.5))
   ) {
     hazardScore = Math.max(hazardScore, 92);
   }
@@ -122,11 +127,11 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
   for (const s of world.shells) {
     if (s.owner !== owner) {
       const sDist = Math.hypot(s.x - tank.x, s.y - tank.y);
-      if (sDist < C.AI_SMOKE_INCOMING_SHELL_DIST_M + 4) {
+      if (sDist < fuzz(C.AI_SMOKE_INCOMING_SHELL_DIST_M + 4, profile, 10.0, 32.0)) {
         const toMeX = tank.x - s.x;
         const toMeY = tank.y - s.y;
         const dot = (s.dx * toMeX + s.dy * toMeY) / Math.max(0.1, sDist);
-        if (dot > C.AI_SMOKE_SHELL_DOT_THRESHOLD) {
+        if (dot > fuzz(C.AI_SMOKE_SHELL_DOT_THRESHOLD, profile, 0.4, 0.98)) {
           combatScore = Math.max(combatScore, C.AI_URGENCY_COMBAT_SHELL_INCOMING + 10);
           break;
         }
@@ -158,17 +163,17 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
       }
 
       const lead = leadPoint(tank, targetX, targetY, e.speed, e.heading, profile.leadFactor, e.turn || 0);
-      const engageLimit = maxEngageDist(profile, e.speed) + 4.5;
+      const engageLimit = maxEngageDist(profile, e.speed) + fuzz(4.5, profile, 1.0, 9.0);
 
       // Active close-range threat / intercept urgency (up to 48m, before enemy fires first)
-      if (rawDist <= 48.0) {
+      if (rawDist <= fuzz(48.0, profile, 22.0, 68.0)) {
         const toMeAngle = Math.atan2(tank.y - e.y, tank.x - e.x);
-        const enemyClosing = Math.cos(e.heading - toMeAngle) * (e.speed || 0) > 1.5;
+        const enemyClosing = Math.cos(e.heading - toMeAngle) * (e.speed || 0) > fuzz(1.5, profile, 0.2, 5.0);
         const closeThreatScore =
           80 +
           Math.max(0, (48.0 - rawDist) * 0.3) +
           (enemyClosing ? 5 : 0) -
-          (tank.reload > 0.3 ? 6 : 0);
+          (tank.reload > fuzz(0.3, profile, 0.05, 1.5) ? 6 : 0);
         combatScore = Math.max(combatScore, closeThreatScore);
       }
 
@@ -183,28 +188,28 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
         Math.min(C.AI_URGENCY_SHOT_PENALTY_MAX, timeToShot * C.AI_URGENCY_SHOT_PENALTY_PER_S);
 
       // Prioritize active moving threats over parked spawn tanks
-      if (Math.abs(e.speed || 0) > 1.5) {
+      if (Math.abs(e.speed || 0) > fuzz(1.5, profile, 0.2, 5.0)) {
         score += 6;
       }
       const emerging =
-        Math.abs(e.speed || 0) > 0.5 &&
-        Math.abs(e.x - enemyGate) <= C.AI_GATE_EMERGE_X_M &&
-        Math.abs(e.y - C.GATE_CENTER_Y_M) <= C.AI_GATE_EMERGE_Y_M;
+        Math.abs(e.speed || 0) > fuzz(0.5, profile, 0.1, 3.0) &&
+        Math.abs(e.x - enemyGate) <= fuzz(C.AI_GATE_EMERGE_X_M, profile, 3.0, 16.0) &&
+        Math.abs(e.y - C.GATE_CENTER_Y_M) <= fuzz(C.AI_GATE_EMERGE_Y_M, profile, 2.0, 10.0);
       if (emerging) score += C.AI_URGENCY_GATE_TARGET_BONUS;
 
       // Opportunity target boost: unblocked enemy within reach requiring short turn
-      if (!smokeBlocked && lead.muzzleDist <= C.SHELL_RANGE_M && errDeg <= 75) {
-        score = Math.max(score, C.AI_URGENCY_COMBAT_OPPORTUNITY - turnS * 4 + (Math.abs(e.speed || 0) > 1.5 ? 4 : 0));
+      if (!smokeBlocked && lead.muzzleDist <= fuzz(C.SHELL_RANGE_M, profile, 16.0, 34.0) && errDeg <= fuzz(75, profile, 25, 120)) {
+        score = Math.max(score, C.AI_URGENCY_COMBAT_OPPORTUNITY - turnS * 4 + (Math.abs(e.speed || 0) > fuzz(1.5, profile, 0.2, 5.0) ? 4 : 0));
       }
 
       // Instant Parallel Volley Multiplexing: if this unit's gun is loaded and already pre-aligned
       // within firing tolerance on an unblocked target in range, boost to 98 so dispatcher switches
       // to it immediately to fire a multi-tank volley!
-      if (!smokeBlocked && tank.reload <= 0 && lead.muzzleDist <= maxEngageDist(profile, e.speed) + 2.5) {
-        if (errDeg <= 5.5) {
-          score = Math.max(score, 98 + (Math.abs(e.speed || 0) > 1.5 ? 1 : 0));
-        } else if (errDeg <= 14.0) {
-          score = Math.max(score, 94 + (Math.abs(e.speed || 0) > 1.5 ? 1 : 0));
+      if (!smokeBlocked && tank.reload <= 0 && lead.muzzleDist <= maxEngageDist(profile, e.speed) + fuzz(2.5, profile, 0.5, 4.5)) {
+        if (errDeg <= fuzz(5.5, profile, 1.5, 12.0)) {
+          score = Math.max(score, 98 + (Math.abs(e.speed || 0) > fuzz(1.5, profile, 0.2, 5.0) ? 1 : 0));
+        } else if (errDeg <= fuzz(14.0, profile, 5.0, 25.0)) {
+          score = Math.max(score, 94 + (Math.abs(e.speed || 0) > fuzz(1.5, profile, 0.2, 5.0) ? 1 : 0));
         }
       }
 
@@ -226,7 +231,7 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
   for (const f of world.tanks) {
     if (f.owner !== owner || f.status !== 'field') continue;
     for (const e of enemyField) {
-      if (Math.hypot(e.x - f.x, e.y - f.y) < 48.0) {
+      if (Math.hypot(e.x - f.x, e.y - f.y) < fuzz(48.0, profile, 24.0, 72.0)) {
         anyTeammateInCloseCombat = true;
         break;
       }
@@ -235,7 +240,7 @@ export function evaluateTankUrgency(world, owner, tank, enemyField, profile, tim
   }
 
   const rawStarvation = Math.min(C.AI_STARVATION_MAX, timeSinceCommand * C.AI_STARVATION_RATE_PER_S);
-  const starvationWeight = anyTeammateInCloseCombat && minEnemyDist > 56.0 ? 0.2 : 0.75;
+  const starvationWeight = anyTeammateInCloseCombat && minEnemyDist > fuzz(56.0, profile, 30.0, 90.0) ? 0.2 : 0.75;
   const starvationScore = rawStarvation;
 
   const acuteScore = Math.max(hazardScore, combatScore, rearmScore);

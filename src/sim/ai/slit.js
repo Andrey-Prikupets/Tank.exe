@@ -1,6 +1,6 @@
 import * as C from '../../constants.js';
 import { applyAction, gateX, inwardDir, baseHeading, windowY } from '../world.js';
-import { normalizeAngle } from './math.js';
+import { normalizeAngle, fuzz } from './math.js';
 import { isLineOfSightBlockedBySmoke, getPredictedEnemyState, isLineOfFireBlocked } from './perception.js';
 import { evaluateTankUrgency } from './urgency.js';
 
@@ -21,11 +21,18 @@ export function updateSlit(ctl, world, dt, profile) {
 
   ctl.slitTimer += dt;
   const timeSinceFire = ctl.simTime - (ctl.lastFiredTime || 0);
-  const canExitSlit = ctl.slitTimer >= C.AI_SLIT_MIN_HOLD_S && timeSinceFire >= C.AI_POST_FIRE_HOLD_S;
+  const canExitSlit =
+    ctl.slitTimer >= fuzz(C.AI_SLIT_MIN_HOLD_S, profile, 0.8, 2.1) &&
+    timeSinceFire >= fuzz(C.AI_POST_FIRE_HOLD_S, profile, 0.15, 0.48);
 
   // Critical hazard or close-combat rescue: even if in window view, never leave a field tank
   // unattended when facing a hazard, active close combat, or when the window hasn't fired for > 2.5s
-  if (canExitSlit || (fieldTanks.length > 0 && timeSinceFire > 2.5 && ctl.slitTimer > 2.5)) {
+  if (
+    canExitSlit ||
+    (fieldTanks.length > 0 &&
+      timeSinceFire > fuzz(2.5, profile, 1.2, 4.5) &&
+      ctl.slitTimer > fuzz(2.5, profile, 1.2, 4.5))
+  ) {
     let bestRescue = null;
     let bestRescueScore = -Infinity;
     for (const t of fieldTanks) {
@@ -34,8 +41,8 @@ export function updateSlit(ctl, world, dt, profile) {
       const evalU = evaluateTankUrgency(world, owner, t, enemyField, profile, timeSince, ctl.enemyTracker, ctl.simTime);
       const urgentFieldNeed =
         evalU.hazardScore >= C.AI_URGENCY_HAZARD_OBSTACLE ||
-        evalU.combatScore >= 78 ||
-        (timeSinceFire > 2.5 && ctl.slitTimer > 2.5);
+        evalU.combatScore >= fuzz(78, profile, 55, 92) ||
+        (timeSinceFire > fuzz(2.5, profile, 1.2, 4.5) && ctl.slitTimer > fuzz(2.5, profile, 1.2, 4.5));
       if (urgentFieldNeed && evalU.urgency > bestRescueScore) {
         bestRescueScore = evalU.urgency;
         bestRescue = t;
@@ -43,7 +50,7 @@ export function updateSlit(ctl, world, dt, profile) {
     }
     if (bestRescue) {
       ctl.slitTimer = 0;
-      ctl.slitCooldownUntil = ctl.simTime + C.AI_SLIT_REENTRY_COOLDOWN_S;
+      ctl.slitCooldownUntil = ctl.simTime + fuzz(C.AI_SLIT_REENTRY_COOLDOWN_S, profile, 1.5, 8.0);
       ctl.note('AVOID', `T${bestRescue.number} needs active control - leaving window`, {
         key: 'slit-rescue',
         gap: 2,
@@ -116,15 +123,15 @@ export function updateSlit(ctl, world, dt, profile) {
     const targetAngle = Math.atan2(bestEnemyPos.y - wy, bestEnemyPos.x - wx);
     const yawErr = normalizeAngle(targetAngle - currentHead);
 
-    if (Math.abs(yawErr) <= C.AI_SLIT_AIM_TOLERANCE_RAD) {
+    if (Math.abs(yawErr) <= fuzz(C.AI_SLIT_AIM_TOLERANCE_RAD, profile, 0.02, 0.22)) {
       ctl.windowTurn = 0;
     } else if (yawErr > 0) {
-      ctl.windowTurn = Math.abs(yawErr) > 0.25 ? 1 : 0.4;
+      ctl.windowTurn = Math.abs(yawErr) > fuzz(0.25, profile, 0.08, 0.55) ? 1 : 0.4;
     } else {
-      ctl.windowTurn = Math.abs(yawErr) > 0.25 ? -1 : -0.4;
+      ctl.windowTurn = Math.abs(yawErr) > fuzz(0.25, profile, 0.08, 0.55) ? -1 : -0.4;
     }
 
-    if (Math.abs(yawErr) <= C.AI_SLIT_FIRE_TOLERANCE_RAD && pl.windowReload <= 0) {
+    if (Math.abs(yawErr) <= fuzz(C.AI_SLIT_FIRE_TOLERANCE_RAD, profile, 0.03, 0.24) && pl.windowReload <= 0) {
       applyAction(world, owner, 'FIRE');
       ctl.lastFiredTime = ctl.simTime;
       ctl.note('SLIT', `Slit gun fires at enemy #${bestEnemy.id}`, { key: 'slit-fire', gap: 1.5 });
@@ -170,10 +177,10 @@ export function updateSlit(ctl, world, dt, profile) {
         needy = t;
       }
     }
-    const urgent = needy && needyU >= C.AI_SLIT_EXIT_URGENCY;
-    if (needy && canExitSlit && (urgent || ctl.slitTimer > C.AI_SLIT_EXIT_IDLE_S)) {
+    const urgent = needy && needyU >= fuzz(C.AI_SLIT_EXIT_URGENCY, profile, 55, 95);
+    if (needy && canExitSlit && (urgent || ctl.slitTimer > fuzz(C.AI_SLIT_EXIT_IDLE_S, profile, 0.8, 2.1))) {
       ctl.slitTimer = 0;
-      ctl.slitCooldownUntil = ctl.simTime + C.AI_SLIT_REENTRY_COOLDOWN_S;
+      ctl.slitCooldownUntil = ctl.simTime + fuzz(C.AI_SLIT_REENTRY_COOLDOWN_S, profile, 1.5, 8.0);
       ctl.note('SLIT', `No targets in window - back to tank ${needy.number}`, {
         key: 'slit-exit',
         gap: 2,

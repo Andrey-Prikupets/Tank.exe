@@ -1,16 +1,17 @@
 import * as C from '../../constants.js';
 import { applyAction, isSpawnClear } from '../world.js';
 import { urgencyReason, evaluateTankUrgency, applySafeCruisingTrim } from './urgency.js';
+import { fuzz } from './math.js';
 
 export function runDispatcher(ctl, world, myField, enemyField, profile, tank) {
   const owner = ctl.owner;
   // 6. Tier 2: Urgency-Weighted Time-Slice Dispatcher
   const timeSinceFire = ctl.simTime - (ctl.lastFiredTime || 0);
-  const postFireHoldMet = timeSinceFire >= C.AI_POST_FIRE_HOLD_S;
-  const minHoldMet = ctl.sliceTimer >= C.AI_MIN_SLICE_S;
-  const fastPreemptMet = ctl.sliceTimer >= 0.3 && postFireHoldMet;
+  const postFireHoldMet = timeSinceFire >= fuzz(C.AI_POST_FIRE_HOLD_S, profile, 0.22, 0.48);
+  const minHoldMet = ctl.sliceTimer >= fuzz(C.AI_MIN_SLICE_S, profile, 1.05, 1.9);
+  const fastPreemptMet = ctl.sliceTimer >= fuzz(0.3, profile, 0.12, 0.7) && postFireHoldMet;
   const canSwitch = minHoldMet && postFireHoldMet;
-  const forceSwitch = ctl.sliceTimer >= C.AI_MAX_SLICE_S && postFireHoldMet;
+  const forceSwitch = ctl.sliceTimer >= fuzz(C.AI_MAX_SLICE_S, profile, 2.2, 6.0) && postFireHoldMet;
 
   let bestTank = null;
   let maxUrgency = -Infinity;
@@ -56,26 +57,28 @@ export function runDispatcher(ctl, world, myField, enemyField, profile, tank) {
   // Instant Parallel Volley: another tank has its gun pre-aligned & loaded on target right now!
   const instantVolleyReady =
     bestUrgencyInfo &&
-    bestUrgencyInfo.combatScore >= 94 &&
-    currUrgencyInfo.combatScore < 94 &&
-    ctl.sliceTimer >= 0.08;
+    bestUrgencyInfo.combatScore >= fuzz(94, profile, 88, 98) &&
+    currUrgencyInfo.combatScore < fuzz(94, profile, 88, 98) &&
+    ctl.sliceTimer >= fuzz(0.08, profile, 0.03, 0.25);
 
   const acuteCombatEmergency =
     bestUrgencyInfo &&
     bestUrgencyInfo.combatScore >= C.AI_URGENCY_COMBAT_AIMED - 1 &&
     (currUrgencyInfo.combatScore < C.AI_URGENCY_COMBAT_AIMED - 8 ||
-      (tank.reload > 0.25 && bestTank.reload <= 0.05 && bestUrgencyInfo.combatScore >= 82));
+      (tank.reload > fuzz(0.25, profile, 0.08, 0.7) &&
+        bestTank.reload <= fuzz(0.05, profile, 0.01, 0.2) &&
+        bestUrgencyInfo.combatScore >= fuzz(82, profile, 65, 92)));
 
   // Do not abandon a tank in active close combat (< 38m) for a distant tank unless the distant tank
   // has an acute mine/pit hazard or an instant volley shot ready.
   const holdCloseCombatFocus =
     tank.shells > 0 &&
-    currUrgencyInfo.minEnemyDist <= 38.0 &&
-    currUrgencyInfo.combatScore >= 78 &&
+    currUrgencyInfo.minEnemyDist <= fuzz(38.0, profile, 18.0, 55.0) &&
+    currUrgencyInfo.combatScore >= fuzz(78, profile, 60, 90) &&
     bestUrgencyInfo &&
-    bestUrgencyInfo.minEnemyDist > currUrgencyInfo.minEnemyDist + 14.0 &&
+    bestUrgencyInfo.minEnemyDist > currUrgencyInfo.minEnemyDist + fuzz(14.0, profile, 5.0, 28.0) &&
     bestUrgencyInfo.hazardScore < C.AI_URGENCY_HAZARD_MINE &&
-    bestUrgencyInfo.combatScore < 94;
+    bestUrgencyInfo.combatScore < fuzz(94, profile, 88, 98);
 
   let shouldSwitch = false;
   if (bestTank && bestTank.id !== tank.id && !holdCloseCombatFocus) {
@@ -88,13 +91,15 @@ export function runDispatcher(ctl, world, myField, enemyField, profile, tank) {
     } else if (
       forceSwitch &&
       currUrgencyInfo.hazardScore < C.AI_URGENCY_HAZARD_MINE &&
-      currUrgencyInfo.combatScore < 80
+      currUrgencyInfo.combatScore < fuzz(80, profile, 60, 90)
     ) {
       shouldSwitch = true;
     } else if (
       canSwitch &&
-      maxUrgency - currUrgency >= C.AI_DISPATCH_THRESHOLD_DELTA &&
-      (currUrgencyInfo.combatScore < 82 || bestUrgencyInfo.combatScore >= currUrgencyInfo.combatScore - 2 || bestUrgencyInfo.hazardScore >= C.AI_URGENCY_HAZARD_MINE)
+      maxUrgency - currUrgency >= fuzz(C.AI_DISPATCH_THRESHOLD_DELTA, profile, 3.0, 22.0) &&
+      (currUrgencyInfo.combatScore < fuzz(82, profile, 65, 92) ||
+        bestUrgencyInfo.combatScore >= currUrgencyInfo.combatScore - 2 ||
+        bestUrgencyInfo.hazardScore >= C.AI_URGENCY_HAZARD_MINE)
     ) {
       shouldSwitch = true;
     }
@@ -103,9 +108,9 @@ export function runDispatcher(ctl, world, myField, enemyField, profile, tank) {
   // Reserve deployment check: proactively deploy recharged armed tanks from hangar
   if (
     myField.length < C.TANKS_ON_FIELD_MAX &&
-    ctl.reserveDeployTimer >= 2.0 &&
+    ctl.reserveDeployTimer >= fuzz(2.0, profile, 0.5, 4.0) &&
     canSwitch &&
-    currUrgencyInfo.combatScore < 80 &&
+    currUrgencyInfo.combatScore < fuzz(80, profile, 60, 90) &&
     currUrgencyInfo.hazardScore < C.AI_URGENCY_HAZARD_MINE
   ) {
     const reserves = world.tanks.filter(

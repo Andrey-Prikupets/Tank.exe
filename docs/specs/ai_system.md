@@ -199,18 +199,30 @@ Before relinquishing control of a tank, the AI zeroes turn commands (`cmdTurnDeg
 
 ---
 
-## 6. Difficulty Profiles (`src/sim/ai/profiles.js`)
+## 6. Difficulty Profiles & Threshold Fuzzing (`src/sim/ai/profiles.js`, `src/sim/ai/math.js`)
 
 | Parameter | EASY | MEDIUM | HARD |
 |---|---|---|---|
 | Decision Interval (`tickInterval`) | ~0.16 s | ~0.10 s | ~0.05 s |
 | Brigade Coord Interval (`coordInterval`) | 3.5 s | 2.0 s | 1.2 s |
+| Threshold Randomness (`noiseFactor`) | **High (`0.32` / $\pm 32\%$)** | **Moderate (`0.14` / $\pm 14\%$)** | **Low (`0.03` / $\pm 3\%$)** |
 | Aim / Fire Tolerance | ~7° / ~10° (0.0 lead) | ~4.5° / ~8° (0.5 lead) | ~3° / Hull-OBB gated (1.0 curvilinear lead) |
 | Max Firing Distance (`maxFireDist`) | 16 m | 22 m | Full shell range ($32\text{ m}$ stationary & moving) |
 | Max Cruising Speed (`maxSpeedKmh`) | 18 km/h | 36 km/h | 36 km/h |
 | Standoff / Min Distance | 12 m / 8 m | 15 m / 9 m | 18 m / 10 m |
 | Tactical Countermeasures (`useSmoke` / `useMines`) | Low (0.2) | Medium (0.6) | High (0.9) |
 | Blind Fire Confidence Threshold | $\ge 0.65$ | $\ge 0.45$ | $\ge 0.30$ |
+
+### 6.1 Generic Domain-Safe Threshold Fuzzing (`fuzz` in `src/sim/ai/math.js`)
+- Every non-integer numeric comparison across the AI controller (distances, angles, speeds, durations/hold times, urgency scores) passes through `fuzz(value, profileOrLevel, min, max)`.
+- `fuzz` perturbs `value` by a uniform relative factor in $[-\text{noiseFactor}, +\text{noiseFactor}]$ while strictly enforcing domain boundaries:
+  - Positive quantities (times, distances, speeds, angle magnitudes) are clamped above a positive floor ($\ge \max(0, \text{min})$ or $0.1 \cdot \text{value}$) so subtraction of a random delta never produces negative or zero durations/distances.
+  - Negative quantities (such as rear wake local coordinates $-2.0\text{ m}$ or $-24.0\text{ m}$) are clamped below zero ($\le \min(0, \text{max})$) so they never flip sign.
+  - Explicit `[min, max]` domain bounds clamp the result to safe operational ranges.
+- **Difficulty Behavioral Effect:**
+  - **`HARD` (`noiseFactor = 0.03`):** High predictability and near-optimal execution, while the $\pm 3\%$ micro-randomness breaks symmetric deadlocks (e.g., two tanks circling each other in a turning loop).
+  - **`MEDIUM` (`noiseFactor = 0.14`):** Moderate variation in engagement distances, reaction timings, and lead accuracy.
+  - **`EASY` (`noiseFactor = 0.32`):** High distortion in distance/angle/speed/time comparisons plus occasional unselected-unit reaction lag (`commander.js`), making the AI noticeably hesitate, misjudge ranges, and play sub-optimally without crashing or violating physical bounds.
 
 ---
 
